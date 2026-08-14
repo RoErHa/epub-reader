@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Runtime state — never committed
+.env
+books.db
+books.db-*
+*.log
+*.log.*
+cover_cache/
+author_cache/
+
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/
+
+# Playwright fixture library — regenerated, never committed
+.test-library/
+.env.test

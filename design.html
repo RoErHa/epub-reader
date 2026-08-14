@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>epub-reader — design proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Palette inherited from dlna-gateway-2.0/static/app.css so the two
+   apps read as a family. Deliberately dark-only, like its sibling. */
+:root{
+  --ink:#F4F8FF;
+  --ink-dim:#B4C9E6;
+  --ink-dim-soft:#8DA5C6;
+  --bg:#0A1526;
+  --surface:#122139;
+  --raised:#1B2F4D;
+  --border:#2A4066;
+  --border-hi:#31507F;
+  --amber:#FFC24A;
+  --amber-d:#C98F1E;
+  --red:#FF8478;
+  --green:#4FD98C;
+  --r:6px;
+  --fh:'Syne',sans-serif;
+  --fm:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --fb:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --fs-sub:12px;
+  --fs-micro:11px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--fb);
+  font-size:15px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+/* ── App-style header ─────────────────────────────────────── */
+header{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:12px;
+  padding:10px 20px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.logo{font-family:var(--fh);font-weight:800;font-size:17px;letter-spacing:.02em}
+.logo sup{color:var(--amber);font-size:9px;margin-left:1px}
+.sep{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.hdr-tag{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  color:var(--bg);background:var(--amber);
+  padding:2px 8px;border-radius:99px;font-weight:500;
+  letter-spacing:.04em;flex-shrink:0;
+}
+.hdr-right{
+  margin-left:auto;font-family:var(--fm);
+  font-size:var(--fs-micro);color:var(--ink-dim-soft);
+  letter-spacing:.04em;
+}
+
+/* ── Layout ───────────────────────────────────────────────── */
+.wrap{display:grid;grid-template-columns:210px minmax(0,1fr);gap:36px;max-width:1180px;margin:0 auto;padding:32px 20px 96px}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:0}nav.toc{position:static;margin-bottom:32px}}
+
+nav.toc{position:sticky;top:70px;align-self:start;max-height:calc(100vh - 100px);overflow-y:auto}
+nav.toc .eyebrow{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  text-transform:uppercase;letter-spacing:.1em;
+  color:var(--ink-dim-soft);margin-bottom:10px;
+}
+nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+nav.toc a{
+  display:flex;gap:9px;
+  padding:5px 9px;border-radius:var(--r);
+  color:var(--ink-dim);text-decoration:none;
+  font-size:13px;line-height:1.4;
+  border-left:2px solid transparent;
+}
+nav.toc a:hover{background:var(--raised);color:var(--ink)}
+nav.toc a:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+nav.toc a .n{font-family:var(--fm);color:var(--ink-dim-soft);font-size:11px;padding-top:2px}
+
+main{min-width:0}
+
+/* ── Type ─────────────────────────────────────────────────── */
+h1{
+  font-family:var(--fh);font-weight:800;
+  font-size:clamp(30px,5vw,42px);line-height:1.1;
+  margin:0 0 10px;text-wrap:balance;letter-spacing:-.01em;
+}
+.lede{font-size:17px;color:var(--ink-dim);max-width:62ch;margin:0 0 6px}
+.status{
+  display:inline-block;margin:18px 0 0;
+  font-family:var(--fm);font-size:var(--fs-sub);
+  color:var(--amber);border:1px solid var(--amber-d);
+  border-radius:var(--r);padding:6px 12px;
+}
+h2{
+  font-family:var(--fh);font-weight:700;font-size:24px;
+  margin:56px 0 4px;padding-top:24px;
+  border-top:1px solid var(--border);
+  text-wrap:balance;scroll-margin-top:70px;
+}
+h2 .n{color:var(--amber);font-family:var(--fm);font-size:15px;font-weight:400;margin-right:10px}
+h3{font-family:var(--fh);font-weight:600;font-size:17px;margin:32px 0 6px;color:var(--ink);text-wrap:balance}
+p{margin:0 0 14px;max-width:70ch}
+main ul,main ol{margin:0 0 14px;padding-left:20px;max-width:70ch}
+main li{margin-bottom:5px}
+a{color:var(--amber)}
+strong{color:var(--ink);font-weight:600}
+code{
+  font-family:var(--fm);font-size:.87em;
+  background:var(--raised);border:1px solid var(--border);
+  border-radius:4px;padding:1px 5px;color:var(--ink);
+}
+.eyebrow{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  text-transform:uppercase;letter-spacing:.1em;
+  color:var(--ink-dim-soft);
+}
+
+/* ── Blocks ───────────────────────────────────────────────── */
+pre{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:16px 18px;margin:0 0 18px;
+  overflow-x:auto;font-family:var(--fm);font-size:12.5px;
+  line-height:1.6;color:var(--ink-dim);
+}
+pre code{background:none;border:none;padding:0;font-size:inherit;color:inherit}
+pre.ascii{color:var(--ink);font-size:11.5px;line-height:1.45;white-space:pre}
+pre .c{color:var(--ink-dim-soft);font-style:italic}
+pre .k{color:var(--amber)}
+
+.rule{
+  border-left:3px solid var(--amber);
+  background:var(--raised);
+  border-radius:0 var(--r) var(--r) 0;
+  padding:14px 18px;margin:0 0 18px;
+}
+.rule p{margin:0;max-width:none}
+.rule .eyebrow{display:block;margin-bottom:5px;color:var(--amber)}
+
+.note{
+  border:1px dashed var(--border-hi);border-radius:var(--r);
+  padding:14px 18px;margin:0 0 18px;color:var(--ink-dim);font-size:14px;
+}
+.note p{margin:0;max-width:none}
+.note strong{color:var(--amber)}
+
+.tablewrap{overflow-x:auto;margin:0 0 18px;border:1px solid var(--border);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:440px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+thead th{
+  background:var(--surface);color:var(--ink-dim-soft);
+  font-family:var(--fm);font-size:var(--fs-micro);font-weight:500;
+  text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.win{color:var(--green)}
+.lose{color:var(--red)}
+.mid{color:var(--amber)}
+tr.self td{background:var(--raised)}
+tr.self td:first-child{color:var(--amber);font-weight:600}
+
+/* ── Decisions ────────────────────────────────────────────── */
+.decisions{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;max-width:none}
+.decisions li{
+  display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 16px;margin:0;
+}
+.decisions .d-n{
+  font-family:var(--fm);font-size:15px;color:var(--green);
+  border:1px solid var(--green);border-radius:var(--r);
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+}
+.decisions .d-b p{margin:0;max-width:none;font-size:14px;color:var(--ink-dim)}
+.decisions .d-b p:first-child{color:var(--ink);margin-bottom:3px}
+
+footer{
+  max-width:1180px;margin:0 auto;padding:0 20px 60px;
+  font-family:var(--fm);font-size:var(--fs-micro);
+  color:var(--ink-dim-soft);letter-spacing:.04em;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">BOOKS<sup>2.0</sup></div>
+  <div class="sep"></div>
+  <span class="hdr-tag">M0 COMPLETE</span>
+  <div class="hdr-right">55 pytest · 12 playwright · next action M1</div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#s1"><span class="n">1</span><span>What this is</span></a></li>
+    <li><a href="#s2"><span class="n">2</span><span>Stack — revised</span></a></li>
+    <li><a href="#s3"><span class="n">3</span><span>Reading engine</span></a></li>
+    <li><a href="#s4"><span class="n">4</span><span>Interface</span></a></li>
+    <li><a href="#s5"><span class="n">5</span><span>Data model</span></a></li>
+    <li><a href="#s6"><span class="n">6</span><span>Enrichment</span></a></li>
+    <li><a href="#s7"><span class="n">7</span><span>Sorting</span></a></li>
+    <li><a href="#s8"><span class="n">8</span><span>Milestones</span></a></li>
+    <li><a href="#s9"><span class="n">9</span><span>Decisions settled</span></a></li>
+    <li><a href="#s10"><span class="n">10</span><span>Way of working</span></a></li>
+    <li><a href="#s11"><span class="n">11</span><span>Conventions</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<h1>epub-reader</h1>
+<p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
+<div class="status">Status: M0 complete. The service runs, renders EPUBs through foliate-js, and CSP containment is proven by test. Next action is M1.</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s1"><span class="n">01</span>What this is</h2>
+
+<p>Calibre is a library manager with a viewer bolted on. Foliate and Thorium are readers with a file list bolted on. Apple Books is polished but gives you no control over your own metadata.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>Library</th><th>Reading</th><th>On your devices</th></tr></thead>
+<tbody>
+<tr><td>Calibre</td><td class="win">excellent</td><td class="lose">mediocre</td><td class="lose">desktop only</td></tr>
+<tr><td>Foliate</td><td class="lose">minimal</td><td class="win">excellent</td><td class="lose">Linux only</td></tr>
+<tr><td>Apple Books</td><td class="mid">no metadata control</td><td class="win">very good</td><td class="win">native</td></tr>
+<tr class="self"><td>This</td><td class="win">good</td><td class="win">good</td><td class="win">anything with a browser</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>The product is the intersection:</strong> a reader you enjoy using, on a library you can actually curate, reachable from the couch, the phone, and the desk — the same way <code>dlna-gateway</code> already serves music.</p>
+
+<p>Because the reading engine is a dependency (§3), it is close to commodity. Effort goes into the <strong>index, the browse UI, and the metadata</strong>, because that is the only part that is ours.</p>
+
+<h3>Non-goals</h3>
+<p>Each is a large product on its own, and none of them is what this is for.</p>
+<ul>
+<li>Format conversion · e-reader device sync · DRM · news/RSS recipes · EPUB editing</li>
+<li><strong>No Calibre interaction of any kind</strong> — no importing its database, no shelling out to its CLI, no reading its library folders. Everything is built here. <em>(§9, decision 3)</em></li>
+</ul>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s2"><span class="n">02</span>Stack</h2>
+
+<p><strong>The dlna-gateway stack, because this is a sibling application to it.</strong> Same shapes, same conventions, same machine.</p>
+
+<div class="note">
+<p><strong>Changed from the first draft.</strong> That draft proposed a Tauri desktop app. Once the UI reference was clear, that was wrong. You already run a FastAPI + SQLite + vanilla-SPA service on the Mac mini behind Tailscale, with launchd plists and a PWA manifest. A second one costs nothing to operate and is reachable from every device you own — and reading on the phone or tablet is the whole point. foliate-js is a browser library, so it runs natively here with no shell at all.</p>
+</div>
+
+<pre><code>FastAPI + hypercorn                  <span class="c">same as dlna-gateway</span>
+SQLite + FTS5                        <span class="c">same, incl. unicode61 remove_diacritics</span>
+watchdog                             <span class="c">library folder watching</span>
+Pillow                               <span class="c">cover thumbnails</span>
+static/{index.html,app.css,app.js}   <span class="c">vanilla, no build step, no framework</span>
+static/vendor/foliate-js/            <span class="c">pinned submodule</span></code></pre>
+
+<p><strong>It runs as its own service</strong> (decision 2), not as a tab inside dlna-gateway:</p>
+
+<div class="tablewrap">
+<table>
+<tbody>
+<tr><td>Service</td><td><code>epub-reader</code></td></tr>
+<tr><td>launchd label</td><td><code>com.roha.epub-reader</code></td></tr>
+<tr><td>Port</td><td class="num"><strong>8770</strong> — clear of dlna-gateway's 8765 and localfs's 8200</td></tr>
+<tr><td>Database</td><td><code>books.db</code> in the project directory</td></tr>
+<tr><td>Entry point</td><td><code>epub_gateway.py</code></td></tr>
+<tr><td>TLS</td><td>same Tailscale cert host as dlna-gateway, read from <code>.env</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Carried over unchanged: one <code>app.css</code> with <code>:root</code> tokens, one <code>app.js</code> of plain functions, launchd plist, <code>.env</code> config, PWA manifest + service worker, rotating <code>gateway.log</code>.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s3"><span class="n">03</span>Reading engine: foliate-js</h2>
+
+<p>We do <strong>not</strong> write a rendering engine. <a href="https://github.com/johnfactotum/foliate-js">foliate-js</a> (MIT) handles parsing, reflow pagination, TOC, in-book search, and CFI generation and resolution — the genuinely hard part of annotations.</p>
+
+<p>Assessment from reading the source: <strong>~7,100 lines</strong> of plain ES modules, no build step, a 374-line README that documents interfaces as contracts rather than as a feature tour. Vendored deps are zip.js (BSD-3), fflate (MIT), pdf.js (Apache) — all permissive.</p>
+
+<p>Three risks, each of which becomes a rule:</p>
+
+<h3>It declares itself unstable</h3>
+<p><code>version: 0.0.0</code>, no npm release, and the README says outright to expect the API to change at any time.</p>
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p>Exactly one file imports foliate-js — <code>static/reader.js</code>, exposing our own <code>open / goTo / position / annotate / search</code>. Upstream churn lands in one file. Pin it as a submodule and update deliberately.</p>
+</div>
+
+<h3>Bus factor of one</h3>
+<p>268 of ~290 commits come from a single maintainer, with bursty cadence — active months separated by quiet ones. MIT plus 7k readable lines makes forking a genuine fallback rather than a theoretical one.</p>
+
+<h3>Scripted content is a real hole</h3>
+<p>EPUBs can contain JavaScript, and the README is blunt that iframe sandboxing cannot contain it: content is served same-origin via <code>blob:</code> URLs, and a long-standing WebKit bug forces <code>allow-scripts</code>.</p>
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p>A CSP blocking all non-<code>self</code> scripts ships from day one, set as a response header in FastAPI. This is not a later hardening pass. Test against <a href="https://github.com/johnfactotum/epub-test">johnfactotum/epub-test</a>.</p>
+</div>
+
+<h3>3.1 &nbsp;What M0 established</h3>
+<p>Pinned at <code>78914ae</code> (2026-05-01) as a submodule at <code>static/vendor/foliate-js</code>.</p>
+<ul>
+<li><strong>It renders.</strong> EPUB parsing, pagination, TOC and metadata all work under the strict CSP, unmodified. <code>view.js</code> disables zip.js web workers itself, so no <code>worker-src</code> relaxation is needed.</li>
+<li><strong>CSP genuinely contains EPUB scripts.</strong> A hostile fixture carrying both an inline and an external script is rendered; neither runs. Verified <em>negatively</em> — weakening <code>script-src</code> to allow <code>'unsafe-inline' blob:</code> makes the test fail, so it is not passing vacuously.</li>
+<li><strong><code>foliate-view</code> attaches a CLOSED shadow root.</strong> CSS selectors cannot pierce it, so <code>frameLocator('foliate-view iframe')</code> never matches. Book sections must be reached through <code>page.frames()</code> by their <code>blob:</code> URL.</li>
+<li><strong>Fonts.</strong> dlna-gateway loads Syne + DM Mono from Google Fonts. This app uses a system stack so the CSP needs <em>no external origins at all</em>. Self-hosting those two faces is an M1 task.</li>
+</ul>
+
+<p>Known upstream weak spots we design around rather than discover: the paginator uses CSS multi-column (epub.js's strategy, and inherits its slowness and CSS quirks), in-book search is slow enough to need incremental loading, and <strong>the PDF adapter is self-described as a proof-of-concept</strong>. Upstream tests cover CFI parsing only, and there are no types.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s4"><span class="n">04</span>Interface</h2>
+
+<p>The same shell as dlna-gateway, with the same responsive behaviour: three columns on desktop, two on tablet, bottom nav on phone.</p>
+
+<pre class="ascii">┌──────────────────────────────────────────────────────────────────────┐
+│ BOOKS  v2.0   [LIB ▾]  [SORT ▾]      🔍 Search library…      Ready   │  header
+├──────────────────────────────────────────────────────────────────────┤
+│  Browse │ Search │ Read                                              │  tabs
+├──────────────────────────────────────────────────────────────────────┤
+│ Authors  Titles  Series  Genres  Years  Shelves                      │  browse modes
+│ A B C D E F G H I J K L M N O P Q R S T U V W X Y Z #                │  letter bar
+├──────────────────┬────────────────────────────┬──────────────────────┤
+│ ← back           │                            │  Shelves             │
+│ Le Guin, Ursula  │      BOOK DETAIL           │  ─────────           │
+│                  │           or               │  📕 Reading now (3)  │
+│  ▸ Rocannon's…   │      READER (full width)   │  ⭐ Favourites       │
+│  ▸ The Left Ha…  │                            │  📥 Want to read     │
+│  ▸ The Dispos…   │                            │  ＋ New shelf        │
+│                  │                            │                      │
+│ ‹ Prev  1/4 Next›│                            │                      │
+├──────────────────┴────────────────────────────┴──────────────────────┤
+│ ● Indexed 2,418 books · 12 unmatched                                 │  statusbar
+└──────────────────────────────────────────────────────────────────────┘</pre>
+
+<p><strong>Browse modes</strong> map one-for-one onto the music app's Artists / Albums / Tracks / Genres / Decades:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Mode</th><th>Drill-down</th></tr></thead>
+<tbody>
+<tr><td>Authors</td><td>author → their books, grouped by series</td></tr>
+<tr><td>Titles</td><td>flat A–Z list of every book</td></tr>
+<tr><td>Series</td><td>series → books in reading order</td></tr>
+<tr><td>Genres</td><td>genre → books</td></tr>
+<tr><td>Years</td><td>decade → year → books, by <strong>first published</strong> (§5)</td></tr>
+<tr><td>Shelves</td><td>collection → books</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Letter bar, drill-down with <code>← back</code>, and pagination behave exactly as in dlna-gateway. Sort applies within any list: title, author, series, first published, date added, last opened, progress.</p>
+
+<p><strong>Search</strong> is FTS5 over title, subtitle, author, series, genre, and synopsis, with the same <code>unicode61 remove_diacritics 1</code> tokenizer already in use. Results group by type — Authors, Series, Books — so <code>le guin</code> offers the author page as the top hit rather than 40 loose rows.</p>
+
+<p><strong>Read</strong> is the third tab and the analogue of Now Playing: it takes the full viewport, chrome auto-hides, and the right panel becomes TOC / Bookmarks / Highlights. A <strong>Continue reading</strong> bar — the mini-player analogue — sits at the bottom of every other view showing the current book, chapter, and percentage.</p>
+
+<h3>4.1 &nbsp;Book detail — where the missing metadata lands</h3>
+<p>This screen is the centrepiece, and the gaps you flagged are what it exists to fix.</p>
+
+<pre class="ascii">┌─────────────────────────────────────────────────────────────┐
+│ ┌─────────┐   The Left Hand of Darkness                     │
+│ │         │   Hainish Cycle · Book 4                        │ ← series &amp; number
+│ │  cover  │   Ursula K. Le Guin                             │
+│ │         │   Science Fiction · First published 1969        │ ← genre, first published
+│ └─────────┘   EPUB · 312 pp · English · 47% read            │
+│                                                             │
+│   ▶ Read      ⭐ Favourite   ＋ Shelf   ✏️ Edit metadata     │
+├─────────────────────────────────────────────────────────────┤
+│ SYNOPSIS                                                    │
+│ Genly Ai is an emissary from a consortium of planets…       │
+├─────────────────────────────────────────────────────────────┤
+│ ABOUT THE AUTHOR                                            │
+│ ┌────┐  Ursula K. Le Guin  ·  1929–2018  ·  American        │
+│ │ 📷 │  Best known for the Earthsea and Hainish books…      │
+│ └────┘                                                      │
+├─────────────────────────────────────────────────────────────┤
+│ ALSO PUBLISHED — novels &amp; novellas          [ show all ▾ ]  │
+│                                                             │
+│ Hainish Cycle                                               │
+│   1  Rocannon's World                 1966   ✓ in library   │
+│   2  Planet of Exile                  1966   ✓ in library   │
+│   3  City of Illusions                1967   ·  not owned   │
+│   4  The Left Hand of Darkness        1969   ● this book    │
+│   5  The Dispossessed                 1974   ✓ in library   │
+│                                                             │
+│ Earthsea                                                    │
+│   1  A Wizard of Earthsea             1968   ✓ in library   │
+│   …                                                         │
+│                                                             │
+│ Standalone                                                  │
+│   The Lathe of Heaven                 1971   ·  not owned   │
+└─────────────────────────────────────────────────────────────┘</pre>
+
+<p><strong>Also published</strong> shows <strong>novels and novellas only</strong> (decision 6) — collections, anthologies, omnibuses, and non-fiction are filtered out, because an unfiltered Open Library bibliography is mostly noise. <code>show all</code> reveals everything, including works we could not classify. It is grouped by series and ordered by number, it includes works you do <strong>not</strong> own so it doubles as a gap-finder, and owned rows click straight through.</p>
+
+<h3>4.2 &nbsp;Reader</h3>
+<p>Full viewport, paginated by default. Click zones left and right, arrow keys, swipe on touch. Chrome fades while reading and returns on tap.</p>
+<p>Controls: font family and size, line height, margin width, column count, theme (light / sepia / dark / black), and paginated vs scrolled. The paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s5"><span class="n">05</span>Data model</h2>
+
+<p>Two decisions carry the design.</p>
+
+<h3>Files stay where they are</h3>
+<p>We index in place, so <strong>identity is the content hash, not the path</strong> — moving or renaming a file updates a row instead of creating a duplicate. We never move, rename, or write to your book files.</p>
+
+<h3>Metadata carries field-level provenance</h3>
+<p><code>book_meta</code> in dlna-gateway already gestures at this with its <code>source</code> / <code>fetched_at</code> columns. This is the full version:</p>
+
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p>Every field records where its value came from — <code>file</code>, <code>provider</code>, <code>user</code> — and whether it is locked. <strong>Enrichment may overwrite a field only if its origin is <code>file</code> and it is unlocked. A <code>user</code> value is never overwritten automatically.</strong></p>
+</div>
+
+<p>That is what makes re-running enrichment across the whole library safe rather than a gamble.</p>
+
+<pre><code><span class="c">-- Physical files. Identity is content hash, so moves don't duplicate.</span>
+CREATE TABLE book (
+  id            INTEGER PRIMARY KEY,
+  content_hash  TEXT    NOT NULL UNIQUE,   <span class="c">-- sha256</span>
+  path          TEXT    NOT NULL,          <span class="c">-- rewritten on move</span>
+  format        TEXT    NOT NULL,          <span class="c">-- epub|azw3|mobi|fb2|cbz|pdf</span>
+  size_bytes    INTEGER NOT NULL,
+  mtime         INTEGER NOT NULL,
+  added_at      INTEGER NOT NULL,
+  missing_since INTEGER                    <span class="c">-- vanished; row never auto-deleted</span>
+);
+
+CREATE TABLE metadata (
+  book_id          INTEGER PRIMARY KEY REFERENCES book(id) ON DELETE CASCADE,
+  title            TEXT,
+  subtitle         TEXT,
+  title_sort       TEXT,     <span class="c">-- precomputed, see §7</span>
+  synopsis         TEXT,     <span class="c">-- the book's own blurb</span>
+
+  <span class="c">-- THE TWO DATES ARE NOT THE SAME THING, and conflating them is the</span>
+  <span class="c">-- single most common metadata error in e-book libraries.</span>
+  <span class="k">first_published</span>  INTEGER,  <span class="c">-- year the WORK first appeared      → 1969</span>
+  <span class="k">edition_date</span>     TEXT,     <span class="c">-- ISO date of THIS edition/printing → 2019-10-01</span>
+
+  publisher        TEXT,
+  language         TEXT,     <span class="c">-- BCP 47</span>
+  isbn13           TEXT,
+  page_count       INTEGER,
+  <span class="k">series_id</span>        INTEGER REFERENCES series(id),
+  <span class="k">series_index</span>     REAL      <span class="c">-- REAL, because novellas are book 2.5</span>
+);
+
+<span class="c">-- Genre is many-to-many: books legitimately have several.</span>
+<span class="c">-- position 0 is the primary genre, used for the Genres browse mode.</span>
+<span class="c">-- bisac_code anchors us to the standard subset; see §6.1.</span>
+CREATE TABLE <span class="k">genre</span> (
+  id         INTEGER PRIMARY KEY,
+  <span class="k">bisac_code</span> TEXT UNIQUE,          <span class="c">-- e.g. 'FIC028000'</span>
+  name       TEXT NOT NULL UNIQUE, <span class="c">-- display: 'Science Fiction'</span>
+  sort_name  TEXT NOT NULL
+);
+CREATE TABLE book_genre (
+  book_id  INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+  genre_id INTEGER NOT NULL REFERENCES genre(id),
+  position INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (book_id, genre_id)
+);
+
+CREATE TABLE author (
+  id        INTEGER PRIMARY KEY,
+  name      TEXT NOT NULL UNIQUE,  <span class="c">-- display: "Ursula K. Le Guin"</span>
+  sort_name TEXT NOT NULL,         <span class="c">-- sort:    "Le Guin, Ursula K."</span>
+  <span class="c">-- "About the author"</span>
+  <span class="k">bio</span>         TEXT,
+  bio_source  TEXT,                <span class="c">-- 'openlibrary'|'wikipedia'|'user'</span>
+  photo_path  TEXT,
+  born        TEXT,                <span class="c">-- ISO, may be year-only</span>
+  died        TEXT,
+  nationality TEXT,
+  website     TEXT,
+  fetched_at  INTEGER
+);
+
+CREATE TABLE book_author (
+  book_id   INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+  author_id INTEGER NOT NULL REFERENCES author(id),
+  role      TEXT    NOT NULL DEFAULT 'author',  <span class="c">-- author|editor|translator</span>
+  position  INTEGER NOT NULL,                   <span class="c">-- credit order matters</span>
+  PRIMARY KEY (book_id, author_id, role)
+);
+
+CREATE TABLE series (
+  id        INTEGER PRIMARY KEY,
+  name      TEXT NOT NULL UNIQUE,
+  sort_name TEXT NOT NULL
+);
+
+<span class="c">-- "Also published": the author's full bibliography, INCLUDING works we</span>
+<span class="c">-- don't own. book_id is non-null only when a work resolves to a file we have.</span>
+<span class="c">-- work_type drives the novels-and-novellas filter; see §6.2.</span>
+CREATE TABLE <span class="k">author_work</span> (
+  id              INTEGER PRIMARY KEY,
+  author_id       INTEGER NOT NULL REFERENCES author(id) ON DELETE CASCADE,
+  title           TEXT    NOT NULL,
+  first_published INTEGER,
+  series_name     TEXT,
+  series_index    REAL,
+  isbn13          TEXT,
+  <span class="k">work_type</span>       TEXT    NOT NULL DEFAULT 'unknown',
+                  <span class="c">-- novel|novella|collection|anthology|omnibus|nonfiction|unknown</span>
+  book_id         INTEGER REFERENCES book(id),  <span class="c">-- NULL = not in library</span>
+  source          TEXT    NOT NULL,
+  fetched_at      INTEGER NOT NULL,
+  UNIQUE(author_id, title, first_published)
+);
+
+CREATE TABLE field_provenance (
+  book_id    INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+  field      TEXT    NOT NULL,   <span class="c">-- 'title', 'first_published', ...</span>
+  origin     TEXT    NOT NULL,   <span class="c">-- 'file' | 'provider' | 'user'</span>
+  source     TEXT,               <span class="c">-- provider id</span>
+  locked     INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (book_id, field)
+);
+
+<span class="c">-- Server-side and shared across all devices (decision 7). Last write wins.</span>
+CREATE TABLE reading_state (
+  book_id     INTEGER PRIMARY KEY REFERENCES book(id) ON DELETE CASCADE,
+  cfi         TEXT,      <span class="c">-- exact position, engine-native</span>
+  fraction    REAL,      <span class="c">-- 0..1, for display and as CFI fallback</span>
+  status      TEXT NOT NULL DEFAULT 'unread',  <span class="c">-- unread|reading|finished|abandoned</span>
+  opened_at   INTEGER,
+  finished_at INTEGER
+);
+
+CREATE TABLE annotation (
+  id         INTEGER PRIMARY KEY,
+  book_id    INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+  cfi        TEXT NOT NULL,   <span class="c">-- range CFI</span>
+  text       TEXT NOT NULL,   <span class="c">-- quoted text, denormalized on purpose</span>
+  note       TEXT,
+  color      TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE VIRTUAL TABLE book_fts USING fts5(
+  title, subtitle, author, series, genre, synopsis,
+  content=metadata, content_rowid=book_id,
+  tokenize='unicode61 remove_diacritics 1'
+);</code></pre>
+
+<p>Shelves and collections follow the same join-table shape. Covers and author photos live on disk keyed by hash, mirroring <code>art_cache/</code>, not as blobs in SQLite.</p>
+
+<p><code>annotation.text</code> deliberately duplicates what the CFI points at: CFIs can fail to resolve if a file is replaced, and a highlight whose text survives is recoverable while a dangling CFI is not.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s6"><span class="n">06</span>Metadata enrichment</h2>
+
+<p>The hard part is not calling APIs. It is that most EPUBs have no ISBN, so matching is fuzzy against providers that confidently return the wrong edition.</p>
+
+<pre class="ascii">extract → normalize → fetch candidates → score → ┬ ≥0.90      apply automatically
+                                                 ├ 0.60–0.90  queue for review
+                                                 └ &lt;0.60      leave alone, mark unmatched</pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Provider</th><th>Cost</th><th>Gives us</th></tr></thead>
+<tbody>
+<tr><td><strong>Open Library</strong></td><td>free</td><td>ISBN lookup, covers, <strong>author bio, and the works list that powers "Also published"</strong></td></tr>
+<tr><td>Google Books</td><td>free</td><td>broad coverage, good synopses, categories → genre</td></tr>
+<tr><td>Hardcover</td><td>free tier</td><td>modern GraphQL; Goodreads' API died in 2020</td></tr>
+<tr><td>Wikipedia / Wikidata</td><td>free</td><td>richer author bios, birth/death, nationality, photo</td></tr>
+<tr><td>ISBNdb</td><td>paid</td><td>best coverage; only if the free tiers disappoint</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Open Library is the primary source precisely because it models <strong>authors and works as first-class entities</strong>, which is what the bottom two panels of §4.1 need. No other free provider gives you a bibliography.</p>
+
+<p><strong>Normalization does most of the work:</strong> strip subtitles after <code>:</code>, strip bracketed junk and scanner watermarks, drop leading articles, NFKD and fold diacritics, normalize <code>Last, First</code> / <code>First Last</code> / <code>J.R.R.</code> vs <code>J. R. R.</code></p>
+
+<p><strong>Scoring</strong>, a starting point to tune against the real library: ISBN exact match → 1.0 and stop. Otherwise title similarity ×0.5 + author surname ×0.3 + year proximity ×0.1 + language ×0.1. <strong>Auto-apply at ≥0.90</strong> (decision 4).</p>
+
+<p><strong>Series</strong> comes from provider data first. An EPUB's OPF may also carry a <code>calibre:series</code> / <code>series_index</code> custom meta — that is just a field inside the file, so we read it as a hint like any other embedded metadata. It implies no dependency on Calibre.</p>
+
+<p><strong>Review UI</strong> — the middle band lands in a queue showing candidates side by side with current values, diffed, acceptable in bulk. This screen is a headline feature, not an admin panel. Provider responses are cached, rate-limited, re-fetchable, and always obey the provenance rule.</p>
+
+<h3>6.1 &nbsp;Genre vocabulary — BISAC subset</h3>
+<p>Providers return BISAC codes, free-text categories, and folksonomy tags interchangeably. We normalize onto a <strong>fixed ~40-term subset of BISAC subject headings</strong>, stored in <code>genres.tsv</code> in the repo and loaded into the <code>genre</code> table at startup.</p>
+<ul>
+<li>Each row is <code>bisac_code</code> + display name — <code>FIC028000</code> → Science Fiction, <code>FIC022000</code> → Mystery &amp; Detective, <code>FIC009000</code> → Fantasy</li>
+<li>Take BISAC's major sections and <strong>one</strong> level of subcategory, no deeper — <code>FICTION / Science Fiction</code>, not <code>FICTION / Science Fiction / Space Opera</code>. Deeper is unbrowsable at library scale</li>
+<li><code>genre_map.tsv</code> maps provider strings (<code>"Science fiction"</code>, <code>"sf"</code>, <code>"Sci-Fi &amp; Fantasy"</code>) to codes. Unmapped strings are <strong>logged, not guessed</strong>, so the map grows from real data</li>
+<li>Raw provider strings are also kept as free tags, so nothing is lost</li>
+</ul>
+<p>Without this the Genres browse mode is unusable.</p>
+
+<h3>6.2 &nbsp;"Also published" — novels and novellas only</h3>
+<p>Open Library's works list is long and noisy: anthologies, omnibus editions, single short stories, forewords, and non-fiction all appear alongside the novels. The default view is <code>work_type IN ('novel','novella')</code>.</p>
+<p>Classification is heuristic and will not be perfect, so it is transparent about that:</p>
+<ul>
+<li>Title patterns exclude collections — <code>Complete Works</code>, <code>Collected Stories</code>, <code>Selected …</code>, <code>… Omnibus</code>, <code>… and Other Stories</code>, <code>The … Trilogy</code></li>
+<li>Open Library subjects and Google Books categories flag non-fiction</li>
+<li>Page count, where known, separates novella from novel</li>
+<li>Anything unclassified stays <code>unknown</code> — <strong>hidden by default, shown under <code>show all</code></strong>, never silently dropped</li>
+</ul>
+<p>The filter is a display filter. Every fetched work is stored, so reclassification never needs a re-fetch.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s7"><span class="n">07</span>Sorting</h2>
+
+<p>Sort keys are <strong>computed once at ingest and stored as indexed columns</strong>, so browsing is a plain <code>ORDER BY</code> and stays fast at 10k+ books. No string mangling at render time.</p>
+
+<ul>
+<li><code>title_sort</code> — lowercased, leading article stripped (locale-aware: <code>The</code>/<code>A</code>/<code>An</code>, <code>De</code>/<code>Het</code>/<code>Een</code>, <code>Le</code>/<code>La</code>/<code>Les</code>), NFKD, diacritics folded</li>
+<li><code>author.sort_name</code> — <code>Last, First</code>, particles handled (<code>Le Guin</code>, <code>van der Meer</code>, <code>de Beauvoir</code>), suffixes kept out of sort position</li>
+<li><code>series_index</code> is REAL, so 2.5 sorts between 2 and 3; unnumbered entries sort last</li>
+<li>Years browse uses <code>first_published</code>, never <code>edition_date</code> — a 2019 printing of a 1969 novel belongs in the sixties</li>
+</ul>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s8"><span class="n">08</span>Milestones</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>Milestone</th><th>Size</th></tr></thead>
+<tbody>
+<tr class="self"><td class="num">✅ M0</td><td>Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test</td><td class="num win">done</td></tr>
+<tr><td class="num">M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num">~1 week</td></tr>
+<tr><td class="num">M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num">~1 week</td></tr>
+<tr><td class="num">M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num">~3 days</td></tr>
+<tr><td class="num">M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num">~1 week</td></tr>
+<tr><td class="num">M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num">2–3 weeks</td></tr>
+<tr><td class="num">M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. <strong>Both are now settled facts</strong> — see §3.1.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s9"><span class="n">09</span>Decisions — settled</h2>
+
+<ol class="decisions">
+<li><span class="d-n">1</span><div class="d-b">
+  <p>Same stack as dlna-gateway</p>
+  <p>FastAPI + hypercorn + SQLite/FTS5 + vanilla static SPA. No framework, no build step, no desktop shell.</p>
+</div></li>
+<li><span class="d-n">2</span><div class="d-b">
+  <p>Separate service</p>
+  <p>Own port (8770), own plist (<code>com.roha.epub-reader</code>), own <code>books.db</code>. No coupling to dlna-gateway beyond shared conventions and the TLS cert host.</p>
+</div></li>
+<li><span class="d-n">3</span><div class="d-b">
+  <p>No Calibre interaction at all — build our own</p>
+  <p>No <code>metadata.db</code> import, no <code>ebook-convert</code>, no library-folder reading. The <code>origin</code> enum is <code>file</code>/<code>provider</code>/<code>user</code> only, and all metadata is built here from providers and embedded file data.</p>
+</div></li>
+<li><span class="d-n">4</span><div class="d-b">
+  <p>Auto-apply at 0.90</p>
+  <p>Below the threshold, candidates go to the review queue rather than being written.</p>
+</div></li>
+<li><span class="d-n">5</span><div class="d-b">
+  <p>Standard genre subset</p>
+  <p>A ~40-term BISAC subset in <code>genres.tsv</code>, with <code>genre_map.tsv</code> translating provider strings. Unmapped values are logged, not guessed. See §6.1.</p>
+</div></li>
+<li><span class="d-n">6</span><div class="d-b">
+  <p>Novels and novellas only</p>
+  <p><code>author_work.work_type</code> filters the Also published list. Everything fetched is stored; <code>unknown</code> is hidden but reachable via <code>show all</code>. See §6.2.</p>
+</div></li>
+<li><span class="d-n">7</span><div class="d-b">
+  <p>Server-side reading position</p>
+  <p>One shared position per book across all devices, last write wins. No per-device state and no sync-conflict UI.</p>
+</div></li>
+</ol>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s10"><span class="n">10</span>Way of working</h2>
+
+<p>Non-negotiable, and it applies to every change:</p>
+
+<ol class="decisions">
+<li><span class="d-n">1</span><div class="d-b"><p>All code is OOP</p><p>Classes, server side and in the browser.</p></div></li>
+<li><span class="d-n">2</span><div class="d-b"><p>Tests first, then make the code true</p><p>Write the failing test, watch it fail, then implement. Never backfill tests.</p></div></li>
+<li><span class="d-n">3</span><div class="d-b"><p>Use git</p><p>A real commit at every meaningful step.</p></div></li>
+<li><span class="d-n">4</span><div class="d-b"><p>Always regression testing</p><p>Both suites run before every commit. Nothing lands red.</p></div></li>
+<li><span class="d-n">5</span><div class="d-b"><p>Both layers tested</p><p>pytest for code, Playwright for UI.</p></div></li>
+<li><span class="d-n">6</span><div class="d-b"><p>Docs move with the code</p><p><code>CLAUDE.md</code> and <code>design.html</code> are updated in the <em>same commit</em>, so the design never drifts from what is built.</p></div></li>
+<li><span class="d-n">7</span><div class="d-b"><p>One <code>.env</code>, and only one</p><p>Every secret, key, port and path lives there — no hardcoded values, no second config file. <code>.env</code> is gitignored; <code>.env.example</code> documents every key.</p></div></li>
+</ol>
+
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p>A security test that passes for the wrong reason is worse than none. Tests asserting that a protection holds are verified by <strong>temporarily breaking the protection and confirming the test fails</strong>. Done for the CSP containment test in M0.</p>
+</div>
+
+<h3>Running it</h3>
+<pre><code>python3 -m venv .venv &amp;&amp; .venv/bin/pip install -r requirements-dev.txt
+cp .env.example .env            <span class="c"># then set LIBRARY_ROOT</span>
+.venv/bin/python epub_gateway.py
+
+.venv/bin/python -m pytest      <span class="c"># code tests</span>
+npx playwright test             <span class="c"># UI tests (regenerates its own fixtures)</span></code></pre>
+
+<h3>Layout</h3>
+<pre><code>epub_gateway.py     <span class="c">entry point — GatewayRunner, GatewayCLI, LoggingSetup</span>
+epub_config.py      <span class="c">Config, ConfigError — the only reader of .env</span>
+epub_security.py    <span class="c">ContentSecurityPolicy, SecurityHeaders, middleware</span>
+epub_server.py      <span class="c">EpubGateway, BookLibrary — routes, read-only library</span>
+static/reader.js    <span class="k">ReaderEngine — THE ONLY importer of foliate-js</span>
+static/app.js       <span class="c">BooksApp, BookList</span>
+tests/              <span class="c">pytest + epub_fixtures.EpubBuilder</span>
+tests/frontend/     <span class="c">Playwright specs</span>
+tools/              <span class="c">make_test_library.py</span></code></pre>
+
+<h2 id="s11"><span class="n">11</span>Conventions</h2>
+
+<ul>
+<li>Match dlna-gateway: vanilla JS, no framework, no build step, one <code>app.css</code> with <code>:root</code> tokens, one <code>app.js</code></li>
+<li>Palette and type inherit dlna-gateway's tokens (<code>--bg:#0A1526</code>, <code>--amber:#FFC24A</code>, Syne + DM Mono) so the two apps read as a family — <strong>except inside the reader</strong>, where the book's page gets a neutral reading theme and the app chrome gets out of the way</li>
+<li>foliate-js is a pinned submodule, never edited in place; differences go in <code>reader.js</code></li>
+<li>All SQLite access server-side; the frontend only sees JSON</li>
+<li>Migrations forward-only and numbered</li>
+<li><code>Intl.Collator</code> / <code>Intl.Segmenter</code> over hand-rolled string logic — the library is multilingual</li>
+<li>Never modify the user's book files — read-only, always</li>
+<li>Every user-facing string is written from the reader's point of view, not the system's</li>
+</ul>
+
+</main>
+</div>
+
+<footer>epub-reader · design proposal · sibling to dlna-gateway-2.0</footer>
+
+</body>
+</html>

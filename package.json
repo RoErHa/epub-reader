@@ -1,0 +1,17 @@
+{
+  "name": "epub-reader",
+  "version": "0.1.0",
+  "description": "Browser-based e-book library and reader",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  },
+  "private": true
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A1526">
+<title>Books</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">BOOKS<sup>M0</sup></div>
+  <div class="sep"></div>
+  <div class="hdr-book">
+    <span id="book-title"></span>
+    <span id="book-author"></span>
+  </div>
+  <div class="hdr-right"><span id="progress"></span> · <span id="status">Starting…</span></div>
+</header>
+
+<div class="workspace">
+  <div id="browser">
+    <div class="pane-hdr">Library</div>
+    <div id="book-list"><div class="msg">Loading library…</div></div>
+  </div>
+
+  <div id="reader">
+    <div id="reader-stage" data-state="empty">
+      <!-- ReaderEngine appends a <foliate-view> here on open. -->
+    </div>
+    <div class="controls">
+      <button class="btn" id="btn-prev">‹ Prev</button>
+      <button class="btn" id="btn-next">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
