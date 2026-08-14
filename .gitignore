@@ -21,3 +21,7 @@ playwright-report/
 # Playwright fixture library — regenerated, never committed
 .test-library/
 .env.test
+
+# Run state — pidfile and captured stdout
+.run/
+library-manifest.json

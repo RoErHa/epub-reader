@@ -422,11 +422,39 @@ for the CSP containment test in M0.
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env            # then set LIBRARY_ROOT
-.venv/bin/python epub_gateway.py
+
+./run.sh start                  # scan the library, then start in the background
+./run.sh restart                # stop, scan, start again
+./run.sh stop | status | scan
+./run.sh start --foreground     # run in this terminal, Ctrl-C to quit
 
 .venv/bin/python -m pytest      # code tests
 npx playwright test             # UI tests (regenerates its own fixture library)
 ```
+
+**`start` and `restart` always scan the library first**, so books dropped
+into `LIBRARY_ROOT` are picked up without a separate step. The scan also
+runs inside the server at startup, so a launchd-managed start behaves the
+same as a scripted one.
+
+`run.sh` is launchd-aware: when `com.roha.epub-reader` is loaded it drives
+`launchctl` instead of a pidfile, so the script and the LaunchAgent can
+never both bind :8770.
+
+### Library scanning
+
+`epub_library.py` answers one question: what appeared, changed or vanished
+since last time?
+
+- Detection is **stat-based** — name, size, mtime — because this runs on
+  every start and hashing a large library each time would be wasteful.
+- State lives in `library-manifest.json` beside the database. It is
+  internal state, not configuration, so it gets no `.env` key.
+- A corrupt manifest is treated as absent, not fatal: the worst case is
+  one scan reporting everything as new, which is recoverable — refusing
+  to start is not.
+- **M2 replaces the JSON with the `book` table and takes over identity via
+  `content_hash`, keeping the `LibraryScanner` interface.**
 
 ### Layout
 
@@ -435,6 +463,8 @@ epub_gateway.py     entry point — GatewayRunner, GatewayCLI, LoggingSetup
 epub_config.py      Config, ConfigError — the only reader of .env
 epub_security.py    ContentSecurityPolicy, SecurityHeaders, middleware
 epub_server.py      EpubGateway, BookLibrary — routes and read-only library
+epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
+run.sh              start / stop / restart / status / scan
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder

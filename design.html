@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M0 COMPLETE</span>
-  <div class="hdr-right">55 pytest · 12 playwright · next action M1</div>
+  <div class="hdr-right">85 pytest · 12 playwright · next action M1</div>
 </header>
 
 <div class="wrap">
@@ -712,16 +712,38 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <h3>Running it</h3>
 <pre><code>python3 -m venv .venv &amp;&amp; .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env            <span class="c"># then set LIBRARY_ROOT</span>
-.venv/bin/python epub_gateway.py
+
+./run.sh start                  <span class="c"># scan the library, then start in the background</span>
+./run.sh restart                <span class="c"># stop, scan, start again</span>
+./run.sh stop | status | scan
+./run.sh start --foreground     <span class="c"># run in this terminal, Ctrl-C to quit</span>
 
 .venv/bin/python -m pytest      <span class="c"># code tests</span>
 npx playwright test             <span class="c"># UI tests (regenerates its own fixtures)</span></code></pre>
+
+<div class="rule">
+  <span class="eyebrow">Behaviour</span>
+  <p><strong><code>start</code> and <code>restart</code> always scan the library first</strong>, so books dropped into <code>LIBRARY_ROOT</code> are picked up without a separate step. The scan also runs inside the server at startup, so a launchd-managed start behaves identically to a scripted one.</p>
+</div>
+
+<p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
+
+<h3>Library scanning</h3>
+<p><code>epub_library.py</code> answers one question: what appeared, changed or vanished since last time?</p>
+<ul>
+<li>Detection is <strong>stat-based</strong> — name, size, mtime — because this runs on every start and hashing a large library each time would be wasteful.</li>
+<li>State lives in <code>library-manifest.json</code> beside the database. It is internal state, not configuration, so it gets no <code>.env</code> key.</li>
+<li>A corrupt manifest is treated as absent, not fatal: the worst case is one scan reporting everything as new, which is recoverable — refusing to start is not.</li>
+<li><strong>M2 replaces the JSON with the <code>book</code> table</strong> and takes over identity via <code>content_hash</code>, keeping the <code>LibraryScanner</code> interface.</li>
+</ul>
 
 <h3>Layout</h3>
 <pre><code>epub_gateway.py     <span class="c">entry point — GatewayRunner, GatewayCLI, LoggingSetup</span>
 epub_config.py      <span class="c">Config, ConfigError — the only reader of .env</span>
 epub_security.py    <span class="c">ContentSecurityPolicy, SecurityHeaders, middleware</span>
 epub_server.py      <span class="c">EpubGateway, BookLibrary — routes, read-only library</span>
+epub_library.py     <span class="c">LibraryScanner, ScanManifest, ScanReport, BookFile</span>
+run.sh              <span class="c">start / stop / restart / status / scan</span>
 static/reader.js    <span class="k">ReaderEngine — THE ONLY importer of foliate-js</span>
 static/app.js       <span class="c">BooksApp, BookList</span>
 tests/              <span class="c">pytest + epub_fixtures.EpubBuilder</span>

@@ -18,7 +18,8 @@ from hypercorn.asyncio import serve
 from hypercorn.config import Config as HypercornConfig
 
 from epub_config import Config, ConfigError
-from epub_server import SERVICE, VERSION, EpubGateway
+from epub_library import LibraryScanner
+from epub_server import SERVICE, VERSION, BookLibrary, EpubGateway
 
 LOG = logging.getLogger(SERVICE)
 
@@ -48,12 +49,41 @@ class LoggingSetup:
         root.addHandler(file_handler)
 
 
+class ScanCommand:
+    """`--scan`: report what changed in the library, then exit.
+
+    The same scan runs at startup, so `run.sh start` and `run.sh restart`
+    both pick up books added since the last run.
+    """
+
+    def __init__(self, config: Config) -> None:
+        self._scanner = LibraryScanner.for_config(
+            config, BookLibrary(config.library_root)
+        )
+        self._library_root = config.library_root
+
+    def run(self, record: bool = True) -> int:
+        if not self._library_root.is_dir():
+            print(
+                f"Library folder does not exist: {self._library_root}\n"
+                "Set LIBRARY_ROOT in your .env file.",
+                file=sys.stderr,
+            )
+            return 1
+        report = (
+            self._scanner.scan_and_record() if record else self._scanner.scan()
+        )
+        print(report.summary())
+        return 0
+
+
 class GatewayRunner:
     """Owns the server lifecycle."""
 
     def __init__(self, config: Config) -> None:
         self._config = config
         self._gateway = EpubGateway(config)
+        self._scanner = LibraryScanner.for_config(config, self._gateway.library)
 
     def hypercorn_config(self) -> HypercornConfig:
         cfg = HypercornConfig()
@@ -67,8 +97,15 @@ class GatewayRunner:
             cfg.keyfile = str(cert_dir / f"{cert_host}.key")
         return cfg
 
+    def scan_library(self) -> None:
+        """Pick up books added since the last run, before serving."""
+        report = self._scanner.scan_and_record()
+        for line in report.summary().splitlines():
+            LOG.info("%s", line)
+
     def run(self) -> None:
         cfg = self.hypercorn_config()
+        self.scan_library()
         scheme = "https" if cfg.certfile else "http"
         LOG.info(
             "%s %s starting on %s://%s — library %s",
@@ -90,6 +127,11 @@ class GatewayCLI:
             default=".env",
             help="Path to the configuration file (default: .env)",
         )
+        parser.add_argument(
+            "--scan",
+            action="store_true",
+            help="Report what changed in the library, then exit without serving.",
+        )
         return parser.parse_args(argv)
 
     @classmethod
@@ -101,6 +143,8 @@ class GatewayCLI:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
         LoggingSetup(config).apply()
+        if args.scan:
+            return ScanCommand(config).run()
         try:
             GatewayRunner(config).run()
         except KeyboardInterrupt:

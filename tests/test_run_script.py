@@ -1,0 +1,113 @@
+"""The run script is operational surface, so it is tested like code.
+
+These tests never start the real service on the real port — they drive
+the argument handling, the scan-on-start behaviour and the status
+reporting against a throwaway .env.
+"""
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from tests.epub_fixtures import EpubBuilder
+
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / "run.sh"
+
+ENV_BODY = """
+EPUB_PORT=8779
+EPUB_BIND=127.0.0.1
+LIBRARY_ROOT={library}
+DB_PATH={state}/books.db
+COVER_CACHE={state}/covers
+LOG_LEVEL=WARNING
+LOG_FILE={state}/test.log
+"""
+
+
+@pytest.fixture
+def env_file(tmp_path):
+    library = tmp_path / "books"
+    library.mkdir()
+    EpubBuilder(title="First Book").build(library / "first.epub")
+    state = tmp_path / "state"
+    state.mkdir()
+    path = tmp_path / ".env.run"
+    path.write_text(ENV_BODY.format(library=library, state=state))
+    return path
+
+
+def run(*args, env_file=None):
+    argv = ["bash", str(SCRIPT)]
+    if env_file is not None:
+        argv += ["--env", str(env_file)]
+    argv += list(args)
+    return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=60)
+
+
+class TestUsage:
+    def test_script_exists_and_is_executable(self):
+        assert SCRIPT.is_file()
+        assert SCRIPT.stat().st_mode & 0o111, "run.sh must be executable"
+
+    def test_no_arguments_prints_usage_and_fails(self):
+        result = run()
+        assert result.returncode != 0
+        assert "usage" in (result.stdout + result.stderr).lower()
+
+    def test_unknown_command_fails_and_names_the_command(self):
+        result = run("frobnicate")
+        assert result.returncode != 0
+        assert "frobnicate" in result.stdout + result.stderr
+
+    def test_help_lists_every_command(self):
+        result = run("help")
+        assert result.returncode == 0
+        out = result.stdout + result.stderr
+        for command in ("start", "stop", "restart", "status", "scan"):
+            assert command in out
+
+
+class TestScan:
+    def test_scan_reports_books_on_a_first_run(self, env_file):
+        result = run("scan", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+        assert "first.epub" in result.stdout
+
+    def test_scan_reports_nothing_new_on_a_second_run(self, env_file):
+        run("scan", env_file=env_file)
+        result = run("scan", env_file=env_file)
+        assert result.returncode == 0
+        assert "no changes" in result.stdout.lower()
+
+    def test_scan_detects_a_book_added_between_runs(self, env_file):
+        run("scan", env_file=env_file)
+        library = Path(
+            [
+                line.split("=", 1)[1]
+                for line in env_file.read_text().splitlines()
+                if line.startswith("LIBRARY_ROOT=")
+            ][0]
+        )
+        EpubBuilder(title="Second Book").build(library / "second.epub")
+        result = run("scan", env_file=env_file)
+        assert "second.epub" in result.stdout
+
+    def test_missing_env_file_fails_with_a_clear_message(self, tmp_path):
+        result = run("scan", env_file=tmp_path / "nope.env")
+        assert result.returncode != 0
+        assert "not found" in (result.stdout + result.stderr).lower()
+
+
+class TestStatus:
+    def test_status_reports_not_running(self, env_file):
+        result = run("status", env_file=env_file)
+        assert result.returncode != 0
+        assert "not running" in (result.stdout + result.stderr).lower()
+
+    def test_stop_when_not_running_is_not_an_error(self, env_file):
+        # Stopping something already stopped is the desired end state.
+        result = run("stop", env_file=env_file)
+        assert result.returncode == 0
