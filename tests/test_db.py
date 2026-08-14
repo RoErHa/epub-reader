@@ -1,0 +1,115 @@
+"""Schema and migrations.
+
+Migrations are forward-only and numbered. They must be safe to run on
+every startup, because that is exactly when they run.
+"""
+from __future__ import annotations
+
+import sqlite3
+
+import pytest
+
+from epub_db import Database, Migration, MigrationRunner
+
+
+@pytest.fixture
+def db(tmp_path):
+    database = Database(tmp_path / "books.db")
+    database.migrate()
+    yield database
+    database.close()
+
+
+class TestConnection:
+    def test_database_file_is_created(self, tmp_path):
+        path = tmp_path / "nested" / "books.db"
+        database = Database(path)
+        database.migrate()
+        assert path.is_file()
+        database.close()
+
+    def test_foreign_keys_are_enforced(self, db):
+        assert db.connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+    def test_write_ahead_logging_is_on(self, db):
+        mode = db.connection.execute("PRAGMA journal_mode").fetchone()[0]
+        assert mode.lower() == "wal"
+
+    def test_rows_come_back_addressable_by_name(self, db):
+        row = db.connection.execute("SELECT 1 AS answer").fetchone()
+        assert row["answer"] == 1
+
+
+class TestMigrations:
+    def test_reading_state_table_exists(self, db):
+        tables = {
+            r["name"]
+            for r in db.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert "reading_state" in tables
+
+    def test_schema_version_is_recorded(self, db):
+        assert db.schema_version() == MigrationRunner.LATEST
+
+    def test_migrating_twice_is_harmless(self, tmp_path):
+        database = Database(tmp_path / "books.db")
+        database.migrate()
+        first = database.schema_version()
+        database.migrate()
+        assert database.schema_version() == first
+        database.close()
+
+    def test_migrations_are_numbered_without_gaps(self):
+        versions = [m.version for m in MigrationRunner.MIGRATIONS]
+        assert versions == list(range(1, len(versions) + 1))
+
+    def test_migrations_run_in_order(self, tmp_path):
+        # The second migration alters what the first creates, so it can
+        # only succeed if they are applied in order.
+        runner = MigrationRunner(
+            [
+                Migration(2, "adds a column", "ALTER TABLE a ADD COLUMN y TEXT"),
+                Migration(1, "creates the table", "CREATE TABLE a (x INTEGER)"),
+            ]
+        )
+        database = Database(tmp_path / "books.db")
+        assert runner.run(database.connection) == 2
+        columns = {
+            r["name"] for r in database.connection.execute("PRAGMA table_info(a)")
+        }
+        assert columns == {"x", "y"}
+        database.close()
+
+    def test_already_applied_versions_are_skipped(self, tmp_path):
+        database = Database(tmp_path / "books.db")
+        MigrationRunner([Migration(1, "first", "CREATE TABLE a (x INTEGER)")]).run(
+            database.connection
+        )
+        # Re-running version 1 unchanged would fail with "table a already
+        # exists" if the version check were not honoured.
+        again = MigrationRunner(
+            [
+                Migration(1, "first", "CREATE TABLE a (x INTEGER)"),
+                Migration(2, "second", "CREATE TABLE b (x INTEGER)"),
+            ]
+        )
+        assert again.run(database.connection) == 2
+        database.close()
+
+    def test_an_already_migrated_database_skips_applied_steps(self, tmp_path):
+        database = Database(tmp_path / "books.db")
+        database.migrate()
+        runner = MigrationRunner(MigrationRunner.MIGRATIONS)
+        # Re-running must not raise "table already exists".
+        runner.run(database.connection)
+        database.close()
+
+    def test_a_failing_migration_leaves_the_version_untouched(self, tmp_path):
+        database = Database(tmp_path / "books.db")
+        runner = MigrationRunner([Migration(1, "broken", "NOT VALID SQL")])
+        with pytest.raises(sqlite3.Error):
+            runner.run(database.connection)
+        assert runner.current_version(database.connection) == 0
+        database.close()

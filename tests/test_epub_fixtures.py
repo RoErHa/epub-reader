@@ -41,6 +41,33 @@ class TestEpubStructure:
         assert 'content="4"' in opf
 
 
+class TestMultipleChapters:
+    def test_each_chapter_becomes_a_file(self, tmp_path):
+        path = EpubBuilder(chapters=3).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            names = zf.namelist()
+        for n in (1, 2, 3):
+            assert f"OEBPS/chapter{n}.xhtml" in names
+
+    def test_every_chapter_is_listed_in_the_nav(self, tmp_path):
+        path = EpubBuilder(chapters=3).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            nav = zf.read("OEBPS/nav.xhtml").decode()
+        assert "Chapter One" in nav and "Chapter Three" in nav
+        assert nav.count("<li>") == 3
+
+    def test_every_chapter_is_in_the_spine(self, tmp_path):
+        path = EpubBuilder(chapters=3).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            opf = zf.read("OEBPS/content.opf").decode()
+        assert opf.count("<itemref") == 3
+
+    def test_a_single_chapter_book_is_still_the_default(self, tmp_path):
+        path = EpubBuilder().build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            assert "OEBPS/chapter2.xhtml" not in zf.namelist()
+
+
 class TestScriptedVariant:
     def test_plain_book_contains_no_script(self, tmp_path):
         path = EpubBuilder().build(tmp_path / "b.epub")

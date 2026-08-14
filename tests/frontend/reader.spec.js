@@ -1,31 +1,9 @@
 import { test, expect } from '@playwright/test'
+import { openBook, expectBookText } from './helpers.js'
 
 const PLAIN = 'left-hand-of-darkness.epub'
 const HOSTILE = 'hostile.epub'
 const SENTINEL = '__epub_script_executed'
-
-/** Click a book row and wait for the reader to report it open. */
-async function openBook (page, name) {
-  await page.locator(`.book-row[data-name="${name}"]`).click()
-  await expect(page.locator('#reader-stage')).toHaveAttribute(
-    'data-state', 'open', { timeout: 15000 }
-  )
-}
-
-/** The frame a book section renders in.
- *
- * foliate-view attaches a CLOSED shadow root, so CSS selectors cannot
- * pierce it and `frameLocator('foliate-view iframe')` never matches.
- * Book sections are served as blob: URLs, so we reach the frame through
- * page.frames() instead.
- */
-async function bookFrame (page) {
-  await expect
-    .poll(() => page.frames().some(f => f.url().startsWith('blob:')),
-      { timeout: 15000 })
-    .toBe(true)
-  return page.frames().find(f => f.url().startsWith('blob:'))
-}
 
 test.describe('app shell', () => {
   test('loads and lists the library', async ({ page }) => {
@@ -48,8 +26,7 @@ test.describe('reading', () => {
     await openBook(page, PLAIN)
 
     await expect(page.locator('foliate-view')).toHaveCount(1)
-    const frame = await bookFrame(page)
-    await expect(frame.locator('body')).toContainText('quick brown fox')
+    await expectBookText(page, 'quick brown fox')
   })
 
   test('reads metadata out of the package document', async ({ page }) => {
@@ -122,8 +99,7 @@ test.describe('security', () => {
     // Containment must not mean breakage: the prose still has to appear.
     await page.goto('/')
     await openBook(page, HOSTILE)
-    const frame = await bookFrame(page)
-    await expect(frame.locator('body')).toContainText('quick brown fox')
+    await expectBookText(page, 'quick brown fox')
   })
 })
 

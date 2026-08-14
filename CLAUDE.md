@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0 complete.** All seven decisions settled (§9). The service runs, renders EPUBs through foliate-js, and CSP containment is proven by test. Next action is M1 (§8).
+**Status: M1 complete.** All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -72,7 +72,7 @@ Pinned at `78914ae` (2026-05-01) as a submodule at `static/vendor/foliate-js`.
 - **It renders.** EPUB parsing, pagination, TOC and metadata all work under the strict CSP, unmodified. `view.js` disables zip.js web workers itself, so no `worker-src` relaxation is needed.
 - **CSP genuinely contains EPUB scripts.** A hostile fixture carrying both an inline and an external script is rendered; neither runs. Verified negatively — weakening `script-src` to allow `'unsafe-inline' blob:` makes the test fail, so it is not passing vacuously.
 - **`foliate-view` attaches a CLOSED shadow root.** CSS selectors cannot pierce it, so `frameLocator('foliate-view iframe')` never matches. Book sections must be reached through `page.frames()` by their `blob:` URL. This cost time once; `tests/frontend/reader.spec.js` documents it.
-- **Fonts.** dlna-gateway loads Syne + DM Mono from Google Fonts. This app uses a system stack so the CSP needs no external origins at all. Self-hosting those two faces is an M1 task.
+- **Fonts.** dlna-gateway loads Syne + DM Mono from Google Fonts. This app uses a system stack so the CSP needs no external origins at all. **Self-hosting those two faces was flagged for M1 and was not done — it carries to M2.** The app chrome therefore still differs from dlna-gateway's typography, though the palette matches.
 
 Known upstream weak spots we design around: the paginator uses CSS multi-column (epub.js's strategy, same slowness and CSS quirks); in-book search is slow enough to need incremental loading; **the PDF adapter is self-described as a proof-of-concept**. Upstream tests cover CFI parsing only.
 
@@ -379,7 +379,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | | Milestone | Size |
 | --- | --- | --- |
 | ✅ M0 | Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test | done |
-| M1 | Reader: pagination, TOC, themes, font controls, CFI position persisted server-side | ~1 week |
+| ✅ M1 | Reader: pagination, TOC, themes, font controls, CFI position persisted server-side | done |
 | M2 | Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar | ~1 week |
 | M3 | Search (FTS5), sorting, series, shelves | ~3 days |
 | M4 | Book detail: synopsis, About the author, Also published | ~1 week |
@@ -464,6 +464,10 @@ epub_config.py      Config, ConfigError — the only reader of .env
 epub_security.py    ContentSecurityPolicy, SecurityHeaders, middleware
 epub_server.py      EpubGateway, BookLibrary — routes and read-only library
 epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
+epub_db.py          Database, Migration, MigrationRunner — forward-only
+epub_reading.py     ReadingState, ReadingStateStore — position, server-side
+static/settings.js  ReaderSettings — display prefs, per device
+static/toc.js       TableOfContents
 run.sh              start / stop / restart / status / scan
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList
@@ -471,6 +475,27 @@ tests/              pytest + epub_fixtures.EpubBuilder
 tests/frontend/     Playwright specs
 tools/              make_test_library.py
 ```
+
+## 10.1 What M1 established
+
+- **Position is keyed by content hash, not filename.** Renaming a book keeps
+  your place; there is a test for exactly that. M2 introduces `book.id` and
+  can add the foreign key.
+- **Position is server-side and shared; display settings are per device.**
+  Where you are in a book is a fact about the book. How large you want the
+  type is a fact about the screen you are reading on, so it lives in
+  `localStorage`. The UI says this in as many words.
+- **Saves are debounced (800 ms)** because `relocate` fires on every page
+  turn, and flushed on `pagehide` so closing a tab mid-chapter loses nothing.
+- **A stale CFI must never strand the reader.** `ReaderEngine.open()` falls
+  back to the first page if `goTo(cfi)` throws — a book replaced on disk
+  would otherwise open blank.
+- **foliate REPLACES the book iframe when changing section.** A `Frame`
+  reference captured before navigating goes stale, which cost a debugging
+  round. `tests/frontend/helpers.js` re-resolves the frame on every poll;
+  use those helpers rather than holding a reference.
+- **Reopening a finished book does not un-finish it.** The upsert preserves
+  `finished`/`abandoned` status; only an explicit status change clears it.
 
 ## 11. Conventions
 

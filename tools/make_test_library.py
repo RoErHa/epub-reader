@@ -45,6 +45,8 @@ class TestLibrary:
             series="Hainish Cycle",
             series_index=4,
             subjects=["Science Fiction"],
+            chapters=4,
+            paragraphs_per_chapter=6,
         ).build(self.library / "left-hand-of-darkness.epub")
 
         EpubBuilder(

@@ -9,6 +9,8 @@ import '/static/vendor/foliate-js/view.js'
 export class ReaderEngine {
   #view = null
   #host = null
+  #styles = ''
+  #attributes = {}
   #listeners = { relocate: [], load: [] }
 
   constructor (host) {
@@ -19,22 +21,43 @@ export class ReaderEngine {
     return this.#view !== null
   }
 
-  /** Open a book by URL. Returns its metadata. */
-  async open (url) {
+  get view () {
+    return this.#view
+  }
+
+  /** Open a book by URL, optionally resuming at a saved location.
+   *  Returns its metadata. */
+  async open (url, { cfi = null } = {}) {
     this.close()
     const view = document.createElement('foliate-view')
     this.#host.append(view)
     this.#view = view
 
     view.addEventListener('relocate', e => this.#emit('relocate', {
-      fraction: e.detail.fraction,
+      fraction: e.detail.fraction ?? 0,
       cfi: e.detail.cfi ?? null,
+      tocItem: e.detail.tocItem ?? null,
       index: e.detail.index
     }))
-    view.addEventListener('load', e => this.#emit('load', { index: e.detail.index }))
+    view.addEventListener('load', e => {
+      this.#emit('load', { index: e.detail.index })
+    })
 
     await view.open(url)
-    await view.renderer.next()
+    this.#applyAttributes()
+    this.#applyStyles()
+
+    // Resuming beats starting over, but a stale CFI must not strand the
+    // reader on a blank view — fall back to the beginning.
+    if (cfi) {
+      try {
+        await view.goTo(cfi)
+      } catch {
+        await view.renderer.next()
+      }
+    } else {
+      await view.renderer.next()
+    }
     return this.metadata
   }
 
@@ -58,9 +81,47 @@ export class ReaderEngine {
     return this.#view?.book?.toc ?? []
   }
 
+  get location () {
+    const last = this.#view?.lastLocation
+    if (!last) return null
+    return {
+      cfi: last.cfi ?? null,
+      fraction: last.fraction ?? 0,
+      tocItem: last.tocItem ?? null
+    }
+  }
+
   async next () { await this.#view?.next() }
   async prev () { await this.#view?.prev() }
-  async goTo (target) { await this.#view?.goTo(target) }
+
+  async goTo (target) {
+    if (!this.#view || target == null) return
+    await this.#view.goTo(target)
+  }
+
+  /** Typography and colour, injected into the book document. */
+  setStyles (css) {
+    this.#styles = css
+    this.#applyStyles()
+  }
+
+  /** Layout attributes the paginator reads directly. */
+  setRendererAttributes (attributes) {
+    this.#attributes = { ...this.#attributes, ...attributes }
+    this.#applyAttributes()
+  }
+
+  #applyStyles () {
+    this.#view?.renderer?.setStyles?.(this.#styles)
+  }
+
+  #applyAttributes () {
+    const renderer = this.#view?.renderer
+    if (!renderer) return
+    for (const [name, value] of Object.entries(this.#attributes)) {
+      renderer.setAttribute(name, value)
+    }
+  }
 
   on (event, handler) {
     this.#listeners[event]?.push(handler)

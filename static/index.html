@@ -10,13 +10,16 @@
 <body>
 
 <header>
-  <div class="logo">BOOKS<sup>M0</sup></div>
+  <div class="logo">BOOKS<sup>M1</sup></div>
   <div class="sep"></div>
   <div class="hdr-book">
     <span id="book-title"></span>
     <span id="book-author"></span>
   </div>
-  <div class="hdr-right"><span id="progress"></span> · <span id="status">Starting…</span></div>
+  <div class="hdr-right">
+    <span id="chapter"></span>
+    <span id="progress"></span> · <span id="status">Starting…</span>
+  </div>
 </header>
 
 <div class="workspace">
@@ -27,11 +30,79 @@
 
   <div id="reader">
     <div id="reader-stage" data-state="empty">
-      <!-- ReaderEngine appends a <foliate-view> here on open. -->
+      <!-- ReaderEngine appends a foliate-view here on open. -->
     </div>
     <div class="controls">
       <button class="btn" id="btn-prev">‹ Prev</button>
       <button class="btn" id="btn-next">Next ›</button>
+    </div>
+  </div>
+
+  <div id="side">
+    <div class="tab-bar">
+      <button class="tab active" id="tab-toc">Contents</button>
+      <button class="tab" id="tab-display">Display</button>
+    </div>
+
+    <div id="panel-toc" class="panel">
+      <div id="toc-list"></div>
+    </div>
+
+    <div id="panel-display" class="panel" hidden>
+      <div class="field">
+        <label for="theme-select">Theme</label>
+        <select id="theme-select">
+          <option value="light">Light</option>
+          <option value="sepia">Sepia</option>
+          <option value="dark">Dark</option>
+          <option value="black">Black</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="font-select">Typeface</label>
+        <select id="font-select">
+          <option value="default">As published</option>
+          <option value="serif">Serif</option>
+          <option value="sans">Sans</option>
+          <option value="mono">Monospace</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Text size</label>
+        <div class="stepper">
+          <button class="btn" id="font-smaller" aria-label="Smaller text">−</button>
+          <span id="font-size-value">100%</span>
+          <button class="btn" id="font-bigger" aria-label="Larger text">+</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="line-height">Line spacing</label>
+        <input type="range" id="line-height" min="1" max="2.4" step="0.1">
+      </div>
+
+      <div class="field">
+        <label for="flow-select">Flow</label>
+        <select id="flow-select">
+          <option value="paginated">Paginated</option>
+          <option value="scrolled">Scrolled</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="column-select">Columns</label>
+        <select id="column-select">
+          <option value="1">One</option>
+          <option value="2">Two</option>
+        </select>
+      </div>
+
+      <p class="field-note">
+        Display settings are kept on this device. Your place in a book is
+        kept on the server and shared with every device.
+      </p>
     </div>
   </div>
 </div>

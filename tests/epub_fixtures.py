@@ -47,27 +47,64 @@ class EpubBuilder:
     series: str | None = None
     series_index: float | None = None
     first_published: str | None = None
+    chapters: int = 1
+    paragraphs_per_chapter: int = 3
 
     SENTINEL = "__epub_script_executed"
 
-    def chapter_xhtml(self) -> str:
+    NAMES = [
+        "Chapter One", "Chapter Two", "Chapter Three", "Chapter Four",
+        "Chapter Five", "Chapter Six", "Chapter Seven", "Chapter Eight",
+    ]
+
+    def chapter_title(self, n: int) -> str:
+        return self.NAMES[n] if n < len(self.NAMES) else f"Chapter {n + 1}"
+
+    def chapter_file(self, n: int) -> str:
+        return f"chapter{n + 1}.xhtml"
+
+    def chapter_xhtml(self, n: int = 0) -> str:
+        # Scripts only go in the first chapter — one hostile section is
+        # enough to prove containment.
         script = ""
-        if self.scripted:
+        if self.scripted and n == 0:
             script = (
                 f'  <script>window.{self.SENTINEL} = true;</script>\n'
                 f'  <script src="pwn.js"></script>\n'
             )
+        body = "".join(
+            f"  <p>The quick brown fox jumps over the lazy dog. "
+            f"This is paragraph {i + 1} of {self.chapter_title(n)}, padded out "
+            f"so that pagination has real work to do and more than one page "
+            f"exists to turn. Lorem ipsum has no place here.</p>\n"
+            for i in range(self.paragraphs_per_chapter)
+        )
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<html xmlns="http://www.w3.org/1999/xhtml">\n'
-            f"<head><title>{self.title}</title></head>\n"
+            f"<head><title>{self.chapter_title(n)}</title></head>\n"
             "<body>\n"
             f"{script}"
-            '  <h1 id="ch1">Chapter One</h1>\n'
-            "  <p>The quick brown fox jumps over the lazy dog.</p>\n"
-            "  <p>A second paragraph, so pagination has something to do.</p>\n"
+            f'  <h1 id="ch{n + 1}">{self.chapter_title(n)}</h1>\n'
+            f"{body}"
             "</body>\n"
             "</html>\n"
+        )
+
+    def nav_xhtml(self) -> str:
+        items = "".join(
+            f'      <li><a href="{self.chapter_file(n)}">'
+            f"{self.chapter_title(n)}</a></li>\n"
+            for n in range(self.chapters)
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops">\n'
+            "<head><title>Contents</title></head>\n<body>\n"
+            '  <nav epub:type="toc" id="toc"><h1>Contents</h1>\n'
+            f"    <ol>\n{items}    </ol>\n  </nav>\n"
+            "</body>\n</html>\n"
         )
 
     def content_opf(self) -> str:
@@ -90,6 +127,14 @@ class EpubBuilder:
                 '    <item id="pwn" href="pwn.js" '
                 'media-type="text/javascript"/>\n'
             )
+        items = "".join(
+            f'    <item id="ch{n + 1}" href="{self.chapter_file(n)}" '
+            'media-type="application/xhtml+xml"/>\n'
+            for n in range(self.chapters)
+        )
+        spine = "".join(
+            f'    <itemref idref="ch{n + 1}"/>\n' for n in range(self.chapters)
+        )
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
@@ -104,11 +149,9 @@ class EpubBuilder:
             "  <manifest>\n"
             '    <item id="nav" href="nav.xhtml" '
             'media-type="application/xhtml+xml" properties="nav"/>\n'
-            '    <item id="ch1" href="chapter1.xhtml" '
-            'media-type="application/xhtml+xml"/>\n'
-            f"{script_item}"
+            f"{items}{script_item}"
             "  </manifest>\n"
-            '  <spine>\n    <itemref idref="ch1"/>\n  </spine>\n'
+            f"  <spine>\n{spine}  </spine>\n"
             "</package>\n"
         )
 
@@ -123,8 +166,9 @@ class EpubBuilder:
             )
             zf.writestr("META-INF/container.xml", CONTAINER_XML)
             zf.writestr("OEBPS/content.opf", self.content_opf())
-            zf.writestr("OEBPS/nav.xhtml", NAV_XHTML)
-            zf.writestr("OEBPS/chapter1.xhtml", self.chapter_xhtml())
+            zf.writestr("OEBPS/nav.xhtml", self.nav_xhtml())
+            for n in range(self.chapters):
+                zf.writestr(f"OEBPS/{self.chapter_file(n)}", self.chapter_xhtml(n))
             if self.scripted:
                 zf.writestr(
                     "OEBPS/pwn.js",

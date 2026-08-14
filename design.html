@@ -199,8 +199,8 @@ footer{
 <header>
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
-  <span class="hdr-tag">M0 COMPLETE</span>
-  <div class="hdr-right">85 pytest · 12 playwright · next action M1</div>
+  <span class="hdr-tag">M1 COMPLETE</span>
+  <div class="hdr-right">136 pytest · 25 playwright · next action M2</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M0 complete. The service runs, renders EPUBs through foliate-js, and CSP containment is proven by test. Next action is M1.</div>
+<div class="status">Status: M1 complete. The reader has contents, themes, typography controls and server-side position. Next action is M2.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -321,7 +321,7 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <li><strong>It renders.</strong> EPUB parsing, pagination, TOC and metadata all work under the strict CSP, unmodified. <code>view.js</code> disables zip.js web workers itself, so no <code>worker-src</code> relaxation is needed.</li>
 <li><strong>CSP genuinely contains EPUB scripts.</strong> A hostile fixture carrying both an inline and an external script is rendered; neither runs. Verified <em>negatively</em> — weakening <code>script-src</code> to allow <code>'unsafe-inline' blob:</code> makes the test fail, so it is not passing vacuously.</li>
 <li><strong><code>foliate-view</code> attaches a CLOSED shadow root.</strong> CSS selectors cannot pierce it, so <code>frameLocator('foliate-view iframe')</code> never matches. Book sections must be reached through <code>page.frames()</code> by their <code>blob:</code> URL.</li>
-<li><strong>Fonts.</strong> dlna-gateway loads Syne + DM Mono from Google Fonts. This app uses a system stack so the CSP needs <em>no external origins at all</em>. Self-hosting those two faces is an M1 task.</li>
+<li><strong>Fonts.</strong> dlna-gateway loads Syne + DM Mono from Google Fonts. This app uses a system stack so the CSP needs <em>no external origins at all</em>. <strong>Self-hosting those two faces was flagged for M1 and was not done — it carries to M2.</strong></li>
 </ul>
 
 <p>Known upstream weak spots we design around rather than discover: the paginator uses CSS multi-column (epub.js's strategy, and inherits its slowness and CSS quirks), in-book search is slow enough to need incremental loading, and <strong>the PDF adapter is self-described as a proof-of-concept</strong>. Upstream tests cover CFI parsing only, and there are no types.</p>
@@ -643,7 +643,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <thead><tr><th></th><th>Milestone</th><th>Size</th></tr></thead>
 <tbody>
 <tr class="self"><td class="num">✅ M0</td><td>Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test</td><td class="num win">done</td></tr>
-<tr><td class="num">M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num">~1 week</td></tr>
+<tr class="self"><td class="num">✅ M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num win">done</td></tr>
 <tr><td class="num">M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num">~1 week</td></tr>
 <tr><td class="num">M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num">~3 days</td></tr>
 <tr><td class="num">M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num">~1 week</td></tr>
@@ -743,12 +743,26 @@ epub_config.py      <span class="c">Config, ConfigError — the only reader of .
 epub_security.py    <span class="c">ContentSecurityPolicy, SecurityHeaders, middleware</span>
 epub_server.py      <span class="c">EpubGateway, BookLibrary — routes, read-only library</span>
 epub_library.py     <span class="c">LibraryScanner, ScanManifest, ScanReport, BookFile</span>
+epub_db.py          <span class="c">Database, Migration, MigrationRunner — forward-only</span>
+epub_reading.py     <span class="c">ReadingState, ReadingStateStore — position, server-side</span>
+static/settings.js  <span class="c">ReaderSettings — display prefs, per device</span>
+static/toc.js       <span class="c">TableOfContents</span>
 run.sh              <span class="c">start / stop / restart / status / scan</span>
 static/reader.js    <span class="k">ReaderEngine — THE ONLY importer of foliate-js</span>
 static/app.js       <span class="c">BooksApp, BookList</span>
 tests/              <span class="c">pytest + epub_fixtures.EpubBuilder</span>
 tests/frontend/     <span class="c">Playwright specs</span>
 tools/              <span class="c">make_test_library.py</span></code></pre>
+
+<h3>What M1 established</h3>
+<ul>
+<li><strong>Position is keyed by content hash, not filename.</strong> Renaming a book keeps your place, and there is a test for exactly that. M2 introduces <code>book.id</code> and can add the foreign key.</li>
+<li><strong>Position is server-side and shared; display settings are per device.</strong> Where you are in a book is a fact about the book. How large you want the type is a fact about the screen you are reading on, so it lives in <code>localStorage</code> — and the UI says so.</li>
+<li><strong>Saves are debounced (800&nbsp;ms)</strong> because <code>relocate</code> fires on every page turn, and flushed on <code>pagehide</code> so closing a tab mid-chapter loses nothing.</li>
+<li><strong>A stale CFI must never strand the reader.</strong> <code>ReaderEngine.open()</code> falls back to the first page if <code>goTo(cfi)</code> throws — a book replaced on disk would otherwise open blank.</li>
+<li><strong>foliate REPLACES the book iframe when changing section.</strong> A <code>Frame</code> reference captured before navigating goes stale. <code>tests/frontend/helpers.js</code> re-resolves it on every poll.</li>
+<li><strong>Reopening a finished book does not un-finish it.</strong> The upsert preserves <code>finished</code>/<code>abandoned</code>; only an explicit status change clears it.</li>
+</ul>
 
 <h2 id="s11"><span class="n">11</span>Conventions</h2>
 
