@@ -13,8 +13,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from epub_browse import BrowseError, BrowseQueries
 from epub_config import Config
 from epub_db import Database
+from epub_index import LibraryIndexer
 from epub_reading import STATUSES, ReadingStateStore
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
 
@@ -141,6 +143,10 @@ class EpubGateway:
         self._database = Database(config.db_path)
         self._database.migrate()
         self._reading = ReadingStateStore(self._database)
+        self._browse = BrowseQueries(self._database)
+        self._indexer = LibraryIndexer(
+            self._database, self._library, config.cover_cache
+        )
         self._app = self._build()
 
     @property
@@ -154,6 +160,13 @@ class EpubGateway:
     @property
     def reading(self) -> ReadingStateStore:
         return self._reading
+
+    @property
+    def indexer(self) -> LibraryIndexer:
+        return self._indexer
+
+    def reindex(self):
+        return self._indexer.run()
 
     def close(self) -> None:
         self._database.close()
@@ -190,19 +203,106 @@ class EpubGateway:
         def index() -> FileResponse:
             return FileResponse(shell, media_type="text/html")
 
-        @app.get("/api/books")
-        def list_books() -> JSONResponse:
-            books = library.list()
-            hashes = {
-                b["name"]: library.content_hash(library.root / b["name"])
-                for b in books
-            }
+        browse = self._browse
+        covers = self._config.cover_cache
+
+        def with_progress(books: list[dict]) -> list[dict]:
+            hashes = {}
+            for book in books:
+                try:
+                    hashes[book["id"]] = library.content_hash(
+                        library.root / book["path"]
+                    )
+                except OSError:
+                    continue
             states = reading.get_many(hashes.values())
             for book in books:
-                state = states.get(hashes[book["name"]])
+                state = states.get(hashes.get(book["id"]))
                 book["percent"] = state.percent if state else 0
                 book["status"] = state.status if state else "unread"
-            return JSONResponse({"books": books})
+            return books
+
+        @app.get("/api/books")
+        def list_books(
+            sort: str = "title", letter: str | None = None,
+            author_id: int | None = None, series_id: int | None = None,
+            genre_id: int | None = None, decade: int | None = None,
+            limit: int = 200, offset: int = 0,
+        ) -> JSONResponse:
+            try:
+                page = browse.books(
+                    sort=sort, letter=letter, author_id=author_id,
+                    series_id=series_id, genre_id=genre_id, decade=decade,
+                    limit=min(limit, 500), offset=offset,
+                )
+            except BrowseError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
+        @app.get("/api/authors")
+        def list_authors() -> JSONResponse:
+            return JSONResponse({"authors": browse.authors()})
+
+        @app.get("/api/authors/{author_id}/books")
+        def author_books(author_id: int) -> JSONResponse:
+            page = browse.books(author_id=author_id, sort="series", limit=500)
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
+        @app.get("/api/series")
+        def list_series() -> JSONResponse:
+            return JSONResponse({"series": browse.series()})
+
+        @app.get("/api/series/{series_id}/books")
+        def series_books(series_id: int) -> JSONResponse:
+            page = browse.books(series_id=series_id, sort="series", limit=500)
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
+        @app.get("/api/genres")
+        def list_genres() -> JSONResponse:
+            return JSONResponse({"genres": browse.genres()})
+
+        @app.get("/api/genres/{genre_id}/books")
+        def genre_books(genre_id: int) -> JSONResponse:
+            page = browse.books(genre_id=genre_id, limit=500)
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
+        @app.get("/api/years")
+        def list_years() -> JSONResponse:
+            return JSONResponse({"decades": browse.decades()})
+
+        @app.get("/api/letters")
+        def list_letters(mode: str = "titles") -> JSONResponse:
+            try:
+                return JSONResponse({"letters": browse.letters(mode)})
+            except BrowseError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+
+        @app.get("/api/status")
+        def index_status() -> JSONResponse:
+            return JSONResponse(browse.status())
+
+        @app.get("/api/covers/{bucket}/{filename}")
+        def cover(bucket: str, filename: str) -> FileResponse:
+            if not bucket.isalnum() or "/" in filename or ".." in filename:
+                raise HTTPException(status_code=400, detail="Invalid cover path.")
+            path = (covers / bucket / filename).resolve()
+            try:
+                path.relative_to(covers.resolve())
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, detail="Invalid cover path."
+                ) from None
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="No such cover.")
+            return FileResponse(path, media_type="image/jpeg")
 
         @app.get("/api/books/{name}/position")
         def get_position(name: str) -> JSONResponse:

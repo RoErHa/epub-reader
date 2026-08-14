@@ -13,7 +13,7 @@ import hashlib
 import io
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from epub_metadata import BookMetadata, EpubMetadataReader, MetadataError
@@ -34,6 +34,9 @@ class IndexReport:
     returned: int = 0
     failed: int = 0
     seconds: float = 0.0
+    added_names: list[str] = field(default_factory=list)
+    missing_names: list[str] = field(default_factory=list)
+    failed_names: list[str] = field(default_factory=list)
 
     @property
     def has_changes(self) -> bool:
@@ -56,10 +59,17 @@ class IndexReport:
         ):
             if count:
                 parts.append(f"{self._books(count) if label == 'new' else count} {label}")
-        return (
+        lines = [
             f"Indexed — {', '.join(parts)}, {self.unchanged} unchanged "
             f"({self.seconds:.1f}s)."
-        )
+        ]
+        for mark, names in (("+", self.added_names), ("-", self.missing_names),
+                            ("!", self.failed_names)):
+            for name in names[:8]:
+                lines.append(f"  {mark} {name}")
+            if len(names) > 8:
+                lines.append(f"  {mark} …and {len(names) - 8} more")
+        return "\n".join(lines)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -211,6 +221,7 @@ class LibraryIndexer:
                 "SELECT id FROM book WHERE content_hash = ?", (content_hash,)
             ).fetchone()["id"]
             report.added += 1
+            report.added_names.append(rel)
 
         try:
             meta = self._reader.read(path)
@@ -222,8 +233,11 @@ class LibraryIndexer:
                 (str(exc), now, book_id),
             )
             report.failed += 1
+            report.failed_names.append(rel)
             if report.added and not existing:
                 report.added -= 1
+                if rel in report.added_names:
+                    report.added_names.remove(rel)
             return book_id
 
         self._store(book_id, content_hash, meta, now)
@@ -314,14 +328,15 @@ class LibraryIndexer:
     def _mark_missing(self, seen: set[int], report: IndexReport) -> None:
         cursor = self._db.connection
         rows = cursor.execute(
-            "SELECT id FROM book WHERE missing_since IS NULL"
+            "SELECT id, path FROM book WHERE missing_since IS NULL"
         ).fetchall()
-        gone = [r["id"] for r in rows if r["id"] not in seen]
+        gone = [(r["id"], r["path"]) for r in rows if r["id"] not in seen]
         if not gone:
             return
         now = int(time.time())
         cursor.executemany(
             "UPDATE book SET missing_since = ? WHERE id = ?",
-            [(now, book_id) for book_id in gone],
+            [(now, book_id) for book_id, _ in gone],
         )
         report.missing += len(gone)
+        report.missing_names.extend(path for _, path in gone)

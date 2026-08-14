@@ -5,7 +5,13 @@ const BASE = `http://127.0.0.1:${PORT}`
 
 export default defineConfig({
   testDir: './tests/frontend',
-  fullyParallel: true,
+  // One server, one database, and reading position is shared across
+  // devices BY DESIGN (decision 7) — so parallel tests genuinely race
+  // each other over real application state, not over test scaffolding.
+  // Serial is deterministic and costs ~14s for the whole suite.
+  // Revisit only by giving each worker its own server and database.
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'list' : [['list']],

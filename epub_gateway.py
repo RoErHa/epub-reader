@@ -18,8 +18,7 @@ from hypercorn.asyncio import serve
 from hypercorn.config import Config as HypercornConfig
 
 from epub_config import Config, ConfigError
-from epub_library import LibraryScanner
-from epub_server import SERVICE, VERSION, BookLibrary, EpubGateway
+from epub_server import SERVICE, VERSION, EpubGateway
 
 LOG = logging.getLogger(SERVICE)
 
@@ -50,30 +49,28 @@ class LoggingSetup:
 
 
 class ScanCommand:
-    """`--scan`: report what changed in the library, then exit.
+    """`--scan`: index the library, report what changed, then exit.
 
-    The same scan runs at startup, so `run.sh start` and `run.sh restart`
+    The same index runs at startup, so `run.sh start` and `run.sh restart`
     both pick up books added since the last run.
     """
 
     def __init__(self, config: Config) -> None:
-        self._scanner = LibraryScanner.for_config(
-            config, BookLibrary(config.library_root)
-        )
-        self._library_root = config.library_root
+        self._config = config
 
-    def run(self, record: bool = True) -> int:
-        if not self._library_root.is_dir():
+    def run(self) -> int:
+        if not self._config.library_root.is_dir():
             print(
-                f"Library folder does not exist: {self._library_root}\n"
+                f"Library folder does not exist: {self._config.library_root}\n"
                 "Set LIBRARY_ROOT in your .env file.",
                 file=sys.stderr,
             )
             return 1
-        report = (
-            self._scanner.scan_and_record() if record else self._scanner.scan()
-        )
-        print(report.summary())
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.reindex().summary())
+        finally:
+            gateway.close()
         return 0
 
 
@@ -83,7 +80,6 @@ class GatewayRunner:
     def __init__(self, config: Config) -> None:
         self._config = config
         self._gateway = EpubGateway(config)
-        self._scanner = LibraryScanner.for_config(config, self._gateway.library)
 
     def hypercorn_config(self) -> HypercornConfig:
         cfg = HypercornConfig()
@@ -99,7 +95,7 @@ class GatewayRunner:
 
     def scan_library(self) -> None:
         """Pick up books added since the last run, before serving."""
-        report = self._scanner.scan_and_record()
+        report = self._gateway.reindex()
         for line in report.summary().splitlines():
             LOG.info("%s", line)
 

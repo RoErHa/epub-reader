@@ -10,7 +10,7 @@
 <body>
 
 <header>
-  <div class="logo">BOOKS<sup>M1</sup></div>
+  <div class="logo">BOOKS<sup>M2</sup></div>
   <div class="sep"></div>
   <div class="hdr-book">
     <span id="book-title"></span>
@@ -24,8 +24,14 @@
 
 <div class="workspace">
   <div id="browser">
-    <div class="pane-hdr">Library</div>
+    <div class="browse-modes" id="browse-modes"></div>
+    <div class="letter-bar" id="letter-bar" hidden></div>
+    <div class="browse-back" id="browse-back" hidden>
+      <button class="back-link">← back</button>
+      <span id="browse-back-title"></span>
+    </div>
     <div id="book-list"><div class="msg">Loading library…</div></div>
+    <div id="statusbar"></div>
   </div>
 
   <div id="reader">

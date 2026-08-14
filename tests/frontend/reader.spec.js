@@ -9,14 +9,17 @@ test.describe('app shell', () => {
   test('loads and lists the library', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('#status')).toHaveText('Ready')
-    await expect(page.locator('.book-row')).toHaveCount(4)
+    await expect(page.locator('.book-row')).toHaveCount(7)
     await expect(page.locator(`.book-row[data-name="${PLAIN}"]`)).toBeVisible()
   })
 
-  test('shows format and size for each book', async ({ page }) => {
+  test('shows the author and series for each book', async ({ page }) => {
+    // The browse row shows what helps you choose a book — author,
+    // series and year — rather than format and file size.
     await page.goto('/')
-    const meta = page.locator(`.book-row[data-name="${PLAIN}"] .book-meta`)
-    await expect(meta).toContainText('EPUB')
+    const row = page.locator(`.book-row[data-name="${PLAIN}"]`)
+    await expect(row.locator('.book-author')).toHaveText('Ursula K. Le Guin')
+    await expect(row.locator('.book-meta')).toContainText('Hainish Cycle')
   })
 })
 

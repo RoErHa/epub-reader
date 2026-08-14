@@ -1,6 +1,7 @@
 /* M1 app shell: library list, reader, contents and display settings.
  * The full Browse/Search/Read interface lands in M2–M3.
  */
+import { Browser } from '/static/browse.js'
 import { ReaderEngine } from '/static/reader.js'
 import { ReaderSettings } from '/static/settings.js'
 import { TableOfContents } from '/static/toc.js'
@@ -38,61 +39,6 @@ class PositionStore {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cfi: pending.cfi, fraction: pending.fraction })
     }).catch(() => { /* offline: the next relocate will retry */ })
-  }
-}
-
-class BookList {
-  #el = null
-  #onSelect = null
-
-  constructor (el, onSelect) {
-    this.#el = el
-    this.#onSelect = onSelect
-  }
-
-  async load () {
-    const res = await fetch('/api/books')
-    if (!res.ok) return this.#message(`Could not read the library (${res.status}).`)
-    const { books } = await res.json()
-    if (!books.length) return this.#message('No books found in the library folder.')
-    this.render(books)
-  }
-
-  render (books) {
-    this.#el.replaceChildren()
-    for (const book of books) {
-      const row = document.createElement('button')
-      row.className = 'book-row'
-      row.dataset.name = book.name
-      row.innerHTML =
-        '<span class="book-name"></span>' +
-        '<span class="book-line">' +
-        '<span class="book-meta"></span><span class="book-progress"></span>' +
-        '</span>'
-      row.querySelector('.book-name').textContent = book.name
-      row.querySelector('.book-meta').textContent =
-        `${book.format.toUpperCase()} · ${Math.round(book.size / 1024)} kB`
-      // An unread book says nothing rather than "0%".
-      row.querySelector('.book-progress').textContent =
-        book.percent > 0 ? `${book.percent}%` : ''
-      row.addEventListener('click', () => this.select(row, book))
-      this.#el.append(row)
-    }
-  }
-
-  select (row, book) {
-    for (const el of this.#el.querySelectorAll('.book-row')) {
-      el.classList.toggle('active', el === row)
-    }
-    this.#onSelect(book)
-  }
-
-  #message (text) {
-    this.#el.replaceChildren()
-    const p = document.createElement('div')
-    p.className = 'msg'
-    p.textContent = text
-    this.#el.append(p)
   }
 }
 
@@ -148,6 +94,11 @@ class BooksApp {
   constructor (root = document) {
     this.dom = {
       list: root.getElementById('book-list'),
+      modes: root.getElementById('browse-modes'),
+      letters: root.getElementById('letter-bar'),
+      back: root.getElementById('browse-back'),
+      backTitle: root.getElementById('browse-back-title'),
+      statusbar: root.getElementById('statusbar'),
       stage: root.getElementById('reader-stage'),
       title: root.getElementById('book-title'),
       author: root.getElementById('book-author'),
@@ -174,7 +125,14 @@ class BooksApp {
     this.#settings = new ReaderSettings()
     this.#reader = new ReaderEngine(this.dom.stage)
     this.#positions = new PositionStore()
-    this.#list = new BookList(this.dom.list, book => this.open(book))
+    this.#list = new Browser(
+      {
+        list: this.dom.list, modes: this.dom.modes, letters: this.dom.letters,
+        back: this.dom.back, backTitle: this.dom.backTitle,
+        statusbar: this.dom.statusbar
+      },
+      book => this.open(book)
+    )
     this.#toc = new TableOfContents(this.dom.toc, item => this.#reader.goTo(item.href))
   }
 
@@ -189,7 +147,7 @@ class BooksApp {
     this.#reader.on('relocate', location => this.#onRelocate(location))
 
     this.#toc.clear()
-    await this.#list.load()
+    await this.#list.start()
     this.#status('Ready')
   }
 
@@ -227,15 +185,15 @@ class BooksApp {
     await this.#positions.flush()
     this.#status(`Opening ${book.name}…`)
     this.dom.stage.dataset.state = 'loading'
-    this.#current = book.name
+    this.#current = book.path ?? book.name
 
     try {
-      const saved = await this.#positions.load(book.name)
+      const saved = await this.#positions.load(book.path ?? book.name)
       const meta = await this.#reader.open(
-        `/api/books/${encodeURIComponent(book.name)}`,
+        `/api/books/${encodeURIComponent(book.path ?? book.name)}`,
         { cfi: saved?.cfi ?? null }
       )
-      this.dom.title.textContent = meta?.title ?? book.name
+      this.dom.title.textContent = book.title ?? meta?.title ?? book.name
       this.dom.author.textContent = meta?.author ?? ''
       this.#toc.render(this.#reader.toc)
       this.dom.stage.dataset.state = 'open'

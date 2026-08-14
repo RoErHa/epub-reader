@@ -24,6 +24,9 @@
   --fs-micro:11px;
 }
 *{box-sizing:border-box}
+/* A class-level display: rule beats the UA stylesheet's [hidden], which
+   silently keeps hidden elements on screen. Restate it with weight. */
+[hidden]{display:none!important}
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--ink);
@@ -54,8 +57,66 @@ header{
 .workspace{flex:1;display:flex;min-height:0}
 
 #browser{
-  width:280px;flex-shrink:0;display:flex;flex-direction:column;
+  width:330px;flex-shrink:0;display:flex;flex-direction:column;
   border-right:1px solid var(--border);background:var(--surface);
+}
+
+/* ── Browse chrome ──────────────────────────────────────────────────── */
+.browse-modes{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.browse-mode{
+  flex:1;padding:9px 4px;background:none;border:none;
+  color:var(--ink-dim-soft);font:inherit;font-size:12px;cursor:pointer;
+  border-bottom:2px solid transparent;white-space:nowrap;
+}
+.browse-mode:hover{color:var(--ink)}
+.browse-mode:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+.browse-mode.active{color:var(--amber);border-bottom-color:var(--amber)}
+
+.letter-bar{
+  display:flex;flex-wrap:wrap;gap:1px;padding:6px 8px;flex-shrink:0;
+  border-bottom:1px solid var(--border);
+}
+.letter{
+  min-width:20px;padding:2px 4px;background:none;border:none;border-radius:3px;
+  color:var(--ink-dim-soft);font-family:var(--fm);font-size:var(--fs-micro);
+  cursor:pointer;
+}
+.letter:hover{background:var(--raised);color:var(--ink)}
+.letter:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+.letter.active{background:var(--amber);color:var(--bg);font-weight:600}
+
+.browse-back{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;flex-shrink:0;
+  border-bottom:1px solid var(--border);background:var(--raised);
+}
+.back-link{
+  background:none;border:none;color:var(--amber);font:inherit;font-size:12px;
+  cursor:pointer;padding:0;flex-shrink:0;
+}
+.back-link:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+#browse-back-title{
+  font-size:13px;font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;
+}
+
+.group-row{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  width:100%;padding:9px 14px;background:none;border:none;
+  border-bottom:1px solid var(--border);color:var(--ink);
+  text-align:left;font:inherit;font-size:13px;cursor:pointer;
+}
+.group-row:hover{background:var(--raised)}
+.group-row:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+.group-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.group-count{
+  font-family:var(--fm);font-size:var(--fs-micro);color:var(--ink-dim-soft);
+  font-variant-numeric:tabular-nums;flex-shrink:0;
+}
+
+#statusbar{
+  flex-shrink:0;padding:7px 14px;border-top:1px solid var(--border);
+  font-family:var(--fm);font-size:var(--fs-micro);
+  color:var(--ink-dim-soft);letter-spacing:.03em;
 }
 .pane-hdr{
   font-family:var(--fm);font-size:var(--fs-micro);
@@ -64,9 +125,20 @@ header{
 }
 #book-list{flex:1;overflow-y:auto}
 .book-row{
-  display:flex;flex-direction:column;gap:2px;width:100%;
-  padding:9px 14px;background:none;border:none;border-bottom:1px solid var(--border);
+  display:flex;gap:10px;align-items:flex-start;width:100%;
+  padding:9px 12px;background:none;border:none;border-bottom:1px solid var(--border);
   color:var(--ink);text-align:left;font:inherit;cursor:pointer;
+}
+.book-cover-wrap{
+  width:38px;height:56px;flex-shrink:0;border-radius:3px;overflow:hidden;
+  background:var(--raised);display:flex;align-items:center;justify-content:center;
+}
+.book-cover{width:100%;height:100%;object-fit:cover;display:block}
+.book-cover-wrap.no-cover{font-size:17px;opacity:.5}
+.book-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.book-author{
+  font-size:12px;color:var(--amber);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .book-row:hover{background:var(--raised)}
 .book-row:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}

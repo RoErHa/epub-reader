@@ -137,7 +137,10 @@ test.describe('front matter', () => {
 })
 
 test.describe('reading position', () => {
+  // Each of these uses a book NOTHING else opens: opening writes
+  // position, and position is shared server-side by design.
   test('is remembered across a reload', async ({ page }) => {
+    const BOOK = 'position-a.epub'
     await page.goto('/')
     await openBook(page, BOOK)
     await page.locator('#tab-toc').click()
@@ -170,7 +173,7 @@ test.describe('reading position', () => {
     // A different book from the test above: reading position is shared
     // server-side by design, so two parallel tests on the same book
     // would overwrite each other.
-    const OTHER = 'comma-filenames.epub'
+    const OTHER = 'position-b.epub'
     await page.goto('/')
     await openBook(page, OTHER)
     await page.locator('#tab-toc').click()

@@ -48,7 +48,10 @@ def config(tmp_path, library) -> Config:
 
 @pytest.fixture
 def gateway(config) -> EpubGateway:
-    return EpubGateway(config)
+    gw = EpubGateway(config)
+    gw.reindex()   # the real service indexes at startup
+    yield gw
+    gw.close()
 
 
 @pytest.fixture

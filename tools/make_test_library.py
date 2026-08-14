@@ -45,6 +45,7 @@ class TestLibrary:
             series="Hainish Cycle",
             series_index=4,
             subjects=["Science Fiction"],
+            first_published="1969",
             chapters=4,
             paragraphs_per_chapter=6,
             cover=True,   # real books open on an image-only cover
@@ -62,9 +63,30 @@ class TestLibrary:
             encode_nav_hrefs=True,
         ).build(self.library / "comma-filenames.epub")
 
+        # Reserved for the position tests. Opening a book WRITES reading
+        # state, and position is shared server-side, so a position test
+        # needs a book no other test opens — not merely one no other test
+        # asserts on.
+        for name in ("position-a.epub", "position-b.epub"):
+            EpubBuilder(
+                title=f"Position Fixture {name[9].upper()}",
+                author="Test Author",
+                chapters=4,
+                paragraphs_per_chapter=5,
+            ).build(self.library / name)
+
         # Reserved for the "never opened" assertion — position is shared
         # server-side (decision 7), so any book another test opens would
         # race it. Nothing else may open this one.
+        EpubBuilder(
+            title="A Wizard of Earthsea",
+            author="Ursula K. Le Guin",
+            subjects=["Fantasy"],
+            first_published="1968",
+            chapters=2,
+            cover=True,
+        ).build(self.library / "wizard-of-earthsea.epub")
+
         EpubBuilder(
             title="Untouched",
             author="Nobody",

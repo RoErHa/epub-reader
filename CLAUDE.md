@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M1 complete, validated against a real 1,300-book library (§3.2).** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M2 complete — the library is indexed and browsable, validated against the real 1,300-book library (§3.2).** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -447,7 +447,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | --- | --- | --- |
 | ✅ M0 | Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test | done |
 | ✅ M1 | Reader: pagination, TOC, themes, font controls, CFI position persisted server-side | done |
-| M2 | Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar | ~1 week |
+| ✅ M2 | Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar | done |
 | M3 | Search (FTS5), sorting, series, shelves | ~3 days |
 | M4 | Book detail: synopsis, About the author, Also published | ~1 week |
 | M5 | Enrichment: providers, scoring, BISAC genre map, review queue | 2–3 weeks |
@@ -534,6 +534,8 @@ epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
 epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
+epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
+static/browse.js    Browser — mode strip, letter bar, drill-down
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
@@ -553,9 +555,35 @@ UI suite runs in parallel against one server and one database. Two tests
 touching the same book therefore overwrite each other's position — which
 produced a flake that passed in isolation and failed in the full run.
 
-> **Rule: every test that writes reading state uses its own book.**
-> `untouched.epub` exists solely for the "no progress" assertion and must
-> never be opened by another test.
+> **Rule: the UI suite runs serially (`workers: 1`).** One server, one
+> database, and position shared across devices by design means parallel
+> tests race over real application state. Three serial runs are clean at
+> ~14s; parallel runs failed a different test each time.
+
+> **Rule: a position test uses a book no other test OPENS.** Opening a
+> book writes reading state — it is not enough to avoid asserting on it.
+> `position-a.epub` and `position-b.epub` exist for the two position
+> tests, and `untouched.epub` for the "no progress" assertion. Nothing
+> else may open any of them.
+
+### 10.3 What M2 established
+
+Measured on the real library: **1,326 books indexed in 7.7 s**, re-run
+0.3 s hashing 2 files, **zero failures**, 99% covers extracted, 606
+authors, 34 series, 258 genres.
+
+- **The old `LibraryScanner` is gone.** Its JSON manifest was superseded
+  by the `book` table, which tracks the same facts and more. `--scan` and
+  startup both run `LibraryIndexer` now.
+- **Incremental by size+mtime.** Unchanged books are never re-hashed, and
+  there is a test asserting exactly that (`indexer.hashed == 0`).
+- **Three behaviours the real data forced, each with a test:**
+  identical copies filed twice are one book; an edited file updates its
+  row rather than orphaning it; and duplicates no longer trade paths on
+  every run (a no-op scan used to report "2 moved").
+- **`[hidden]` needs `display:none!important`.** A class-level
+  `display:flex` silently beats the UA stylesheet, so panels marked
+  hidden stayed on screen. Caught by a test, not by eye.
 
 ### 10.1 What M1 established
 

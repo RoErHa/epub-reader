@@ -199,8 +199,8 @@ footer{
 <header>
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
-  <span class="hdr-tag">M1 COMPLETE</span>
-  <div class="hdr-right">143 pytest · 29 playwright · validated on 1,300 real books</div>
+  <span class="hdr-tag">M2 COMPLETE</span>
+  <div class="hdr-right">226 pytest · 45 playwright · 1,326 books indexed in 7.7s</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M1 complete and validated against a real 1,300-book library. EPUB only for now. Next action is M2.</div>
+<div class="status">Status: M2 complete — the library is indexed and browsable. 1,326 real books indexed in 7.7&nbsp;s, zero failures. Next action is M3.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -682,7 +682,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tbody>
 <tr class="self"><td class="num">✅ M0</td><td>Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num win">done</td></tr>
-<tr><td class="num">M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num">~1 week</td></tr>
+<tr class="self"><td class="num">✅ M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num win">done</td></tr>
 <tr><td class="num">M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num">~3 days</td></tr>
 <tr><td class="num">M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num">~1 week</td></tr>
 <tr><td class="num">M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num">2–3 weeks</td></tr>
