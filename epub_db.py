@@ -42,6 +42,111 @@ class MigrationRunner:
               ON reading_state(status);
             """,
         ),
+        Migration(
+            2,
+            "library_index",
+            """
+            -- Identity is the content hash, so moving or renaming a file
+            -- updates a row instead of creating a duplicate. Rows are
+            -- never deleted: a vanished book is marked missing_since so
+            -- reading state and future annotations survive.
+            CREATE TABLE IF NOT EXISTS book (
+              id            INTEGER PRIMARY KEY,
+              content_hash  TEXT    NOT NULL UNIQUE,
+              path          TEXT    NOT NULL,   -- relative to LIBRARY_ROOT
+              format        TEXT    NOT NULL,
+              size_bytes    INTEGER NOT NULL,
+              mtime         INTEGER NOT NULL,
+              added_at      INTEGER NOT NULL,
+              indexed_at    INTEGER,
+              missing_since INTEGER,
+              index_error   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS book_path ON book(path);
+            CREATE INDEX IF NOT EXISTS book_missing ON book(missing_since);
+
+            CREATE TABLE IF NOT EXISTS series (
+              id        INTEGER PRIMARY KEY,
+              name      TEXT NOT NULL UNIQUE,
+              sort_name TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS metadata (
+              book_id         INTEGER PRIMARY KEY
+                              REFERENCES book(id) ON DELETE CASCADE,
+              title           TEXT,
+              title_sort      TEXT,
+              subtitle        TEXT,
+              synopsis        TEXT,
+              -- These two are NOT the same thing; conflating them is the
+              -- commonest metadata error in e-book libraries.
+              first_published INTEGER,
+              edition_date    TEXT,
+              publisher       TEXT,
+              language        TEXT,
+              isbn13          TEXT,
+              page_count      INTEGER,
+              spine_length    INTEGER,
+              cover_path      TEXT,
+              series_id       INTEGER REFERENCES series(id),
+              series_index    REAL
+            );
+            CREATE INDEX IF NOT EXISTS metadata_title_sort ON metadata(title_sort);
+            CREATE INDEX IF NOT EXISTS metadata_year ON metadata(first_published);
+            CREATE INDEX IF NOT EXISTS metadata_series ON metadata(series_id);
+
+            CREATE TABLE IF NOT EXISTS author (
+              id        INTEGER PRIMARY KEY,
+              name      TEXT NOT NULL UNIQUE,
+              sort_name TEXT NOT NULL,
+              bio         TEXT,
+              bio_source  TEXT,
+              photo_path  TEXT,
+              born        TEXT,
+              died        TEXT,
+              nationality TEXT,
+              website     TEXT,
+              fetched_at  INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS author_sort ON author(sort_name);
+
+            CREATE TABLE IF NOT EXISTS book_author (
+              book_id   INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+              author_id INTEGER NOT NULL REFERENCES author(id),
+              role      TEXT    NOT NULL DEFAULT 'author',
+              position  INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (book_id, author_id, role)
+            );
+            CREATE INDEX IF NOT EXISTS book_author_author ON book_author(author_id);
+
+            CREATE TABLE IF NOT EXISTS genre (
+              id         INTEGER PRIMARY KEY,
+              bisac_code TEXT UNIQUE,
+              name       TEXT NOT NULL UNIQUE,
+              sort_name  TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS book_genre (
+              book_id  INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+              genre_id INTEGER NOT NULL REFERENCES genre(id),
+              position INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (book_id, genre_id)
+            );
+            CREATE INDEX IF NOT EXISTS book_genre_genre ON book_genre(genre_id);
+
+            -- Enrichment may overwrite a field only when its origin is
+            -- 'file' and it is unlocked. A user value is never
+            -- overwritten automatically.
+            CREATE TABLE IF NOT EXISTS field_provenance (
+              book_id    INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+              field      TEXT    NOT NULL,
+              origin     TEXT    NOT NULL,
+              source     TEXT,
+              locked     INTEGER NOT NULL DEFAULT 0,
+              updated_at INTEGER NOT NULL,
+              PRIMARY KEY (book_id, field)
+            );
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

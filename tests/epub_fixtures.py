@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import zipfile
+from xml.sax.saxutils import escape
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -135,12 +136,13 @@ class EpubBuilder:
         )
 
     def content_opf(self) -> str:
+        # Real books escape metadata; an unescaped "&" is invalid XML.
         subjects = "".join(
-            f"    <dc:subject>{s}</dc:subject>\n" for s in self.subjects
+            f"    <dc:subject>{escape(s)}</dc:subject>\n" for s in self.subjects
         )
         meta = ""
         if self.series is not None:
-            meta += f'    <meta name="calibre:series" content="{self.series}"/>\n'
+            meta += f'    <meta name="calibre:series" content="{escape(self.series)}"/>\n'
         if self.series_index is not None:
             meta += (
                 '    <meta name="calibre:series_index" '
@@ -176,8 +178,8 @@ class EpubBuilder:
             'unique-identifier="bookid">\n'
             '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
             f'    <dc:identifier id="bookid">{self.identifier}</dc:identifier>\n'
-            f"    <dc:title>{self.title}</dc:title>\n"
-            f"    <dc:creator>{self.author}</dc:creator>\n"
+            f"    <dc:title>{escape(self.title)}</dc:title>\n"
+            f"    <dc:creator>{escape(self.author)}</dc:creator>\n"
             f"    <dc:language>{self.language}</dc:language>\n"
             f"{subjects}{meta}"
             "  </metadata>\n"

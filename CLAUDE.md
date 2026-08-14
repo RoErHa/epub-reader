@@ -531,6 +531,9 @@ epub_config.py      Config, ConfigError — the only reader of .env
 epub_security.py    ContentSecurityPolicy, SecurityHeaders, middleware
 epub_server.py      EpubGateway, BookLibrary — routes and read-only library
 epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
+epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
+epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
+epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
