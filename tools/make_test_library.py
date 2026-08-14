@@ -62,6 +62,15 @@ class TestLibrary:
             encode_nav_hrefs=True,
         ).build(self.library / "comma-filenames.epub")
 
+        # Reserved for the "never opened" assertion — position is shared
+        # server-side (decision 7), so any book another test opens would
+        # race it. Nothing else may open this one.
+        EpubBuilder(
+            title="Untouched",
+            author="Nobody",
+            chapters=2,
+        ).build(self.library / "untouched.epub")
+
         EpubBuilder(
             title="Hostile Book",
             author="Test Author",

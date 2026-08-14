@@ -167,26 +167,31 @@ test.describe('reading position', () => {
   })
 
   test('shows up as progress in the library list', async ({ page }) => {
+    // A different book from the test above: reading position is shared
+    // server-side by design, so two parallel tests on the same book
+    // would overwrite each other.
+    const OTHER = 'comma-filenames.epub'
     await page.goto('/')
-    await openBook(page, BOOK)
+    await openBook(page, OTHER)
     await page.locator('#tab-toc').click()
     await page.locator('.toc-item', { hasText: 'Chapter Four' }).click()
 
     await expect.poll(async () => {
-      const r = await page.request.get(`/api/books/${BOOK}/position`)
+      const r = await page.request.get(`/api/books/${OTHER}/position`)
       return (await r.json()).position?.percent ?? 0
     }, { timeout: 10000 }).toBeGreaterThan(0)
 
     await page.reload()
     await expect(
-      page.locator(`.book-row[data-name="${BOOK}"] .book-progress`)
+      page.locator(`.book-row[data-name="${OTHER}"] .book-progress`)
     ).toContainText('%')
   })
 
-  test('a fresh book reports no progress', async ({ page }) => {
+  test('a book nobody has opened reports no progress', async ({ page }) => {
+    // untouched.epub is opened by no other test, on purpose.
     await page.goto('/')
     await expect(
-      page.locator('.book-row[data-name="hostile.epub"] .book-progress')
+      page.locator('.book-row[data-name="untouched.epub"] .book-progress')
     ).toHaveText('')
   })
 })

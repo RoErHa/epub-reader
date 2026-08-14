@@ -543,6 +543,17 @@ tests/frontend/     Playwright specs
 tools/              make_test_library.py
 ```
 
+### 10.2 Test isolation
+
+Reading position is **shared server-side by design** (decision 7), and the
+UI suite runs in parallel against one server and one database. Two tests
+touching the same book therefore overwrite each other's position — which
+produced a flake that passed in isolation and failed in the full run.
+
+> **Rule: every test that writes reading state uses its own book.**
+> `untouched.epub` exists solely for the "no progress" assertion and must
+> never be opened by another test.
+
 ### 10.1 What M1 established
 
 - **Position is keyed by content hash, not filename.** Renaming a book keeps
