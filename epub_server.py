@@ -30,7 +30,12 @@ class BookLibrary:
     operation this class offers is none.
     """
 
-    SUFFIXES = frozenset({".epub", ".azw3", ".mobi", ".fb2", ".cbz", ".pdf"})
+    # EPUB only, deliberately, until the reader is finished. PDF is a
+    # separate rendering model and foliate's adapter is self-described as
+    # a proof-of-concept; CBR is RAR, which nothing here can read. Listing
+    # formats we cannot render well would promise what we do not deliver.
+    # MOBI/AZW3 come next — they use the same reflow engine.
+    SUFFIXES = frozenset({".epub"})
 
     def __init__(self, root: Path) -> None:
         self._root = root
@@ -84,6 +89,9 @@ class BookLibrary:
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid book name.") from None
         if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="No such book.")
+        # A format we do not list is a format we do not serve.
+        if candidate.suffix.lower() not in self.SUFFIXES:
             raise HTTPException(status_code=404, detail="No such book.")
         return candidate
 

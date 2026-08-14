@@ -106,12 +106,16 @@ class TestFiltering:
         report = scanner_for(tmp_path, root).scan()
         assert [b.name for b in report.added] == ["a.epub"]
 
-    def test_other_book_formats_are_included(self, tmp_path):
+    def test_only_epub_is_picked_up_for_now(self, tmp_path):
+        # Deliberately EPUB-only until the reader is finished. PDF is a
+        # separate rendering model, foliate's PDF adapter is a
+        # proof-of-concept, and CBR is RAR (unsupported) — so listing
+        # them would only promise something we do not deliver.
         root = make_library(tmp_path, "a.epub")
-        (root / "b.azw3").write_bytes(b"x")
-        (root / "c.pdf").write_bytes(b"x")
+        for other in ("b.azw3", "c.pdf", "d.mobi", "e.cbz", "f.cbr"):
+            (root / other).write_bytes(b"x")
         names = {b.name for b in scanner_for(tmp_path, root).scan().added}
-        assert names == {"a.epub", "b.azw3", "c.pdf"}
+        assert names == {"a.epub"}
 
 
 class TestManifest:

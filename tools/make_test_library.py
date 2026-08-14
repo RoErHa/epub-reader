@@ -47,7 +47,20 @@ class TestLibrary:
             subjects=["Science Fiction"],
             chapters=4,
             paragraphs_per_chapter=6,
+            cover=True,   # real books open on an image-only cover
         ).build(self.library / "left-hand-of-darkness.epub")
+
+        # A comma in internal filenames breaks foliate's href resolution
+        # (decodeURI leaves %2C alone). ~22% of the real library is like this.
+        EpubBuilder(
+            title="A Time to Die",
+            author="John Vornholt",
+            chapters=4,
+            paragraphs_per_chapter=5,
+            cover=True,
+            filename_prefix="Vornholt, John - ",
+            encode_nav_hrefs=True,
+        ).build(self.library / "comma-filenames.epub")
 
         EpubBuilder(
             title="Hostile Book",

@@ -5,9 +5,24 @@ series metadata, multi-author) stay a matter of construction arguments.
 """
 from __future__ import annotations
 
+import base64
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# A 1x1 PNG. Enough to make a section that has an image and no text,
+# which is what a real book's cover page amounts to.
+COVER_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+    "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+COVER_XHTML = '''<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Cover</title></head>
+<body><div><img src="cover.png" alt="Cover"/></div></body>
+</html>
+'''
 
 CONTAINER_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -49,6 +64,14 @@ class EpubBuilder:
     first_published: str | None = None
     chapters: int = 1
     paragraphs_per_chapter: int = 3
+    cover: bool = False
+    # Real Calibre exports are often named "Author, Name - Title_split_0.html".
+    # decodeURI() does not decode %2C, so that comma breaks href resolution.
+    filename_prefix: str = ""
+    # Calibre writes the NCX/nav href percent-encoded ("Name%2c A.html")
+    # while the OPF manifest keeps the literal comma. resolveHref() uses
+    # decodeURI(), which does not decode %2C, so the lookup misses.
+    encode_nav_hrefs: bool = False
 
     SENTINEL = "__epub_script_executed"
 
@@ -61,7 +84,7 @@ class EpubBuilder:
         return self.NAMES[n] if n < len(self.NAMES) else f"Chapter {n + 1}"
 
     def chapter_file(self, n: int) -> str:
-        return f"chapter{n + 1}.xhtml"
+        return f"{self.filename_prefix}chapter{n + 1}.xhtml"
 
     def chapter_xhtml(self, n: int = 0) -> str:
         # Scripts only go in the first chapter — one hostile section is
@@ -91,9 +114,13 @@ class EpubBuilder:
             "</html>\n"
         )
 
+    def nav_href(self, n: int) -> str:
+        href = self.chapter_file(n)
+        return href.replace(",", "%2c") if self.encode_nav_hrefs else href
+
     def nav_xhtml(self) -> str:
         items = "".join(
-            f'      <li><a href="{self.chapter_file(n)}">'
+            f'      <li><a href="{self.nav_href(n)}">'
             f"{self.chapter_title(n)}</a></li>\n"
             for n in range(self.chapters)
         )
@@ -135,6 +162,14 @@ class EpubBuilder:
         spine = "".join(
             f'    <itemref idref="ch{n + 1}"/>\n' for n in range(self.chapters)
         )
+        if self.cover:
+            items = (
+                '    <item id="cover" href="cover.xhtml" '
+                'media-type="application/xhtml+xml"/>\n'
+                '    <item id="cover-img" href="cover.png" '
+                'media-type="image/png" properties="cover-image"/>\n'
+            ) + items
+            spine = '    <itemref idref="cover"/>\n' + spine
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
@@ -167,6 +202,9 @@ class EpubBuilder:
             zf.writestr("META-INF/container.xml", CONTAINER_XML)
             zf.writestr("OEBPS/content.opf", self.content_opf())
             zf.writestr("OEBPS/nav.xhtml", self.nav_xhtml())
+            if self.cover:
+                zf.writestr("OEBPS/cover.xhtml", COVER_XHTML)
+                zf.writestr("OEBPS/cover.png", COVER_PNG)
             for n in range(self.chapters):
                 zf.writestr(f"OEBPS/{self.chapter_file(n)}", self.chapter_xhtml(n))
             if self.scripted:

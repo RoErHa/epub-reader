@@ -42,6 +42,18 @@ class TestReaderShell:
         assert client.get("/static/nope.js").status_code == 404
 
 
+class TestFormatScope:
+    def test_only_epub_is_listed(self, client, library):
+        (library / "manual.pdf").write_bytes(b"%PDF-1.4")
+        (library / "kindle.azw3").write_bytes(b"x")
+        formats = {b["format"] for b in client.get("/api/books").json()["books"]}
+        assert formats == {"epub"}
+
+    def test_a_non_epub_is_not_served(self, client, library):
+        (library / "manual.pdf").write_bytes(b"%PDF-1.4")
+        assert client.get("/api/books/manual.pdf").status_code == 404
+
+
 class TestLibraryEndpoint:
     def test_books_are_listed(self, client):
         names = {b["name"] for b in client.get("/api/books").json()["books"]}

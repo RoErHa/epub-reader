@@ -105,6 +105,37 @@ test.describe('display settings', () => {
   })
 })
 
+test.describe('front matter', () => {
+  // Real books open on an image-only cover, and applying layout
+  // attributes before that first section exists threw inside the
+  // paginator. Fixtures without a cover never caught it.
+  test('opening and paging raise no page errors', async ({ page }) => {
+    const errors = []
+    page.on('pageerror', e => errors.push(e.message))
+
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await page.locator('#tab-display').click()
+    await page.locator('#theme-select').selectOption('sepia')
+    for (let i = 0; i < 3; i++) {
+      await page.locator('#btn-next').click()
+      await page.waitForTimeout(200)
+    }
+    await page.locator('#tab-toc').click()
+    await page.locator('.toc-item', { hasText: 'Chapter Two' }).click()
+    await expectBookText(page, 'Chapter Two')
+
+    expect(errors).toEqual([])
+  })
+
+  test('the contents still lists only real chapters', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await page.locator('#tab-toc').click()
+    await expect(page.locator('.toc-item')).toHaveCount(4)
+  })
+})
+
 test.describe('reading position', () => {
   test('is remembered across a reload', async ({ page }) => {
     await page.goto('/')
@@ -157,5 +188,37 @@ test.describe('reading position', () => {
     await expect(
       page.locator('.book-row[data-name="hostile.epub"] .book-progress')
     ).toHaveText('')
+  })
+})
+
+test.describe('books with commas in internal filenames', () => {
+  // decodeURI() does not decode %2C, so foliate's resolveHref() misses
+  // the manifest entry and navigation silently fails. About 22% of the
+  // real library is affected — Calibre names sections "Author, Name -
+  // Title_split_0.html". Readable by paging either way; this is about
+  // the contents actually working.
+  const COMMA = 'comma-filenames.epub'
+
+  test('the contents can navigate to a chapter', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, COMMA)
+    await page.locator('#tab-toc').click()
+    await page.locator('.toc-item', { hasText: 'Chapter Three' }).click()
+    await expectBookText(page, 'Chapter Three')
+  })
+
+  test('navigation reports no failure in the console', async ({ page }) => {
+    const failures = []
+    page.on('console', m => {
+      if (/Could not go to|Could not resolve/.test(m.text())) failures.push(m.text())
+    })
+    await page.goto('/')
+    await openBook(page, COMMA)
+    await page.locator('#tab-toc').click()
+    for (const label of ['Chapter Two', 'Chapter Four']) {
+      await page.locator('.toc-item', { hasText: label }).click()
+      await page.waitForTimeout(400)
+    }
+    expect(failures).toEqual([])
   })
 })

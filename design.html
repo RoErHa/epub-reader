@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M1 COMPLETE</span>
-  <div class="hdr-right">136 pytest · 25 playwright · next action M2</div>
+  <div class="hdr-right">143 pytest · 29 playwright · validated on 1,300 real books</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M1 complete. The reader has contents, themes, typography controls and server-side position. Next action is M2.</div>
+<div class="status">Status: M1 complete and validated against a real 1,300-book library. EPUB only for now. Next action is M2.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -327,6 +327,44 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <p>Known upstream weak spots we design around rather than discover: the paginator uses CSS multi-column (epub.js's strategy, and inherits its slowness and CSS quirks), in-book search is slow enough to need incremental loading, and <strong>the PDF adapter is self-described as a proof-of-concept</strong>. Upstream tests cover CFI parsing only, and there are no types.</p>
 
 <!-- ─────────────────────────────────────────── -->
+<h3>Scope: EPUB only, for now</h3>
+<p>The library also holds PDFs, CBZ and CBR, but <strong>only <code>.epub</code> is listed or served</strong> until the reader is finished. PDF is a different rendering model and foliate's adapter is self-described as a proof-of-concept; CBR is RAR, which nothing in the stack reads. Listing a format we cannot render well only promises what we do not deliver. MOBI/AZW3 come next — same engine. <code>BookLibrary.SUFFIXES</code> is the single switch, and <code>resolve()</code> refuses anything outside it.</p>
+
+<h3>What the real library taught us</h3>
+<p>Validated against <code>~/Books</code>: 34&nbsp;GB, 1,327 EPUB files, 585 PDFs, 309 CBZ, 295 CBR. Measured, not assumed.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Structural surprise</th><th class="num">Count</th><th>Consequence for M2</th></tr></thead>
+<tbody>
+<tr><td>Unpacked EPUBs stored as <strong>directories</strong> (iTunes exports)</td><td class="num">262</td><td>Invisible today — we list files only. foliate-js <em>can</em> read unpacked directories.</td></tr>
+<tr><td>Books in <strong>subfolders</strong></td><td class="num">1,131</td><td>Invisible today — the scan is not recursive. 44% of the library.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Metadata quality (260-book sample)</th><th class="num">Present</th></tr></thead>
+<tbody>
+<tr><td>title / author</td><td class="num win">100%</td></tr>
+<tr><td>publication date</td><td class="num win">97%</td></tr>
+<tr><td>authors written <code>Last, First</code></td><td class="num mid">30%</td></tr>
+<tr><td>ISBN</td><td class="num">18%</td></tr>
+<tr><td>subject / genre</td><td class="num">19%</td></tr>
+<tr><td>description</td><td class="num">16%</td></tr>
+<tr><td>series</td><td class="num lose">7%</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>Broken files exist and must never crash a scan:</strong> 8 EPUBs with an empty spine, 5 whose manifest references missing files, and at least one that is not a zip at all.</p>
+
+<div class="rule">
+  <span class="eyebrow">Two upstream workarounds — both in static/reader.js</span>
+  <p><strong>1. <code>render()</code> before a document exists.</strong> A <code>ResizeObserver</code> calls <code>render()</code> → <code>columnize()</code>, which dereferences <code>this.document.documentElement</code> unguarded; a resize landing while a section loads throws and abandons the layout. <br><br><strong>2. <code>%2C</code> in contents hrefs.</strong> Calibre writes the NCX href percent-encoded while the manifest keeps the literal comma, and <code>resolveHref()</code> uses <code>decodeURI()</code>, which by design never decodes reserved characters. <strong>This broke the contents on ~22% of the real library.</strong> Fixed by resolving first, then retrying with reserved characters decoded — warnings fell from 18-in-80 to 1-in-50.</p>
+</div>
+
 <h2 id="s4"><span class="n">04</span>Interface</h2>
 
 <p>The same shell as dlna-gateway, with the same responsive behaviour: three columns on desktop, two on tablet, bottom nav on phone.</p>

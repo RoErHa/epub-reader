@@ -9,7 +9,7 @@ test.describe('app shell', () => {
   test('loads and lists the library', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('#status')).toHaveText('Ready')
-    await expect(page.locator('.book-row')).toHaveCount(2)
+    await expect(page.locator('.book-row')).toHaveCount(3)
     await expect(page.locator(`.book-row[data-name="${PLAIN}"]`)).toBeVisible()
   })
 
@@ -26,6 +26,10 @@ test.describe('reading', () => {
     await openBook(page, PLAIN)
 
     await expect(page.locator('foliate-view')).toHaveCount(1)
+    // Like a real book, this fixture opens on an image-only cover, so
+    // step into the first chapter before expecting prose.
+    await page.locator('#tab-toc').click()
+    await page.locator('.toc-item', { hasText: 'Chapter One' }).click()
     await expectBookText(page, 'quick brown fox')
   })
 

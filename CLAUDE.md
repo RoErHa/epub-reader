@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M1 complete.** All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M1 complete, validated against a real 1,300-book library (§3.2).** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -47,6 +47,17 @@ static/vendor/foliate-js/            pinned submodule
 
 Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, PWA manifest + service worker, rotating `gateway.log`.
 
+## 2.1 Scope: EPUB only, for now
+
+The library also holds PDFs, CBZ and CBR, but **only `.epub` is listed or
+served** until the reader is finished. PDF is a different rendering model
+and foliate's adapter is self-described as a proof-of-concept; CBR is RAR,
+which nothing in the stack reads. Listing a format we cannot render well
+only promises what we do not deliver. MOBI/AZW3 come next — same engine.
+
+`BookLibrary.SUFFIXES` is the single switch, and `resolve()` refuses to
+serve anything outside it.
+
 ## 3. Reading engine: foliate-js
 
 We do **not** write a rendering engine. [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) handles parsing, reflow pagination, TOC, in-book search, and CFI generation/resolution — the genuinely hard part of annotations.
@@ -75,6 +86,62 @@ Pinned at `78914ae` (2026-05-01) as a submodule at `static/vendor/foliate-js`.
 - **Fonts.** dlna-gateway loads Syne + DM Mono from Google Fonts. This app uses a system stack so the CSP needs no external origins at all. **Self-hosting those two faces was flagged for M1 and was not done — it carries to M2.** The app chrome therefore still differs from dlna-gateway's typography, though the palette matches.
 
 Known upstream weak spots we design around: the paginator uses CSS multi-column (epub.js's strategy, same slowness and CSS quirks); in-book search is slow enough to need incremental loading; **the PDF adapter is self-described as a proof-of-concept**. Upstream tests cover CFI parsing only.
+
+### 3.2 What the real library taught us
+
+Validated against `~/Books`: 34 GB, 1,327 EPUB files, 585 PDFs, 309 CBZ,
+295 CBR. Everything below is measured, not assumed.
+
+**Two structural surprises, both of which M2 must handle:**
+
+| Finding | Count | Consequence |
+| --- | --- | --- |
+| Unpacked EPUBs stored as **directories** (`Drive.epub/`, iTunes exports with `iTunesMetadata.plist`) | 262 | Invisible today — `BookLibrary` lists files only. foliate-js *can* read unpacked directories. |
+| Books in **subfolders** (series and collection folders) | 1,131 | Invisible today — the scan is not recursive. That is 44% of the library. |
+
+**Metadata quality** (260-book sample) — better than feared, except names:
+
+| | |
+| --- | --- |
+| title / author present | 100% |
+| publication date | 97% |
+| authors written `Last, First` | **30%** — sort-name normalisation is not optional |
+| ISBN | 18% |
+| subject/genre | 19% |
+| description | 16% |
+| series | **7%** — so series must come from providers, not files |
+
+**Broken files exist and must never crash a scan:** 8 EPUBs with an empty
+spine, 5 whose manifest references missing files, and at least one file
+that is not a zip at all. M2's indexer catches per-book errors and keeps going.
+
+**Performance:** hashing 1,093 books cold takes ~1.0 s and is then cached
+in memory (~0.02 s). Acceptable now, but the cache dies with the process —
+M2 persists `content_hash` in the `book` table.
+
+#### Two upstream workarounds, both contained in `static/reader.js`
+
+Real books broke in ways no synthetic fixture did. Both fixes live in the
+adapter, since the submodule is never edited.
+
+1. **`render()` before a document exists.** `paginator.js` observes the
+   container with a `ResizeObserver` that calls `render()` →
+   `View.columnize()`, which dereferences `this.document.documentElement`
+   with no null check. Any resize landing while a section loads throws and
+   abandons the layout pass. `#guardRenderer()` makes `render()` a no-op
+   until there is a document.
+2. **`%2C` in table-of-contents hrefs.** Calibre writes the NCX href
+   percent-encoded (`Name%2c A_split_0.html`) while the OPF manifest keeps
+   the literal comma. `resolveHref()` looks it up with `decodeURI()`, which
+   by design does **not** decode reserved characters, so the lookup misses
+   and navigation silently fails. **This affected ~22% of the real
+   library.** `goTo()` now resolves first and retries with reserved
+   characters decoded — resolving before navigating matters, because a
+   failed `goTo()` logs an error we cannot suppress. Measured on a
+   50-book sample afterwards: warnings fell from 18-in-80 to 1-in-50.
+
+Affected books were always readable by paging; it was the contents that
+broke. Fixtures now model both cases (`cover=True`, `encode_nav_hrefs=True`).
 
 ## 4. Interface
 
@@ -476,7 +543,7 @@ tests/frontend/     Playwright specs
 tools/              make_test_library.py
 ```
 
-## 10.1 What M1 established
+### 10.1 What M1 established
 
 - **Position is keyed by content hash, not filename.** Renaming a book keeps
   your place; there is a test for exactly that. M2 introduces `book.id` and

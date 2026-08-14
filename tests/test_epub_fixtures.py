@@ -68,6 +68,59 @@ class TestMultipleChapters:
             assert "OEBPS/chapter2.xhtml" not in zf.namelist()
 
 
+class TestFrontMatter:
+    """Real books open on an image-only cover, not on chapter one. That
+    difference hid a paginator crash from the fixtures for a whole
+    milestone, so the fixtures now model it."""
+
+    def test_a_cover_adds_an_image_only_first_section(self, tmp_path):
+        path = EpubBuilder(cover=True, chapters=2).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            names = zf.namelist()
+            cover = zf.read("OEBPS/cover.xhtml").decode()
+        assert "OEBPS/cover.png" in names
+        assert "<img" in cover
+        assert "<p>" not in cover
+
+    def test_the_cover_is_first_in_the_spine(self, tmp_path):
+        path = EpubBuilder(cover=True, chapters=2).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            opf = zf.read("OEBPS/content.opf").decode()
+        spine = opf[opf.index("<spine>"):]
+        assert spine.index('idref="cover"') < spine.index('idref="ch1"')
+
+    def test_books_without_a_cover_are_unchanged(self, tmp_path):
+        path = EpubBuilder().build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            assert "OEBPS/cover.png" not in zf.namelist()
+
+
+class TestAwkwardFilenames:
+    def test_a_prefix_lands_in_the_chapter_filenames(self, tmp_path):
+        path = EpubBuilder(
+            chapters=2, filename_prefix="Vornholt, John - "
+        ).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            names = zf.namelist()
+            nav = zf.read("OEBPS/nav.xhtml").decode()
+        assert "OEBPS/Vornholt, John - chapter1.xhtml" in names
+        assert "Vornholt, John - chapter1.xhtml" in nav
+
+    def test_nav_hrefs_can_be_percent_encoded_like_calibre(self, tmp_path):
+        path = EpubBuilder(
+            chapters=2, filename_prefix="Vornholt, John - ",
+            encode_nav_hrefs=True,
+        ).build(tmp_path / "b.epub")
+        with zipfile.ZipFile(path) as zf:
+            nav = zf.read("OEBPS/nav.xhtml").decode()
+            opf = zf.read("OEBPS/content.opf").decode()
+            names = zf.namelist()
+        # nav encoded, manifest and archive literal — the real mismatch.
+        assert "Vornholt%2c John - chapter1.xhtml" in nav
+        assert "Vornholt, John - chapter1.xhtml" in opf
+        assert "OEBPS/Vornholt, John - chapter1.xhtml" in names
+
+
 class TestScriptedVariant:
     def test_plain_book_contains_no_script(self, tmp_path):
         path = EpubBuilder().build(tmp_path / "b.epub")
