@@ -1,0 +1,47 @@
+# A ~40-term subset of BISAC subject headings (decision 5).
+# Major section plus ONE level of subcategory, no deeper: "FICTION /
+# Science Fiction", never "/ Space Opera". Deeper is unbrowsable at
+# library scale.
+# bisac_code	name
+FIC000000	Fiction
+FIC009000	Fantasy
+FIC028000	Science Fiction
+FIC022000	Mystery & Detective
+FIC031000	Thriller
+FIC027000	Romance
+FIC014000	Historical Fiction
+FIC002000	Action & Adventure
+FIC015000	Horror
+FIC019000	Literary Fiction
+FIC061000	Dystopian
+FIC050000	Crime
+FIC060000	Humour
+FIC012000	Classics
+FIC010000	War Fiction
+FIC042000	Christian Fiction
+FIC016000	Short Stories
+FIC005000	Erotica
+FIC047000	Sea Stories
+JUV000000	Children's
+YAF000000	Young Adult
+POE000000	Poetry
+DRA000000	Drama
+NON000000	Non-fiction
+BIO000000	Biography & Memoir
+HIS000000	History
+SCI000000	Science
+TEC000000	Technology
+COM000000	Computing
+BUS000000	Business & Economics
+PHI000000	Philosophy
+PSY000000	Psychology
+REL000000	Religion
+SOC000000	Social Science
+POL000000	Politics
+TRV000000	Travel
+CKB000000	Cookery
+HEA000000	Health & Fitness
+SPO000000	Sport
+ART000000	Art & Design
+MUS000000	Music
+LAN000000	Language & Reference

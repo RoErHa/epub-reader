@@ -18,8 +18,9 @@ from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
 from epub_reading import STATUSES, ReadingStateStore
+from epub_book_enrich import BookEnricher
 from epub_enrich import AuthorEnricher
-from epub_providers import OpenLibraryProvider
+from epub_providers import GoogleBooksProvider, OpenLibraryProvider
 from epub_search import SearchQueries
 from epub_shelves import SMART, ShelfError, ShelfExists, ShelfStore
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
@@ -161,6 +162,12 @@ class EpubGateway:
             ),
             cover_root=config.cover_cache,
         )
+        self._books_enricher = BookEnricher(self._database, [
+            OpenLibraryProvider(
+                contact=config.provider_key("OPENLIBRARY_CONTACT_EMAIL")),
+            GoogleBooksProvider(
+                api_key=config.provider_key("GOOGLE_BOOKS_API_KEY")),
+        ])
         self._indexer = LibraryIndexer(
             self._database, self._library, config.cover_cache
         )
@@ -421,6 +428,37 @@ class EpubGateway:
             book_or_404(book_id)
             return JSONResponse({"shelves": shelves.shelves_of(book_id)})
 
+        enricher = self._books_enricher
+
+        @app.post("/api/books/{book_id}/enrich")
+        def enrich_book(book_id: int) -> JSONResponse:
+            try:
+                return JSONResponse(enricher.enrich(book_id))
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+
+        @app.get("/api/review")
+        def review_queue(limit: int = 100) -> JSONResponse:
+            return JSONResponse({"items": enricher.pending(min(limit, 500))})
+
+        @app.post("/api/review/accept-all")
+        def accept_all() -> JSONResponse:
+            return JSONResponse(enricher.accept_all())
+
+        @app.post("/api/review/{candidate_id}/accept")
+        def accept_candidate(candidate_id: int) -> JSONResponse:
+            try:
+                return JSONResponse(enricher.accept(candidate_id))
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+
+        @app.post("/api/review/{candidate_id}/reject")
+        def reject_candidate(candidate_id: int) -> JSONResponse:
+            try:
+                return JSONResponse(enricher.reject(candidate_id))
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+
         @app.post("/api/authors/{author_id}/enrich")
         def enrich_author(author_id: int) -> JSONResponse:
             """Look this author up. Never fails the request: a provider
@@ -432,7 +470,9 @@ class EpubGateway:
 
         @app.get("/api/status")
         def index_status() -> JSONResponse:
-            return JSONResponse(browse.status())
+            status = browse.status()
+            status["pending_review"] = enricher.pending_count()
+            return JSONResponse(status)
 
         @app.get("/api/covers/{bucket}/{filename}")
         def cover(bucket: str, filename: str) -> FileResponse:

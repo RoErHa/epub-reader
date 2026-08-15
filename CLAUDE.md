@@ -450,7 +450,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M2 | Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar | done |
 | ✅ M3 | Search (FTS5), sorting, series, shelves | done |
 | ✅ M4 | Book detail: synopsis, About the author, Also published | done |
-| M5 | Enrichment: providers, scoring, BISAC genre map, review queue | 2–3 weeks |
+| ✅ M5 | Enrichment: providers, scoring, BISAC genre map, review queue | done |
 | M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | — |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
@@ -540,6 +540,10 @@ epub_shelves.py     ShelfStore — stored shelves and smart ones
 epub_providers.py   OpenLibraryProvider, WorkClassifier — injected fetcher
 epub_enrich.py      AuthorEnricher — provider results, honouring provenance
 epub_match.py       MatchScorer, Candidate, normalise_title, search_title
+epub_book_enrich.py BookEnricher — apply, queue, accept, reject
+epub_genres.py      GenreVocabulary — the BISAC subset and the map
+data/genres.tsv     ~40 BISAC terms; data/genre_map.tsv translates providers
+static/review.js    ReviewPanel — why it scored that, and what would change
 static/browse.js    Browser — mode strip, letter bar, drill-down
 static/detail.js    BookDetail — the book-detail screen
 epub_db.py          Database, Migration, MigrationRunner — forward-only
@@ -571,6 +575,50 @@ produced a flake that passed in isolation and failed in the full run.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
+
+### 10.13 The review queue, and what providers actually give you
+
+Decision 4's bands are enforced in `epub_book_enrich.py`: at or above
+0.90 we write, 0.60–0.90 waits for a human, below that the book is left
+alone and nothing is kept.
+
+- **The provenance rule is enforced on every write**, automatic or
+  accepted-in-review: a field whose origin is `user`, or which is locked,
+  is never touched. `title` is deliberately *not* in the writable set —
+  the file's title is what you see in your own folders, and changing it
+  silently would be disorienting.
+- **A score without a reason is not reviewable**, so each queued
+  candidate stores the parts it was made of and exactly which fields
+  would change, old beside new.
+- **Accept-all belongs to the queue, not to an item.** It was first built
+  inside the item pane, which meant opening a book to accept everything.
+
+**What real providers gave us**, enriching 25 random books:
+
+| | |
+| --- | --- |
+| applied automatically | 12 |
+| queued for review | 6 |
+| no candidate at all | 7 |
+| fields actually written | only `first_published` and `language` |
+
+Two things that measurement exposed:
+
+- **Google Books answers 429 to every unauthenticated request.** It
+  contributed nothing and logged 25 identical failures. A provider that
+  rate-limits us is now dropped for the rest of the run, and
+  `GOOGLE_BOOKS_API_KEY` is what makes it usable in bulk.
+- **Open Library's search results are thin** — title, author, year, ISBN,
+  language, cover, but *no synopsis or publisher*. So auto-apply writes
+  little. Fetching each matched work's own record would fix it at the
+  cost of a second request per book; that is the obvious next
+  improvement, and it is recorded here rather than left looking finished.
+
+**Genre coverage** on the real library: the map reaches **57% of
+book-genre rows** (up from 45% once hyphenated paths like
+`Fantasy - General` were walked, not just slashed ones). The rest is
+genuine junk — `Rand al'Thor (Fictitious character)`, `wierook32` — which
+is exactly what "logged, never guessed" is for.
 
 ### 10.12 Matching: scored by evidence, calibrated on real books
 

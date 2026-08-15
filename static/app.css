@@ -74,14 +74,18 @@ header{
 }
 #sort-select:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
 
-#new-shelf{
+#new-shelf,#review-accept-all{
   margin:8px 12px;padding:7px 10px;flex-shrink:0;
   background:var(--raised);color:var(--ink);
   border:1px dashed var(--border-hi);border-radius:var(--r);
   font:inherit;font-size:12px;cursor:pointer;text-align:left;
 }
-#new-shelf:hover{border-color:var(--amber-d);border-style:solid}
-#new-shelf:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+#new-shelf:hover,#review-accept-all:hover{
+  border-color:var(--amber-d);border-style:solid;
+}
+#new-shelf:focus-visible,#review-accept-all:focus-visible{
+  outline:2px solid var(--amber);outline-offset:1px;
+}
 
 #shelf-sheet{
   position:absolute;left:0;right:0;bottom:0;z-index:7;
@@ -375,6 +379,51 @@ foliate-view{display:block;width:100%;height:100%}
   #detail-title{font-size:19px}
   .also-row{grid-template-columns:22px minmax(0,1fr) 44px;max-width:none}
   .also-owned{display:none}
+}
+
+/* ── Review queue ────────────────────────────────────────────────────── */
+#review{
+  position:absolute;inset:0;z-index:4;overflow-y:auto;
+  background:var(--bg);padding:26px 30px 40px;
+}
+.review-head{margin-bottom:8px}
+#review-title{font-size:21px;font-weight:700;margin:0;text-wrap:balance}
+#review-score{
+  font-family:var(--fm);font-size:var(--fs-micro);color:var(--amber);
+  letter-spacing:.04em;margin-top:4px;
+}
+.review-row{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  width:100%;padding:9px 14px;background:none;border:none;
+  border-bottom:1px solid var(--border);color:var(--ink);
+  text-align:left;font:inherit;font-size:13px;cursor:pointer;
+}
+.review-row:hover{background:var(--raised)}
+.review-row:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+.review-row.active{background:var(--raised);box-shadow:inset 3px 0 0 var(--amber)}
+.review-book{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-score{
+  font-family:var(--fm);font-size:var(--fs-micro);color:var(--amber);
+  font-variant-numeric:tabular-nums;flex-shrink:0;
+}
+.part-row,.change-row{
+  display:grid;gap:12px;align-items:baseline;padding:5px 0;
+  border-bottom:1px solid var(--border);font-size:13px;
+}
+.part-row{grid-template-columns:110px 1fr}
+.change-row{grid-template-columns:110px minmax(0,1fr) minmax(0,1fr)}
+.part-name,.change-field{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim-soft);
+}
+.part-value{font-variant-numeric:tabular-nums;color:var(--ink-dim)}
+.part-row.weak .part-value{color:var(--red)}
+.change-from{color:var(--ink-dim-soft);text-decoration:line-through}
+.change-to{color:var(--green)}
+@media (max-width:600px){
+  #review{padding:18px 16px 30px}
+  .change-row{grid-template-columns:90px minmax(0,1fr)}
+  .change-from{display:none}
 }
 
 /* ── Loading: the book's own cover, turning ─────────────────────────── */

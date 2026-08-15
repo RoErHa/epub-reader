@@ -2,6 +2,7 @@
  * The full Browse/Search/Read interface lands in M2–M3.
  */
 import { BookDetail } from '/static/detail.js'
+import { ReviewPanel } from '/static/review.js'
 import { Browser } from '/static/browse.js'
 import { LoadingIndicator, fetchWithProgress } from '/static/loading.js'
 import { ReaderEngine } from '/static/reader.js'
@@ -163,6 +164,7 @@ class BooksApp {
   #loading = null
   #sheet = null
   #detail = null
+  #review = null
   #current = null
 
   constructor (root = document) {
@@ -201,6 +203,14 @@ class BooksApp {
       detailAlso: root.getElementById('detail-also'),
       detailLookup: root.getElementById('detail-lookup'),
       detailNote: root.getElementById('detail-note'),
+      review: root.getElementById('review'),
+      reviewTitle: root.getElementById('review-title'),
+      reviewScore: root.getElementById('review-score'),
+      reviewParts: root.getElementById('review-parts'),
+      reviewChanges: root.getElementById('review-changes'),
+      reviewAccept: root.getElementById('review-accept'),
+      reviewReject: root.getElementById('review-reject'),
+      reviewAcceptAll: root.getElementById('review-accept-all'),
       detailShowAll: root.getElementById('detail-showall'),
       prev: root.getElementById('btn-prev'),
       next: root.getElementById('btn-next'),
@@ -226,9 +236,15 @@ class BooksApp {
     this.#browserDom = {
         list: this.dom.list, modes: this.dom.modes, letters: this.dom.letters,
         back: this.dom.back, backTitle: this.dom.backTitle,
-      statusbar: this.dom.statusbar, newShelf: this.dom.newShelf
+      statusbar: this.dom.statusbar, newShelf: this.dom.newShelf,
+      acceptAll: this.dom.reviewAcceptAll
     }
-    this.#list = new Browser(this.#browserDom, book => this.show(book.id))
+    this.#review = new ReviewPanel(this.dom, () => this.#list.reload())
+    this.#list = new Browser(
+      this.#browserDom,
+      book => this.show(book.id),
+      item => this.#showReview(item)
+    )
     this.#toc = new TableOfContents(this.dom.toc, item => this.#reader.goTo(item.href))
     this.#sheet = new ShelfSheet(this.dom)
     // Choosing a book shows it; reading starts when you ask for it.
@@ -353,8 +369,15 @@ class BooksApp {
     this.#reader.setRendererAttributes(this.#settings.rendererAttributes())
   }
 
+  #showReview (item) {
+    this.#detail.hide()
+    this.#showView('read')
+    this.#review.show(item)
+  }
+
   /** Show a book without opening it. */
   async show (bookId) {
+    this.#review.hide()
     this.#showView('read')          // the detail pane owns the right side
     this.#reader.close()
     this.dom.stage.dataset.state = 'empty'
@@ -371,6 +394,7 @@ class BooksApp {
 
   async open (book) {
     this.#detail.hide()
+    this.#review.hide()
     await this.#positions.flush()
     this.#status(`Opening ${book.title ?? book.name}…`)
     this.dom.stage.dataset.state = 'loading'

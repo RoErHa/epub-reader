@@ -225,6 +225,31 @@ class MigrationRunner:
               ON author_work(book_id);
             """,
         ),
+        Migration(
+            6,
+            "candidates",
+            """
+            -- Candidates in the middle band (0.60-0.90) wait here for a
+            -- human. Everything fetched is kept with its score and the
+            -- parts that produced it, so the review screen can show WHY
+            -- rather than an unexplained number.
+            CREATE TABLE IF NOT EXISTS metadata_candidate (
+              id         INTEGER PRIMARY KEY,
+              book_id    INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+              provider   TEXT    NOT NULL,
+              source_id  TEXT,
+              payload    TEXT    NOT NULL,   -- the candidate, as JSON
+              parts      TEXT,               -- score breakdown, as JSON
+              score      REAL    NOT NULL,
+              status     TEXT    NOT NULL DEFAULT 'pending',
+              fetched_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS candidate_book
+              ON metadata_candidate(book_id);
+            CREATE INDEX IF NOT EXISTS candidate_status
+              ON metadata_candidate(status);
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

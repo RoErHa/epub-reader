@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M3 IN PROGRESS</span>
-  <div class="hdr-right">397 pytest · 250 playwright (chromium + webkit)</div>
+  <div class="hdr-right">456 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M5 in progress — the matching and scoring engine is built and calibrated on the real library. Candidate storage, the BISAC map and the review queue are next. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
+<div class="status">Status: M5 complete — matching, the BISAC genre map and the review queue all work against the real 1,326-book library. Next action is M6. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -735,7 +735,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num win">done</td></tr>
-<tr><td class="num">M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num">2–3 weeks</td></tr>
+<tr class="self"><td class="num">✅ M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num win">done</td></tr>
 <tr><td class="num">M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
 </tbody>
 </table>
@@ -829,6 +829,26 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
 </div>
 
 <p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
+
+<h3>The review queue</h3>
+<p>Decision 4's bands are enforced on every run: at or above 0.90 we write, 0.60–0.90 waits for a human, below that the book is left alone and nothing is kept.</p>
+<ul>
+<li><strong>The provenance rule is enforced on every write</strong>, automatic or accepted-in-review. <code>title</code> is deliberately not writable — the file's title is what you see in your own folders.</li>
+<li><strong>A score without a reason is not reviewable</strong>, so each candidate carries the parts it was made of and exactly which fields would change, old beside new.</li>
+</ul>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Enriching 25 real books</th><th class="num">Result</th></tr></thead>
+<tbody>
+<tr><td>applied automatically</td><td class="num win">12</td></tr>
+<tr><td>queued for review</td><td class="num mid">6</td></tr>
+<tr><td>no candidate at all</td><td class="num lose">7</td></tr>
+<tr><td>fields actually written</td><td class="num"><code>first_published</code>, <code>language</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Google Books answers 429 to every unauthenticated request</strong> — it contributed nothing and logged 25 identical failures, so a provider that rate-limits us is now dropped for the rest of the run. And <strong>Open Library's search results are thin</strong>: no synopsis or publisher, which is why auto-apply writes so little. Fetching each matched work's own record would fix that at the cost of a second request per book — the obvious next improvement, recorded rather than left looking finished.</p>
+<p><strong>Genre coverage</strong> reaches <strong>57% of book-genre rows</strong> (45% before hyphenated paths like <code>Fantasy - General</code> were walked as well as slashed ones). The remainder is genuine junk — <code>Rand al'Thor (Fictitious character)</code>, <code>wierook32</code> — which is what "logged, never guessed" exists for.</p>
 
 <h3>Matching: scored by evidence</h3>
 <p>Most EPUBs have no ISBN, so matching is fuzzy against providers that confidently return the wrong edition. Two flaws the tests caught before any of it ran:</p>

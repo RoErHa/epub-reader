@@ -1,0 +1,127 @@
+# Provider strings → BISAC code. Providers return BISAC codes, free text
+# and folksonomy tags interchangeably, so this grows from real data:
+# unmapped values are LOGGED, never guessed.
+# The left side is compared folded (lowercase, accents removed).
+# provider string	bisac_code
+science fiction	FIC028000
+sci-fi	FIC028000
+sf	FIC028000
+scifi	FIC028000
+science fiction & fantasy	FIC028000
+fiction / science fiction	FIC028000
+speculative fiction	FIC028000
+fantasy	FIC009000
+fantasy fiction	FIC009000
+epic fantasy	FIC009000
+high fantasy	FIC009000
+fiction / fantasy	FIC009000
+mystery	FIC022000
+detective	FIC022000
+mystery & detective	FIC022000
+mystery and detective stories	FIC022000
+whodunit	FIC022000
+thriller	FIC031000
+thrillers	FIC031000
+suspense	FIC031000
+spy stories	FIC031000
+espionage	FIC031000
+romance	FIC027000
+love stories	FIC027000
+historical fiction	FIC014000
+historical novels	FIC014000
+adventure	FIC002000
+adventure stories	FIC002000
+action & adventure	FIC002000
+horror	FIC015000
+horror tales	FIC015000
+ghost stories	FIC015000
+literary fiction	FIC019000
+literature	FIC019000
+dystopia	FIC061000
+dystopian	FIC061000
+crime	FIC050000
+crime fiction	FIC050000
+true crime	NON000000
+humor	FIC060000
+humour	FIC060000
+comedy	FIC060000
+satire	FIC060000
+classics	FIC012000
+classic literature	FIC012000
+war stories	FIC010000
+war	FIC010000
+military	FIC010000
+christian fiction	FIC042000
+short stories	FIC016000
+short stories, english	FIC016000
+sea stories	FIC047000
+juvenile fiction	JUV000000
+children	JUV000000
+childrens fiction	JUV000000
+young adult fiction	YAF000000
+young adult	YAF000000
+ya	YAF000000
+poetry	POE000000
+poems	POE000000
+drama	DRA000000
+plays	DRA000000
+fiction	FIC000000
+nonfiction	NON000000
+non-fiction	NON000000
+biography	BIO000000
+autobiography	BIO000000
+memoir	BIO000000
+biography & autobiography	BIO000000
+history	HIS000000
+world history	HIS000000
+science	SCI000000
+popular science	SCI000000
+physics	SCI000000
+biology	SCI000000
+astronomy	SCI000000
+mathematics	SCI000000
+technology	TEC000000
+engineering	TEC000000
+computers	COM000000
+computing	COM000000
+programming	COM000000
+business	BUS000000
+economics	BUS000000
+business & economics	BUS000000
+management	BUS000000
+philosophy	PHI000000
+psychology	PSY000000
+self-help	PSY000000
+religion	REL000000
+theology	REL000000
+spirituality	REL000000
+social science	SOC000000
+sociology	SOC000000
+anthropology	SOC000000
+politics	POL000000
+political science	POL000000
+travel	TRV000000
+cooking	CKB000000
+cookery	CKB000000
+food	CKB000000
+health & fitness	HEA000000
+health	HEA000000
+medical	HEA000000
+sports	SPO000000
+sport	SPO000000
+art	ART000000
+design	ART000000
+photography	ART000000
+music	MUS000000
+reference	LAN000000
+language arts & disciplines	LAN000000
+english language	LAN000000
+# Added from the real library, where these were the commonest misses.
+magic	FIC009000
+epic	FIC009000
+literary	FIC019000
+erotic	FIC005000
+espionage fiction	FIC031000
+detective and mystery stories	FIC022000
+american fiction	FIC019000
+english fiction	FIC019000

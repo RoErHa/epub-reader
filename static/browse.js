@@ -11,7 +11,8 @@ export const MODES = [
   { id: 'series', label: 'Series', endpoint: '/api/series', key: 'series' },
   { id: 'genres', label: 'Genres', endpoint: '/api/genres', key: 'genres' },
   { id: 'years', label: 'Years', endpoint: '/api/years', key: 'decades' },
-  { id: 'shelves', label: 'Shelves', endpoint: '/api/shelves', key: 'shelves' }
+  { id: 'shelves', label: 'Shelves', endpoint: '/api/shelves', key: 'shelves' },
+  { id: 'review', label: 'Review', endpoint: '/api/review', key: 'items' }
 ]
 
 const json = async url => {
@@ -23,15 +24,17 @@ const json = async url => {
 export class Browser {
   #dom = null
   #onOpenBook = null
+  #onReview = null
   #mode = 'titles'
   #letter = null
   #drill = null // { title, endpoint }
   #query = ''
   #sort = 'title'
 
-  constructor (dom, onOpenBook) {
+  constructor (dom, onOpenBook, onReview = () => {}) {
     this.#dom = dom
     this.#onOpenBook = onOpenBook
+    this.#onReview = onReview
   }
 
   /** Show results for a query, or return to browsing when it is empty. */
@@ -135,12 +138,16 @@ export class Browser {
   async #render () {
     await this.#renderLetters()
     this.#dom.back.hidden = this.#drill === null
-    if (this.#drill || this.#query) this.#dom.newShelf.hidden = true
+    if (this.#drill || this.#query) {
+      this.#dom.newShelf.hidden = true
+      this.#dom.acceptAll.hidden = true
+    }
     if (this.#drill) {
       this.#dom.backTitle.textContent = this.#drill.title
       return this.#renderBooks(this.#drill.endpoint)
     }
     if (this.#query) return this.#renderSearch()
+    if (this.#mode === 'review') return this.#renderReview()
     const mode = MODES.find(m => m.id === this.#mode)
     if (!mode.endpoint) {
       const query = new URLSearchParams({ sort: this.#sort })
@@ -148,6 +155,35 @@ export class Browser {
       return this.#renderBooks(`/api/books?${query}`)
     }
     return this.#renderGroups(mode)
+  }
+
+  /** The review queue is neither a group list nor a book list. */
+  async #renderReview () {
+    const { items } = await json('/api/review')
+    const list = this.#dom.list
+    list.replaceChildren()
+    this.#dom.newShelf.hidden = true
+    this.#dom.acceptAll.hidden = !items.length
+    if (!items.length) {
+      return this.#message('Nothing waiting to be reviewed.')
+    }
+    for (const item of items) {
+      const row = document.createElement('button')
+      row.className = 'review-row'
+      row.dataset.id = String(item.id)
+      row.innerHTML =
+        '<span class="review-book"></span><span class="review-score"></span>'
+      row.querySelector('.review-book').textContent = item.book.title
+      row.querySelector('.review-score').textContent =
+        `${Math.round(item.score * 100)}%`
+      row.addEventListener('click', () => {
+        for (const el of list.querySelectorAll('.review-row')) {
+          el.classList.toggle('active', el === row)
+        }
+        this.#onReview(item)
+      })
+      list.append(row)
+    }
   }
 
   async #renderSearch () {
@@ -224,6 +260,7 @@ export class Browser {
     if (!rows.length) return this.#message('Nothing here yet.')
 
     this.#dom.newShelf.hidden = mode.id !== 'shelves'
+    this.#dom.acceptAll.hidden = true
     for (const row of rows) {
       const isYear = mode.id === 'years'
       const label = isYear ? `${row.decade}s` : row.name
