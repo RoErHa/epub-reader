@@ -96,3 +96,11 @@ verified by weakening the policy and watching it fail.
 `CLAUDE.md` and `design.html` carry the full design, the decisions behind
 it, and what a real 1,300-book library taught us — including four defects
 in the rendering engine that no synthetic fixture would have produced.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+Vendored and pinned as a submodule:
+[foliate-js](https://github.com/johnfactotum/foliate-js) (MIT), which in
+turn vendors zip.js (BSD-3), fflate (MIT) and PDF.js (Apache 2.0).
