@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M3 in progress — search works over the real 1,326-book library. Shelves and the remaining sort options are next.</div>
+<div class="status">Status: M3 in progress — search works over the real 1,326-book library, and it reads properly on iPhone, iPad and Mac. Shelves and the remaining sort options are next.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -365,6 +365,21 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
   <p><strong>1. <code>render()</code> before a document exists.</strong> A <code>ResizeObserver</code> calls <code>render()</code> → <code>columnize()</code>, which dereferences <code>this.document.documentElement</code> unguarded; a resize landing while a section loads throws and abandons the layout. <br><br><strong>2. <code>%2C</code> in contents hrefs.</strong> Calibre writes the NCX href percent-encoded while the manifest keeps the literal comma, and <code>resolveHref()</code> uses <code>decodeURI()</code>, which by design never decodes reserved characters. <strong>This broke the contents on ~22% of the real library.</strong> Fixed by resolving first, then retrying with reserved characters decoded — warnings fell from 18-in-80 to 1-in-50.</p>
 </div>
 
+<h3>What the engine actually required</h3>
+<p>Four defects, none of which any synthetic fixture could have produced. All four are contained in <code>static/reader.js</code>; the submodule is never edited.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Blank page, TypeError in the console</td><td>A <code>ResizeObserver</code> calls <code>render()</code> → <code>columnize()</code>, which dereferences the section document with no null check — it is null while a section loads</td><td>render() no-ops until there is a document</td></tr>
+<tr><td>Contents did nothing on ~22% of the library</td><td>Calibre writes the NCX href percent-encoded (<code>Name%2c A.html</code>) while the manifest keeps the literal comma; <code>resolveHref()</code> uses <code>decodeURI()</code>, which never decodes reserved characters</td><td>resolve first, retry with reserved characters decoded</td></tr>
+<tr class="self"><td><strong>Books never opened at all in Safari</strong></td><td>WebKit propagates the page CSP into <code>blob:</code> documents, so <code>frame-ancestors 'none'</code> made the book's own iframe refuse to load</td><td><code>frame-ancestors 'self'</code>; X-Frame-Options carries the same protection and is not inherited</td></tr>
+<tr><td>Cover, then a blank pane</td><td>A single 1.18&nbsp;MB section columnises into a strip measured at <strong>8,120,880&nbsp;px</strong> wide, which no browser can paint. 252&nbsp;kB paginates fine — it is section size, not file size</td><td>fall back to scrolled flow above 400&nbsp;kB, and say so</td></tr>
+</tbody>
+</table>
+</div>
+<p>Books also open <strong>where the words start</strong> rather than on the cover. foliate's <code>goToTextStart()</code> was not enough: these books have no landmarks and mark the cover as linear, so it lands on the cover anyway. The first content section is found by size — as a fraction of the book's <em>own median section</em>, because a fixed threshold skipped every section of a book whose chapters were 1&nbsp;kB.</p>
+
 <h2 id="s4"><span class="n">04</span>Interface</h2>
 
 <p>The same shell as dlna-gateway, with the same responsive behaviour: three columns on desktop, two on tablet, bottom nav on phone.</p>
@@ -455,6 +470,33 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <p>Controls: font family and size, line height, margin width, column count, theme (light / sepia / dark / black), and paginated vs scrolled. The paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.</p>
 
 <!-- ─────────────────────────────────────────── -->
+<h3>4.3 &nbsp;Reading on a phone or an iPad</h3>
+<p>Three columns on a touch screen leaves the reading pane a couple of hundred points wide, and the paginator has nothing to lay out into — <strong>the book showed nothing at all on iOS</strong>. Choosing a book gives the reader the whole screen, with a back arrow to the library.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Device</th><th class="num">Points</th><th>Layout</th></tr></thead>
+<tbody>
+<tr><td>iPhone 15</td><td class="num">393 × 852</td><td>one screen at a time</td></tr>
+<tr><td>iPad 9th gen, portrait</td><td class="num">810 × 1080</td><td>one screen at a time</td></tr>
+<tr><td>iPad 9th gen, landscape</td><td class="num">1080 × 810</td><td>one screen at a time</td></tr>
+<tr class="self"><td>Mac, any normal window</td><td class="num">1280 +</td><td>three columns, unchanged</td></tr>
+</tbody>
+</table>
+</div>
+<p>The breakpoint (<code>max-width: 1180px</code>) comes from those devices rather than from a convention: the iPad in <em>landscape</em> is 1080 points, so a 1024 breakpoint would have left a squeezed column on the device most reading happens on.</p>
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p><strong>The Mac layout does not change.</strong> Tests pin it at 1280, 1440 and 1728 points: three columns, no back arrow, library exactly 330&nbsp;px.</p>
+</div>
+<p>Touch details that are easy to get wrong: <code>height: 100dvh</code>, because 100% of a viewport that moves as Safari's toolbars slide is not a height; a 44&nbsp;pt tap target inside <code>env(safe-area-inset-*)</code>; the search box gives way to the book while reading; and the title is clamped to one line, having wrapped to three and pushed the header from 33&nbsp;pt to ~90.</p>
+
+<h3>4.4 &nbsp;While a book loads</h3>
+<p>The book's own cover, turning, above a bar and a label — confined to the reading pane so the library stays usable. Two phases, because only one can be measured honestly:</p>
+<ul>
+<li><strong>downloading</strong> — a real percentage, from <code>Content-Length</code> against bytes read off the stream. The app fetches the book itself so the bytes can be counted, then hands foliate a <code>File</code> (not a <code>Blob</code>: it sniffs format partly by <code>file.name</code>).</li>
+<li><strong>preparing</strong> — foliate exposes no progress while parsing and laying out, and a 1.2&nbsp;MB single-section book spends 6–8&nbsp;s there. The bar goes indeterminate and the label says so, rather than inventing a number that would be wrong.</li>
+</ul>
+
 <h2 id="s5"><span class="n">05</span>Data model</h2>
 
 <p>Two decisions carry the design.</p>
@@ -683,7 +725,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M0</td><td>Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num win">done</td></tr>
-<tr><td class="num">M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num">~3 days</td></tr>
+<tr><td class="num">◑ M3</td><td>Search (FTS5) <strong>done</strong>; sorting, series, shelves outstanding</td><td class="num">~3 days</td></tr>
 <tr><td class="num">M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num">~1 week</td></tr>
 <tr><td class="num">M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num">2–3 weeks</td></tr>
 <tr><td class="num">M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
@@ -747,6 +789,20 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
   <p>A security test that passes for the wrong reason is worse than none. Tests asserting that a protection holds are verified by <strong>temporarily breaking the protection and confirming the test fails</strong>. Done for the CSP containment test in M0.</p>
 </div>
 
+<h3>Rules earned the hard way</h3>
+<div class="rule">
+  <span class="eyebrow">Browsers</span>
+  <p>The UI suite runs against <strong>Chromium and WebKit</strong>. This is read in Safari on a Mac, an iPhone and an iPad, and foliate-js is developed against WebKitGTK. Chromium-only testing is how a total failure — books never opening in Safari — shipped unnoticed with a green suite.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">Test isolation</span>
+  <p>The UI suite runs <strong>serially</strong>. One server, one database, and reading position shared across devices by design means parallel tests race over real application state. And a position test needs a book <em>no other test opens</em> — opening a book writes a position, so avoiding the assertion is not enough.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">Evidence</span>
+  <p>Assert the thing, not its proxy. A test that checked the cover element existed passed for as long as the cover was invisible in Safari; the test that mattered samples the image's actual pixels. The CSP containment test is likewise verified by <em>breaking</em> the policy and watching it fail.</p>
+</div>
+
 <h3>Running it</h3>
 <pre><code>python3 -m venv .venv &amp;&amp; .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env            <span class="c"># then set LIBRARY_ROOT</span>
@@ -766,13 +822,14 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
 
 <p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
 
-<h3>Library scanning</h3>
-<p><code>epub_library.py</code> answers one question: what appeared, changed or vanished since last time?</p>
+<h3>Indexing</h3>
+<p><code>epub_index.py</code> answers one question on every start: what appeared, changed or vanished? The earlier JSON-manifest scanner has been deleted — the <code>book</code> table tracks the same facts and more.</p>
 <ul>
-<li>Detection is <strong>stat-based</strong> — name, size, mtime — because this runs on every start and hashing a large library each time would be wasteful.</li>
-<li>State lives in <code>library-manifest.json</code> beside the database. It is internal state, not configuration, so it gets no <code>.env</code> key.</li>
-<li>A corrupt manifest is treated as absent, not fatal: the worst case is one scan reporting everything as new, which is recoverable — refusing to start is not.</li>
-<li><strong>M2 replaces the JSON with the <code>book</code> table</strong> and takes over identity via <code>content_hash</code>, keeping the <code>LibraryScanner</code> interface.</li>
+<li><strong>Recursive</strong>, because 44% of the real library lives in subfolders.</li>
+<li><strong>Incremental by size + mtime</strong>: unchanged books are never re-hashed. Measured on the real library — 1,326 books in 7.7&nbsp;s cold, 0.3&nbsp;s warm, hashing 2 files.</li>
+<li>Identity is the <strong>content hash</strong>: the same book filed twice is one row, a moved file updates its path, and an edited file updates in place rather than orphaning the old row.</li>
+<li>Every per-book failure is caught and recorded against the book. A corrupt EPUB must never stop a run.</li>
+<li>A new FTS table does not backfill itself — after the search migration every book was "unchanged", so the indexer catches up any book with metadata and no search row.</li>
 </ul>
 
 <h3>Layout</h3>
