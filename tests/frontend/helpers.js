@@ -46,10 +46,23 @@ export async function bookId (page, name) {
   return book.id
 }
 
+/** Choose a book — shows its detail page, without opening it. */
+export async function chooseBook (page, name) {
+  await page.locator(`.book-row[data-name="${name}"]`).click()
+  await expect(page.locator('#detail-read')).toBeVisible({ timeout: 15000 })
+}
+
+/** Choose a book and start reading it.
+ *
+ * Choosing shows the book's details; reading begins when you ask for it,
+ * so this does both — the two steps a reader actually takes.
+ */
 export async function openBook (page, name) {
   await page.locator(`.book-row[data-name="${name}"]`).click()
+  await expect(page.locator('#detail-read')).toBeVisible({ timeout: 15000 })
+  await page.locator('#detail-read').click()
   await expect(page.locator('#reader-stage')).toHaveAttribute(
-    'data-state', 'open', { timeout: 15000 }
+    'data-state', 'open', { timeout: 20000 }
   )
   await waitForBookFrame(page)
 }

@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M3 IN PROGRESS</span>
-  <div class="hdr-right">295 pytest · 212 playwright (chromium + webkit)</div>
+  <div class="hdr-right">309 pytest · 234 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M3 complete — search, sorting and shelves all work over the real 1,326-book library, served over TLS, reading properly on iPhone, iPad and Mac.</div>
+<div class="status">Status: M4 in progress — the book-detail screen is built; author enrichment is next. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -470,6 +470,10 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <p>Controls: font family and size, line height, margin width, column count, theme (light / sepia / dark / black), and paginated vs scrolled. The paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.</p>
 
 <!-- ─────────────────────────────────────────── -->
+<h3>4.2b &nbsp;Choosing a book is not opening it</h3>
+<p>The centre pane shows <strong>either</strong> the book's details <strong>or</strong> the reader. Choosing a book shows it; reading starts when you press <strong>Read</strong>. Navigation is a hierarchy — library → book → reading — and back retraces it one level at a time rather than dumping you at the library from the middle of a chapter.</p>
+<p>Empty panels say what is missing rather than showing nothing: <em>"Nothing about Stephen R. Donaldson has been looked up yet."</em> Until enrichment runs, <em>Also published</em> lists the rest of that author's books in your own library, grouped by series and numbered.</p>
+
 <h3>4.3 &nbsp;Reading on a phone or an iPad</h3>
 <p>Three columns on a touch screen leaves the reading pane a couple of hundred points wide, and the paginator has nothing to lay out into — <strong>the book showed nothing at all on iOS</strong>. Choosing a book gives the reader the whole screen, with a back arrow to the library.</p>
 <div class="tablewrap">

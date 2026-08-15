@@ -45,6 +45,37 @@
 
   <div id="reader">
     <button id="reader-back" aria-label="Back to the library">‹</button>
+    <div id="detail" hidden>
+      <div class="detail-head">
+        <img id="detail-cover" alt="">
+        <div class="detail-headings">
+          <h1 id="detail-title"></h1>
+          <div id="detail-series"></div>
+          <div id="detail-author"></div>
+          <div id="detail-facts"></div>
+          <div class="detail-actions">
+            <button class="btn primary" id="detail-read">▶ Read</button>
+            <button class="btn" id="detail-shelf">＋ Shelf</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="detail-panel">
+        <h2>Synopsis</h2>
+        <div id="detail-synopsis"></div>
+      </section>
+
+      <section class="detail-panel" id="detail-author-panel">
+        <h2>About the author</h2>
+        <div id="detail-bio"></div>
+      </section>
+
+      <section class="detail-panel">
+        <h2>Also published</h2>
+        <div id="detail-also"></div>
+      </section>
+    </div>
+
     <div id="reader-stage" data-state="empty">
       <!-- ReaderEngine appends a foliate-view here on open. -->
     </div>

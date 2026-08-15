@@ -1,5 +1,5 @@
 import { test, expect, devices } from '@playwright/test'
-import { openBook, expectBookText } from './helpers.js'
+import { openBook, chooseBook, expectBookText } from './helpers.js'
 
 /* On a phone there is no room for three columns: the reading pane ends
  * up a couple of hundred pixels wide and the paginator has nothing to
@@ -49,13 +49,26 @@ test.describe('on a phone', () => {
     await expectBookText(page, 'Chapter One')
   })
 
-  test('a back arrow returns to the library', async ({ page }) => {
+  test('back steps out one level at a time', async ({ page }) => {
+    // library → book → reading, so back retraces that rather than
+    // dumping you at the library from the middle of a chapter.
     await page.goto('/')
     await openBook(page, BOOK)
     await expect(page.locator('#reader-back')).toBeVisible()
+
+    await page.locator('#reader-back').click()
+    await expect(page.locator('#detail')).toBeVisible()      // back to the book
+
+    await page.locator('#reader-back').click()
+    await expect(page.locator('#browser')).toBeVisible()     // back to the library
+    await expect(page.locator('#reader')).toBeHidden()
+  })
+
+  test('back from the book itself returns to the library', async ({ page }) => {
+    await page.goto('/')
+    await chooseBook(page, BOOK)
     await page.locator('#reader-back').click()
     await expect(page.locator('#browser')).toBeVisible()
-    await expect(page.locator('#reader')).toBeHidden()
   })
 
   test('the back arrow is reachable, not under the notch', async ({ page }) => {
@@ -71,7 +84,8 @@ test.describe('on a phone', () => {
   test('going back and opening another book still works', async ({ page }) => {
     await page.goto('/')
     await openBook(page, BOOK)
-    await page.locator('#reader-back').click()
+    await page.locator('#reader-back').click()   // to the book
+    await page.locator('#reader-back').click()   // to the library
     await expect(page.locator('#browser')).toBeVisible()
     await openBook(page, 'start-no-cover.epub')
     await expect(page.locator('#book-title')).toHaveText('Start No Cover')
@@ -84,6 +98,7 @@ test.describe('on a phone', () => {
       await page.locator('#search-input').fill('darkness')
       await page.locator('#search-input').press('Enter')
       await page.locator('.book-row').first().click()
+      await page.locator('#detail-read').click()
       await expect(page.locator('#reader-stage')).toHaveAttribute(
         'data-state', 'open', { timeout: 20000 }
       )
@@ -103,6 +118,10 @@ test.describe('on a phone', () => {
     await expect(page.locator('#search-input')).toBeVisible()
     await openBook(page, BOOK)
     await expect(page.locator('#search-input')).toBeHidden()
+    // Still hidden on the book's own page — you are in a book, not the
+    // library. It comes back when you do.
+    await page.locator('#reader-back').click()
+    await expect(page.locator('#search-input')).toBeHidden()
     await page.locator('#reader-back').click()
     await expect(page.locator('#search-input')).toBeVisible()
   })
@@ -113,7 +132,8 @@ test.describe('on a phone', () => {
       await route.continue()
     })
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+    await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
     const overlay = await page.locator('#loading').boundingBox()
     expect(overlay.width).toBeGreaterThan(page.viewportSize().width * 0.9)
   })
@@ -149,9 +169,11 @@ test.describe('on an iPad 9th generation, portrait', () => {
     await expectBookText(page, 'Chapter One')
   })
 
-  test('back returns to the library', async ({ page }) => {
+  test('back steps out to the book, then the library', async ({ page }) => {
     await page.goto('/')
     await openBook(page, BOOK)
+    await page.locator('#reader-back').click()
+    await expect(page.locator('#detail')).toBeVisible()
     await page.locator('#reader-back').click()
     await expect(page.locator('#browser')).toBeVisible()
   })

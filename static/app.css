@@ -296,6 +296,78 @@ header{
 }
 foliate-view{display:block;width:100%;height:100%}
 
+/* ── Book detail ─────────────────────────────────────────────────────── */
+#detail{
+  position:absolute;inset:0;z-index:4;overflow-y:auto;
+  background:var(--bg);padding:26px 30px 40px;
+}
+.detail-head{display:flex;gap:22px;align-items:flex-start;margin-bottom:26px}
+#detail-cover{
+  width:132px;flex-shrink:0;border-radius:3px;display:block;
+  box-shadow:0 12px 28px rgba(0,0,0,.5);background:var(--raised);
+}
+.detail-headings{display:flex;flex-direction:column;gap:5px;min-width:0}
+#detail-title{
+  font-size:23px;font-weight:700;margin:0;line-height:1.2;
+  text-wrap:balance;
+}
+#detail-series{font-size:13px;color:var(--ink-dim)}
+#detail-author{font-size:14px;color:var(--amber)}
+#detail-facts{
+  font-family:var(--fm);font-size:var(--fs-micro);color:var(--ink-dim-soft);
+  letter-spacing:.03em;
+}
+.detail-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn.primary{background:var(--amber);color:var(--bg);border-color:var(--amber-d);font-weight:600}
+.btn.primary:hover{background:var(--amber-d)}
+
+.detail-panel{
+  border-top:1px solid var(--border);padding-top:16px;margin-top:20px;
+  max-width:70ch;
+}
+.detail-panel h2{
+  font-family:var(--fm);font-size:var(--fs-micro);font-weight:500;
+  text-transform:uppercase;letter-spacing:.1em;color:var(--ink-dim-soft);
+  margin:0 0 10px;
+}
+#detail-synopsis,#detail-bio{font-size:14px;line-height:1.6;color:var(--ink-dim)}
+#detail-synopsis.muted,#detail-bio.muted,.detail-panel .muted{
+  color:var(--ink-dim-soft);font-style:italic;
+}
+.bio-line{color:var(--ink);margin-bottom:6px}
+
+#detail-also{max-width:none}
+.also-series{
+  font-size:13px;font-weight:600;color:var(--ink);
+  margin:14px 0 4px;
+}
+.also-series:first-child{margin-top:0}
+.also-row{
+  display:grid;grid-template-columns:26px minmax(0,1fr) 52px 96px;
+  gap:10px;align-items:baseline;width:100%;max-width:620px;
+  padding:6px 8px;border-radius:var(--r);
+  background:none;border:none;color:var(--ink-dim);
+  text-align:left;font:inherit;font-size:13px;
+}
+.also-row.owned{color:var(--ink);cursor:pointer}
+.also-row.owned:hover{background:var(--raised)}
+.also-row.owned:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+.also-index,.also-year,.also-owned{
+  font-family:var(--fm);font-size:var(--fs-micro);color:var(--ink-dim-soft);
+  font-variant-numeric:tabular-nums;
+}
+.also-row.owned .also-owned{color:var(--green)}
+.also-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media (max-width:600px){
+  #detail{padding:18px 16px 30px}
+  .detail-head{gap:14px}
+  #detail-cover{width:96px}
+  #detail-title{font-size:19px}
+  .also-row{grid-template-columns:22px minmax(0,1fr) 44px;max-width:none}
+  .also-owned{display:none}
+}
+
 /* ── Loading: the book's own cover, turning ─────────────────────────── */
 /* Confined to the reading pane — the library stays usable while a book
    loads, which is why #reader is positioned. */

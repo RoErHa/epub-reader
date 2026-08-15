@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M3 complete — shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M4 in progress — the book-detail screen is built; shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -538,6 +538,7 @@ epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results
 epub_shelves.py     ShelfStore — stored shelves and smart ones
 static/browse.js    Browser — mode strip, letter bar, drill-down
+static/detail.js    BookDetail — the book-detail screen
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
@@ -567,6 +568,23 @@ produced a flake that passed in isolation and failed in the full run.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
+
+### 10.10 Choosing a book is not opening it
+
+Per §4.1 the centre pane shows **either** the book's details **or** the
+reader. Choosing a book now shows it — cover, series and number, author,
+genre, year, synopsis, author, and what else they wrote — and reading
+starts when you press **Read**. Navigation is a hierarchy: library →
+book → reading, and back retraces it one level at a time rather than
+dumping you at the library from the middle of a chapter.
+
+Empty panels say what is missing rather than showing nothing: *"Nothing
+about Stephen R. Donaldson has been looked up yet."*
+
+> **Rule: the UI suite never reuses a running server** (`reuseExistingServer:
+> false`). A stale server from an earlier code version served the whole
+> suite once and produced a 500 that had nothing to do with the code
+> under test. Free the port instead.
 
 ### 10.9 Shelves, sorting, and a TLS trap
 

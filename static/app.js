@@ -1,6 +1,7 @@
 /* M1 app shell: library list, reader, contents and display settings.
  * The full Browse/Search/Read interface lands in M2–M3.
  */
+import { BookDetail } from '/static/detail.js'
 import { Browser } from '/static/browse.js'
 import { LoadingIndicator, fetchWithProgress } from '/static/loading.js'
 import { ReaderEngine } from '/static/reader.js'
@@ -155,11 +156,13 @@ class ShelfSheet {
 class BooksApp {
   #reader = null
   #list = null
+  #browserDom = null
   #toc = null
   #settings = null
   #positions = null
   #loading = null
   #sheet = null
+  #detail = null
   #current = null
 
   constructor (root = document) {
@@ -185,6 +188,17 @@ class BooksApp {
       shelfChoices: root.getElementById('shelf-choices'),
       shelfClose: root.getElementById('shelf-close'),
       shelfNew: root.getElementById('shelf-new'),
+      detail: root.getElementById('detail'),
+      detailCover: root.getElementById('detail-cover'),
+      detailTitle: root.getElementById('detail-title'),
+      detailSeries: root.getElementById('detail-series'),
+      detailAuthor: root.getElementById('detail-author'),
+      detailFacts: root.getElementById('detail-facts'),
+      detailRead: root.getElementById('detail-read'),
+      detailShelf: root.getElementById('detail-shelf'),
+      detailSynopsis: root.getElementById('detail-synopsis'),
+      detailBio: root.getElementById('detail-bio'),
+      detailAlso: root.getElementById('detail-also'),
       prev: root.getElementById('btn-prev'),
       next: root.getElementById('btn-next'),
       toc: root.getElementById('toc-list'),
@@ -206,16 +220,19 @@ class BooksApp {
     this.#settings = new ReaderSettings()
     this.#reader = new ReaderEngine(this.dom.stage)
     this.#positions = new PositionStore()
-    this.#list = new Browser(
-      {
+    this.#browserDom = {
         list: this.dom.list, modes: this.dom.modes, letters: this.dom.letters,
         back: this.dom.back, backTitle: this.dom.backTitle,
-        statusbar: this.dom.statusbar, newShelf: this.dom.newShelf
-      },
-      book => this.open(book)
-    )
+      statusbar: this.dom.statusbar, newShelf: this.dom.newShelf
+    }
+    this.#list = new Browser(this.#browserDom, book => this.show(book.id))
     this.#toc = new TableOfContents(this.dom.toc, item => this.#reader.goTo(item.href))
     this.#sheet = new ShelfSheet(this.dom)
+    // Choosing a book shows it; reading starts when you ask for it.
+    this.#detail = new BookDetail(this.dom, {
+      onRead: book => this.open(book),
+      onOpenBook: bookId => this.show(bookId)
+    })
   }
 
   async start () {
@@ -275,10 +292,24 @@ class BooksApp {
     this.dom.shelf.addEventListener('click', () => {
       if (this.#current) this.#sheet.show(this.#current)
     })
+    this.dom.detailShelf.addEventListener('click', () => {
+      const book = this.#detail.book
+      if (book) this.#sheet.show(book.id)
+    })
   }
 
   #bindReaderControls () {
-    this.dom.readerBack.addEventListener('click', () => this.#showView('browse'))
+    this.dom.readerBack.addEventListener('click', () => {
+      // From the reader, back goes to the book; from the book, to the list.
+      if (!this.dom.detail.hidden || !this.#reader.isOpen) {
+        this.#detail.hide()
+        this.#showView('browse')
+      } else {
+        this.#reader.close()
+        this.dom.stage.dataset.state = 'empty'
+        if (this.#detail.book) this.#detail.show(this.#detail.book.id)
+      }
+    })
     this.dom.prev.addEventListener('click', () => this.#reader.prev())
     this.dom.next.addEventListener('click', () => this.#reader.next())
     document.addEventListener('keydown', e => {
@@ -319,7 +350,24 @@ class BooksApp {
     this.#reader.setRendererAttributes(this.#settings.rendererAttributes())
   }
 
+  /** Show a book without opening it. */
+  async show (bookId) {
+    this.#showView('read')          // the detail pane owns the right side
+    this.#reader.close()
+    this.dom.stage.dataset.state = 'empty'
+    this.#toc.clear()
+    try {
+      const { book } = await this.#detail.show(bookId)
+      this.dom.title.textContent = book.title ?? book.name
+      this.dom.author.textContent = book.authors.join(' & ')
+      this.#status('Ready')
+    } catch (err) {
+      this.#status(`Could not load that book: ${err.message}`)
+    }
+  }
+
   async open (book) {
+    this.#detail.hide()
     await this.#positions.flush()
     this.#status(`Opening ${book.title ?? book.name}…`)
     this.dom.stage.dataset.state = 'loading'

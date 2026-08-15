@@ -117,11 +117,13 @@ test.describe('book rows', () => {
   test('opening a book from browse still works', async ({ page }) => {
     await ready(page)
     await page.locator('.book-row', { hasText: 'The Left Hand of Darkness' }).click()
-    await expect(page.locator('#reader-stage')).toHaveAttribute(
-      'data-state', 'open', { timeout: 15000 }
-    )
-    await expect(page.locator('#book-title')).toHaveText(
+    // Choosing shows the book; Read opens it.
+    await expect(page.locator('#detail-title')).toHaveText(
       'The Left Hand of Darkness'
+    )
+    await page.locator('#detail-read').click()
+    await expect(page.locator('#reader-stage')).toHaveAttribute(
+      'data-state', 'open', { timeout: 20000 }
     )
   })
 

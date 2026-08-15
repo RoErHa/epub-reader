@@ -210,6 +210,68 @@ class BrowseQueries:
             letters.append("#")
         return letters
 
+    def book(self, book_id: int) -> dict | None:
+        row = self._db.connection.execute(
+            f"{self.BOOK_SELECT} AND b.id = ?", (book_id,)
+        ).fetchone()
+        return self._book(row) if row else None
+
+    def genres_of(self, book_id: int) -> list[str]:
+        return [r["name"] for r in self._db.connection.execute(
+            "SELECT g.name FROM genre g JOIN book_genre bg ON bg.genre_id = g.id"
+            " WHERE bg.book_id = ? ORDER BY bg.position",
+            (book_id,),
+        )]
+
+    def primary_author(self, book_id: int) -> dict | None:
+        row = self._db.connection.execute(
+            """
+            SELECT a.id, a.name, a.sort_name, a.bio, a.bio_source, a.photo_path,
+                   a.born, a.died, a.nationality, a.website, a.fetched_at
+              FROM author a
+              JOIN book_author ba ON ba.author_id = a.id
+             WHERE ba.book_id = ? ORDER BY ba.position LIMIT 1
+            """,
+            (book_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"], "name": row["name"], "sort_name": row["sort_name"],
+            "bio": row["bio"], "bio_source": row["bio_source"],
+            "photo": f"/api/covers/{row['photo_path']}" if row["photo_path"] else None,
+            "born": row["born"], "died": row["died"],
+            "nationality": row["nationality"], "website": row["website"],
+            # Says plainly whether About the author has been filled in yet.
+            "enriched": row["fetched_at"] is not None,
+        }
+
+    def also_published(self, author_id: int, exclude_book_id: int) -> list[dict]:
+        """What else this author wrote.
+
+        Books in the library come first and are marked owned. M4 part 2
+        adds works we do not own, from the author_work table.
+        """
+        rows = self._db.connection.execute(
+            """
+            SELECT b.id, m.title, m.title_sort, m.first_published,
+                   m.series_index, s.name AS series_name, s.sort_name AS series_sort
+              FROM book b
+              JOIN metadata m ON m.book_id = b.id
+              JOIN book_author ba ON ba.book_id = b.id
+              LEFT JOIN series s ON s.id = m.series_id
+             WHERE ba.author_id = ? AND b.id != ? AND b.missing_since IS NULL
+             ORDER BY COALESCE(s.sort_name, 'zzz'), m.series_index, m.title_sort
+            """,
+            (author_id, exclude_book_id),
+        ).fetchall()
+        return [
+            {"title": r["title"], "first_published": r["first_published"],
+             "series": r["series_name"], "series_index": r["series_index"],
+             "owned": True, "book_id": r["id"]}
+            for r in rows
+        ]
+
     def sorts(self) -> list[dict]:
         return [{"key": key, "label": SORT_LABELS.get(key, key)} for key in SORTS]
 

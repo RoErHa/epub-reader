@@ -384,6 +384,24 @@ class EpubGateway:
                 {"books": with_progress(page.rows), "total": page.total}
             )
 
+        @app.get("/api/books/{book_id}/detail")
+        def book_detail(book_id: int) -> JSONResponse:
+            book_or_404(book_id)
+            book = browse.book(book_id)
+            if book is None:
+                raise HTTPException(status_code=404, detail="No such book.")
+            with_progress([book])
+            book["shelves"] = shelves.shelves_of(book_id)
+            author = browse.primary_author(book_id)
+            return JSONResponse({
+                "book": book,
+                "genres": browse.genres_of(book_id),
+                "author": author,
+                "also_published": (
+                    browse.also_published(author["id"], book_id) if author else []
+                ),
+            })
+
         @app.get("/api/books/{book_id}/shelves")
         def book_shelves(book_id: int) -> JSONResponse:
             book_or_404(book_id)

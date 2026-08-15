@@ -74,6 +74,12 @@ class TestLibrary:
             cover=True,
         ).build(self.library / "huge-section.epub")
 
+        # The detail-progress test opens a book, so it needs its own.
+        EpubBuilder(
+            title="Detail Progress Fixture", author="Test Author",
+            chapters=3, paragraphs_per_chapter=4,
+        ).build(self.library / "detail-progress.epub")
+
         # The "Reading now" shelf test opens a book, which writes
         # reading state — so it needs its own, like the position tests.
         EpubBuilder(

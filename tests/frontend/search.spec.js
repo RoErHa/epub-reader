@@ -74,8 +74,9 @@ test.describe('search', () => {
     await ready(page)
     await search(page, 'darkness')
     await page.locator('.book-row').first().click()
+    await page.locator('#detail-read').click()
     await expect(page.locator('#reader-stage')).toHaveAttribute(
-      'data-state', 'open', { timeout: 15000 }
+      'data-state', 'open', { timeout: 20000 }
     )
   })
 

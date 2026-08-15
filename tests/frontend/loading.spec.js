@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { openBook, expectBookText } from './helpers.js'
+import { openBook, chooseBook, expectBookText } from './helpers.js'
 
 const BOOK = 'left-hand-of-darkness.epub'
 const HUGE = 'huge-section.epub'
@@ -21,7 +21,8 @@ test.describe('loading indicator', () => {
   test('appears while a book is opening', async ({ page }) => {
     await throttleBooks(page)
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+    await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading')).toBeVisible()
   })
 
@@ -34,7 +35,8 @@ test.describe('loading indicator', () => {
   test('shows the cover of the book being opened', async ({ page }) => {
     await throttleBooks(page)
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+    await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading .loading-cover')).toHaveAttribute(
       'src', /\/api\/covers\//
     )
@@ -43,7 +45,8 @@ test.describe('loading indicator', () => {
   test('falls back to a plain book when there is no cover', async ({ page }) => {
     await throttleBooks(page)
     await page.goto('/')
-    await page.locator('.book-row[data-name="hostile.epub"]').click()
+    await chooseBook(page, 'hostile.epub')
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading')).toBeVisible()
     await expect(page.locator('#loading .loading-book')).toHaveClass(/no-cover/)
   })
@@ -51,7 +54,8 @@ test.describe('loading indicator', () => {
   test('reports a percentage while downloading', async ({ page }) => {
     await throttleBooks(page)
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+    await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading .loading-label')).toHaveText(
       /Downloading \d+%/
     )
@@ -92,7 +96,8 @@ test.describe('loading indicator', () => {
     // Layout has no progress to report, so it is named rather than
     // given an invented number.
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${HUGE}"]`).click()
+    await chooseBook(page, HUGE)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading .loading-label')).toContainText(
       /Preparing|%/
     )
@@ -102,7 +107,8 @@ test.describe('loading indicator', () => {
 
   test('the indeterminate phase is marked as such', async ({ page }) => {
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${HUGE}"]`).click()
+    await chooseBook(page, HUGE)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading')).toHaveAttribute(
       'data-phase', /preparing|downloading/
     )
@@ -113,7 +119,8 @@ test.describe('loading indicator', () => {
     async ({ page }) => {
       await throttleBooks(page)
       await page.goto('/')
-      await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+      await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
       const overlay = await page.locator('#loading').boundingBox()
       const library = await page.locator('#browser').boundingBox()
       expect(overlay.x).toBeGreaterThanOrEqual(library.x + library.width - 1)
@@ -126,7 +133,8 @@ test.describe('loading indicator', () => {
     // real pixels, not merely that the element is present.
     await throttleBooks(page)
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+    await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#loading .loading-cover')).toBeVisible()
 
     const painted = await page.evaluate(async () => {
@@ -163,7 +171,8 @@ test.describe('loading indicator', () => {
     await page.route('**/api/books/*/file', route =>
       route.fulfill({ status: 500, body: 'nope' }))
     await page.goto('/')
-    await page.locator(`.book-row[data-name="${BOOK}"]`).click()
+    await chooseBook(page, BOOK)
+    await page.locator('#detail-read').click()
     await expect(page.locator('#reader-stage')).toHaveAttribute(
       'data-state', 'error', { timeout: 20000 }
     )

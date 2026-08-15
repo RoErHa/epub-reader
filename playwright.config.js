@@ -33,7 +33,10 @@ export default defineConfig({
       '.venv/bin/python tools/make_test_library.py && ' +
       '.venv/bin/python epub_gateway.py --env .env.test',
     url: `${BASE}/healthz`,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse: a stale server from an earlier code version served
+    // the suite once and produced failures that had nothing to do with
+    // the code under test.
+    reuseExistingServer: false,
     stdout: 'pipe',
     stderr: 'pipe'
   }
