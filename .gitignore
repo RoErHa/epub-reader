@@ -4,14 +4,29 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-# Runtime state — never committed
+# Runtime state — never committed.
+# Every .env variant is ignored and only the example is allowed back in,
+# so a new .env.production cannot be added by accident.
 .env
+.env.*
+!.env.example
 books.db
 books.db-*
 *.log
 *.log.*
 cover_cache/
 author_cache/
+
+# Keys and certificates, wherever they land
+*.key
+*.crt
+*.pem
+*.p12
+
+# Local library data — books, covers and the index never leave the machine
+*.epub
+*.azw3
+*.mobi
 
 # Node / Playwright
 node_modules/
