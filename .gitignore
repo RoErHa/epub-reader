@@ -40,3 +40,9 @@ playwright-report/
 # Run state — pidfile and captured stdout
 .run/
 library-manifest.json
+
+# Claude Code's per-machine state: tool permissions granted on this Mac
+# and a scheduler lock. Machine-local by definition, so not shared. A
+# .claude/settings.json meant for everyone would still be committed.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
