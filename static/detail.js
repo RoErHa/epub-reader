@@ -9,6 +9,8 @@ export class BookDetail {
   #onRead = null
   #onOpenBook = null
   #book = null
+  #author = null
+  #showAll = false
 
   constructor (dom, { onRead, onOpenBook }) {
     this.#dom = dom
@@ -17,6 +19,11 @@ export class BookDetail {
     dom.detailRead.addEventListener('click', () => {
       if (this.#book) this.#onRead(this.#book)
     })
+    dom.detailLookup.addEventListener('click', () => this.#lookUpAuthor())
+    dom.detailShowAll.addEventListener('click', () => {
+      this.#showAll = !this.#showAll
+      if (this.#book) this.show(this.#book.id)
+    })
   }
 
   get book () { return this.#book }
@@ -24,14 +31,18 @@ export class BookDetail {
   hide () { this.#dom.detail.hidden = true }
 
   async show (bookId) {
-    const data = await fetch(`/api/books/${bookId}/detail`).then(r => r.json())
+    const query = this.#showAll ? '?show_all=true' : ''
+    const data = await fetch(`/api/books/${bookId}/detail${query}`)
+      .then(r => r.json())
     this.#book = data.book
+    this.#author = data.author
+    this.#note('')
     this.#dom.detail.hidden = false
 
     this.#renderHead(data)
     this.#renderSynopsis(data.book)
     this.#renderAuthor(data.author)
-    this.#renderAlso(data.also_published)
+    this.#renderAlso(data.also_published, data.hidden_works ?? 0)
     return data
   }
 
@@ -74,18 +85,53 @@ export class BookDetail {
     this.#dom.detailSynopsis.classList.toggle('muted', !text)
   }
 
+  /** Ask the server to look this author up on Open Library. */
+  async #lookUpAuthor () {
+    if (!this.#author) return
+    const button = this.#dom.detailLookup
+    button.disabled = true
+    button.textContent = 'Looking…'
+    try {
+      const report = await fetch(
+        `/api/authors/${this.#author.id}/enrich`, { method: 'POST' }
+      ).then(r => r.json())
+
+      // Re-read first, then report: the note must outlive the redraw.
+      if (this.#book) await this.show(this.#book.id)
+      this.#note(report.matched
+        ? `Found them — ${report.works} works.`
+        // Say what happened rather than silently doing nothing.
+        : (report.reason ?? report.error ?? 'Nothing found.'))
+    } catch (err) {
+      this.#note(`Could not reach Open Library: ${err.message}`)
+    } finally {
+      button.disabled = false
+      button.textContent = 'Look this author up'
+    }
+  }
+
+  #note (text) {
+    const el = this.#dom.detailNote
+    el.textContent = text
+    el.hidden = !text
+  }
+
   #renderAuthor (author) {
     const el = this.#dom.detailBio
+    const lookup = this.#dom.detailLookup
+    lookup.hidden = true
     if (!author) {
       el.textContent = 'No author recorded for this book.'
       el.classList.add('muted')
       return
     }
     if (!author.enriched || !author.bio) {
-      // Honest about the gap rather than showing an empty panel.
-      el.textContent =
-        `Nothing about ${author.name} has been looked up yet.`
+      // Honest about the gap, and offer to close it.
+      el.textContent = author.enriched
+        ? `Open Library has nothing on ${author.name}.`
+        : `Nothing about ${author.name} has been looked up yet.`
       el.classList.add('muted')
+      lookup.hidden = false
       return
     }
     el.classList.remove('muted')
@@ -100,8 +146,14 @@ export class BookDetail {
     el.append(heading, body)
   }
 
-  #renderAlso (works) {
+  #renderAlso (works, hidden = 0) {
     const el = this.#dom.detailAlso
+    const toggle = this.#dom.detailShowAll
+    // Only offer the toggle when the filter is actually hiding something.
+    toggle.hidden = !(hidden > 0 || this.#showAll)
+    toggle.textContent = this.#showAll
+      ? 'novels and novellas only'
+      : `show all (${hidden} more)`
     el.replaceChildren()
     if (!works.length) {
       const p = document.createElement('div')

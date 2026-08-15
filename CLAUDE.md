@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M4 in progress — the book-detail screen is built; shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M4 complete — the book-detail screen and author enrichment both work; shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -449,7 +449,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M1 | Reader: pagination, TOC, themes, font controls, CFI position persisted server-side | done |
 | ✅ M2 | Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar | done |
 | ✅ M3 | Search (FTS5), sorting, series, shelves | done |
-| M4 | Book detail: synopsis, About the author, Also published | ~1 week |
+| ✅ M4 | Book detail: synopsis, About the author, Also published | done |
 | M5 | Enrichment: providers, scoring, BISAC genre map, review queue | 2–3 weeks |
 | M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | — |
 
@@ -537,6 +537,8 @@ epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results
 epub_shelves.py     ShelfStore — stored shelves and smart ones
+epub_providers.py   OpenLibraryProvider, WorkClassifier — injected fetcher
+epub_enrich.py      AuthorEnricher — provider results, honouring provenance
 static/browse.js    Browser — mode strip, letter bar, drill-down
 static/detail.js    BookDetail — the book-detail screen
 epub_db.py          Database, Migration, MigrationRunner — forward-only
@@ -568,6 +570,33 @@ produced a flake that passed in isolation and failed in the full run.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
+
+### 10.11 Author enrichment, and what real bibliographies look like
+
+Open Library fills *About the author* and *Also published*. **The fetcher
+is injected**, so no test touches the network and a cache or rate limiter
+can wrap it later without changing the provider.
+
+- **A near-miss is never guessed at.** An author matches only when the
+  folded sort names are identical; anything else is left for a human,
+  because the wrong author's bibliography is worse than none.
+- **A hand-written bio is never overwritten** — `bio_source = 'user'`
+  survives every re-run. That is the provenance rule doing its job.
+- **Failure is reported, never raised.** A provider being unreachable
+  returns `matched: false` with the reason on screen.
+- **`author_work` was designed in the docs but never migrated.** The
+  tests found it instantly. Its `UNIQUE(author_id, title, year)` would
+  not have worked either: SQLite treats NULL years as distinct, so every
+  undated work would duplicate on the second run. The provider returns
+  the whole bibliography each time, so it replaces rather than merges.
+
+**What real data looks like** (Le Guin, live): 200 works returned, of
+which 22 were duplicate titles — Open Library lists editions and
+translations under one author — and bind-ups appear as slash-joined
+titles (*A Wizard of Earthsea/The Tombs of Atuan*). After collapsing
+duplicates and treating slash-joined titles as omnibuses: 178 works, 141
+novels. **Translations remain** (*A Mão Esquerda da Escuridão*), because
+the works list carries no language. That is M5's problem, not a bug here.
 
 ### 10.10 Choosing a book is not opening it
 

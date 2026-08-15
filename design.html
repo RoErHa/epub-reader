@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M3 IN PROGRESS</span>
-  <div class="hdr-right">309 pytest · 234 playwright (chromium + webkit)</div>
+  <div class="hdr-right">348 pytest · 250 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M4 in progress — the book-detail screen is built; author enrichment is next. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
+<div class="status">Status: M4 complete — the book-detail screen and author enrichment both work. Next action is M5. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -734,7 +734,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num win">done</td></tr>
-<tr><td class="num">M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num">~1 week</td></tr>
+<tr class="self"><td class="num">✅ M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num win">done</td></tr>
 <tr><td class="num">M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num">2–3 weeks</td></tr>
 <tr><td class="num">M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
 </tbody>
@@ -829,6 +829,15 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
 </div>
 
 <p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
+
+<h3>Author enrichment</h3>
+<p>Open Library fills <em>About the author</em> and <em>Also published</em>. <strong>The fetcher is injected</strong>, so no test touches the network and a cache or rate limiter can wrap it later without touching the provider.</p>
+<ul>
+<li><strong>A near-miss is never guessed at.</strong> An author matches only when the folded sort names are identical — the wrong author's bibliography is worse than none.</li>
+<li><strong>A hand-written bio is never overwritten.</strong> <code>bio_source = 'user'</code> survives every re-run: the provenance rule doing its job.</li>
+<li><strong>Failure is reported, never raised.</strong> An unreachable provider returns <code>matched: false</code> with the reason on screen.</li>
+</ul>
+<p><strong>What a real bibliography looks like</strong> (Le Guin, live): 200 works returned, 22 of them duplicate titles, and bind-ups listed as slash-joined titles. After collapsing duplicates and treating those as omnibuses: 178 works, 141 novels. <strong>Translations remain</strong> — the works list carries no language — which is M5's problem rather than a defect here.</p>
 
 <h3>Shelves</h3>
 <p>Two kinds, and the distinction is the design.</p>

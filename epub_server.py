@@ -18,6 +18,8 @@ from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
 from epub_reading import STATUSES, ReadingStateStore
+from epub_enrich import AuthorEnricher
+from epub_providers import OpenLibraryProvider
 from epub_search import SearchQueries
 from epub_shelves import SMART, ShelfError, ShelfExists, ShelfStore
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
@@ -152,6 +154,13 @@ class EpubGateway:
         self._browse = BrowseQueries(self._database)
         self._search = SearchQueries(self._database, self._browse)
         self._shelves = ShelfStore(self._database)
+        self._enricher = AuthorEnricher(
+            self._database,
+            OpenLibraryProvider(
+                contact=config.provider_key("OPENLIBRARY_CONTACT_EMAIL")
+            ),
+            cover_root=config.cover_cache,
+        )
         self._indexer = LibraryIndexer(
             self._database, self._library, config.cover_cache
         )
@@ -385,7 +394,7 @@ class EpubGateway:
             )
 
         @app.get("/api/books/{book_id}/detail")
-        def book_detail(book_id: int) -> JSONResponse:
+        def book_detail(book_id: int, show_all: bool = False) -> JSONResponse:
             book_or_404(book_id)
             book = browse.book(book_id)
             if book is None:
@@ -398,7 +407,12 @@ class EpubGateway:
                 "genres": browse.genres_of(book_id),
                 "author": author,
                 "also_published": (
-                    browse.also_published(author["id"], book_id) if author else []
+                    browse.also_published(author["id"], book_id, show_all)
+                    if author else []
+                ),
+                "hidden_works": (
+                    browse.hidden_work_count(author["id"], book_id)
+                    if author and not show_all else 0
                 ),
             })
 
@@ -406,6 +420,15 @@ class EpubGateway:
         def book_shelves(book_id: int) -> JSONResponse:
             book_or_404(book_id)
             return JSONResponse({"shelves": shelves.shelves_of(book_id)})
+
+        @app.post("/api/authors/{author_id}/enrich")
+        def enrich_author(author_id: int) -> JSONResponse:
+            """Look this author up. Never fails the request: a provider
+            being unreachable is reported, not raised."""
+            try:
+                return JSONResponse(self._enricher.enrich(author_id))
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
 
         @app.get("/api/status")
         def index_status() -> JSONResponse:

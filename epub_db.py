@@ -193,6 +193,38 @@ class MigrationRunner:
             CREATE INDEX IF NOT EXISTS shelf_book_book ON shelf_book(book_id);
             """,
         ),
+        Migration(
+            5,
+            "author_works",
+            """
+            -- "Also published": an author's bibliography, INCLUDING works
+            -- we do not own. book_id is non-null only when a work
+            -- resolves to a book in the library, which is what lets the
+            -- screen double as a gap-finder.
+            --
+            -- Everything fetched is stored; work_type is a DISPLAY
+            -- filter (decision 6), so reclassifying never needs a
+            -- re-fetch.
+            CREATE TABLE IF NOT EXISTS author_work (
+              id              INTEGER PRIMARY KEY,
+              author_id       INTEGER NOT NULL
+                              REFERENCES author(id) ON DELETE CASCADE,
+              title           TEXT    NOT NULL,
+              first_published INTEGER,
+              series_name     TEXT,
+              series_index    REAL,
+              isbn13          TEXT,
+              work_type       TEXT    NOT NULL DEFAULT 'unknown',
+              book_id         INTEGER REFERENCES book(id),
+              source          TEXT    NOT NULL,
+              fetched_at      INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS author_work_author
+              ON author_work(author_id);
+            CREATE INDEX IF NOT EXISTS author_work_book
+              ON author_work(book_id);
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

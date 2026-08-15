@@ -335,6 +335,15 @@ foliate-view{display:block;width:100%;height:100%}
   color:var(--ink-dim-soft);font-style:italic;
 }
 .bio-line{color:var(--ink);margin-bottom:6px}
+#detail-note{margin-top:8px;font-size:13px}
+#detail-lookup{margin-top:10px;font-size:12px}
+.link-btn{
+  background:none;border:none;padding:0;margin-left:10px;
+  color:var(--amber);font-family:var(--fm);font-size:var(--fs-micro);
+  text-transform:none;letter-spacing:0;cursor:pointer;
+}
+.link-btn:hover{text-decoration:underline}
+.link-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 
 #detail-also{max-width:none}
 .also-series{

@@ -246,12 +246,46 @@ class BrowseQueries:
             "enriched": row["fetched_at"] is not None,
         }
 
-    def also_published(self, author_id: int, exclude_book_id: int) -> list[dict]:
-        """What else this author wrote.
+    # Decision 6: novels and novellas by default; everything fetched is
+    # kept, so "show all" needs no re-fetch.
+    SHOWN_WORK_TYPES = ("novel", "novella")
 
-        Books in the library come first and are marked owned. M4 part 2
-        adds works we do not own, from the author_work table.
+    def also_published(self, author_id: int, exclude_book_id: int,
+                       show_all: bool = False) -> list[dict]:
+        """What else this author wrote — owned and not.
+
+        A fetched bibliography supersedes the local list, because it
+        knows about books you do not have. Without one, the rest of the
+        library by that author is still worth showing.
         """
+        fetched = self._fetched_works(author_id, exclude_book_id, show_all)
+        return fetched if fetched else self._owned_works(author_id, exclude_book_id)
+
+    def _fetched_works(self, author_id: int, exclude_book_id: int,
+                       show_all: bool) -> list[dict]:
+        sql = """
+            SELECT w.title, w.first_published, w.series_name, w.series_index,
+                   w.work_type, w.book_id
+              FROM author_work w
+             WHERE w.author_id = ?
+               AND (w.book_id IS NULL OR w.book_id != ?)
+        """
+        params: list = [author_id, exclude_book_id]
+        if not show_all:
+            placeholders = ",".join("?" * len(self.SHOWN_WORK_TYPES))
+            sql += f" AND w.work_type IN ({placeholders})"
+            params += list(self.SHOWN_WORK_TYPES)
+        sql += " ORDER BY COALESCE(w.series_name, 'zzz'), w.series_index," \
+               " COALESCE(w.first_published, 9999), w.title"
+        return [
+            {"title": r["title"], "first_published": r["first_published"],
+             "series": r["series_name"], "series_index": r["series_index"],
+             "work_type": r["work_type"],
+             "owned": r["book_id"] is not None, "book_id": r["book_id"]}
+            for r in self._db.connection.execute(sql, params)
+        ]
+
+    def _owned_works(self, author_id: int, exclude_book_id: int) -> list[dict]:
         rows = self._db.connection.execute(
             """
             SELECT b.id, m.title, m.title_sort, m.first_published,
@@ -268,9 +302,20 @@ class BrowseQueries:
         return [
             {"title": r["title"], "first_published": r["first_published"],
              "series": r["series_name"], "series_index": r["series_index"],
-             "owned": True, "book_id": r["id"]}
+             "work_type": "novel", "owned": True, "book_id": r["id"]}
             for r in rows
         ]
+
+    def hidden_work_count(self, author_id: int, exclude_book_id: int) -> int:
+        """How many works the novels-and-novellas filter is holding back,
+        so the screen can offer to show them."""
+        placeholders = ",".join("?" * len(self.SHOWN_WORK_TYPES))
+        return self._db.connection.execute(
+            f"""SELECT COUNT(*) n FROM author_work
+                 WHERE author_id = ? AND (book_id IS NULL OR book_id != ?)
+                   AND work_type NOT IN ({placeholders})""",
+            [author_id, exclude_book_id, *self.SHOWN_WORK_TYPES],
+        ).fetchone()["n"]
 
     def sorts(self) -> list[dict]:
         return [{"key": key, "label": SORT_LABELS.get(key, key)} for key in SORTS]
