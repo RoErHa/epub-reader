@@ -567,6 +567,34 @@ produced a flake that passed in isolation and failed in the full run.
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
 
+### 10.8 Touch layout: one screen at a time
+
+Three columns on a touch screen leaves the reading pane a couple of
+hundred points wide, and the paginator has nothing to lay out into — the
+book showed nothing at all on iOS. Choosing a book now gives the reader
+the whole screen, with a back arrow to the library, switched by
+`body[data-view]`.
+
+**The breakpoint comes from the devices this is read on, not from a
+convention:** an **iPad 9th generation is 810 × 1080 points**, so
+*landscape at 1080* has to be covered too, and an **iPhone 15** is
+393 × 852. `max-width: 1180px` clears both.
+
+> **Rule: the Mac layout does not change.** Every normal Mac window
+> (1280 and up) keeps the three-column layout, and tests pin it at 1280,
+> 1440 and 1728 — three columns, no back arrow, library exactly 330 px.
+
+Also: `height: 100dvh`, because 100% of a viewport that moves as Safari's
+toolbars slide is not a height; a 44 pt tap target inside
+`env(safe-area-inset-*)`; the search box gives way to the book while
+reading; and on phones the title is clamped to one line — it wrapped to
+three and pushed the header to ~90 pt.
+
+**A dom key collision broke the entire app** while building this: a new
+`back:` entry silently overwrote the browse back-link, so `Browser.start()`
+threw on *every* screen size. It surfaced only because a phone test
+captured `pageerror`. Distinct names, and watch for duplicate keys.
+
 ### 10.7 The loading indicator, and another WebKit lesson
 
 The book's own cover, turning, above a bar and a label. Two phases,

@@ -27,7 +27,7 @@
 /* A class-level display: rule beats the UA stylesheet's [hidden], which
    silently keeps hidden elements on screen. Restate it with weight. */
 [hidden]{display:none!important}
-html,body{height:100%}
+html,body{height:100%;height:100dvh}
 body{
   margin:0;background:var(--bg);color:var(--ink);
   font-family:var(--fh);font-size:14px;
@@ -222,6 +222,21 @@ header{
 }
 
 #reader{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+
+/* Only shown when the reader owns the screen — see the phone rules. */
+#reader-back{
+  display:none;position:absolute;z-index:6;
+  top:calc(env(safe-area-inset-top, 0px) + 6px);
+  left:calc(env(safe-area-inset-left, 0px) + 6px);
+  width:44px;height:44px;                 /* a comfortable tap target */
+  align-items:center;justify-content:center;
+  background:var(--surface);color:var(--ink);
+  border:1px solid var(--border-hi);border-radius:50%;
+  font:inherit;font-size:24px;line-height:1;padding:0 3px 3px 0;
+  cursor:pointer;
+}
+#reader-back:hover{border-color:var(--amber-d)}
+#reader-back:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 #reader-stage{flex:1;position:relative;min-height:0;background:var(--bg)}
 #reader-stage[data-state="empty"]::after{
   content:"Choose a book from the library.";
@@ -334,8 +349,37 @@ foliate-view{display:block;width:100%;height:100%}
 @media (max-width:1023px){
   #side{width:230px}
 }
-@media (max-width:767px){
-  #browser{width:170px}
+
+/* ── Touch screens: one screen at a time ─────────────────────────────
+   Three columns leaves the reading pane a couple of hundred pixels wide
+   and the paginator has nothing to lay out into, so the book shows
+   nothing at all.
+   The breakpoint comes from the devices this is actually read on: an
+   iPad 9th generation is 810 x 1080 points, so LANDSCAPE at 1080 has to
+   be covered too, and an iPhone 15 is 393 x 852. 1180 clears both while
+   leaving every normal Mac window (1280 and up) exactly as it is — the
+   desktop layout is not to change. */
+@media (max-width:1180px){
   #side{display:none}
+  #browser{width:100%}
+  #reader{width:100%}
+  #reader-back{display:flex}
+  body[data-view="browse"] #reader{display:none}
+  body[data-view="read"] #browser{display:none}
+  /* The header's book title would crowd out the search box. */
+  body[data-view="browse"] .hdr-book{display:none}
+  /* While reading, the book's name matters and searching does not —
+     the back arrow is the way out. */
+  body[data-view="read"] .search-wrap{display:none}
+}
+
+/* Phone: the header has room for a title and a percentage, no more. A
+   wrapping title pushed it to three lines and swallowed the page. */
+@media (max-width:600px){
+  #search-input{width:150px}
+  .hdr-book{max-width:52vw}
+  #book-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #book-author,#chapter{display:none}
+  header{padding:7px 12px;gap:8px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

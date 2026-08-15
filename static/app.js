@@ -108,6 +108,7 @@ class BooksApp {
       status: root.getElementById('status'),
       progress: root.getElementById('progress'),
       chapter: root.getElementById('chapter'),
+      readerBack: root.getElementById('reader-back'),
       prev: root.getElementById('btn-prev'),
       next: root.getElementById('btn-next'),
       toc: root.getElementById('toc-list'),
@@ -150,12 +151,20 @@ class BooksApp {
 
     this.#reader.on('relocate', location => this.#onRelocate(location))
 
+    this.#showView('browse')
     this.#toc.clear()
     await this.#list.start()
     this.#status('Ready')
   }
 
+  /** Which pane owns the screen. Only consulted on narrow screens, but
+   *  kept accurate everywhere so the CSS stays declarative. */
+  #showView (view) {
+    document.body.dataset.view = view
+  }
+
   #bindReaderControls () {
+    this.dom.readerBack.addEventListener('click', () => this.#showView('browse'))
     this.dom.prev.addEventListener('click', () => this.#reader.prev())
     this.dom.next.addEventListener('click', () => this.#reader.next())
     document.addEventListener('keydown', e => {
@@ -201,6 +210,7 @@ class BooksApp {
     this.#status(`Opening ${book.title ?? book.name}…`)
     this.dom.stage.dataset.state = 'loading'
     this.#current = book.id
+    this.#showView('read')
     this.#loading.show({ cover: book.cover, title: book.title })
 
     try {
