@@ -16,6 +16,7 @@ from hypercorn.asyncio import serve
 from hypercorn.config import Config as HypercornConfig
 
 from epub_config import Config, ConfigError
+from epub_refresh import BATCH
 from epub_server import SERVICE, VERSION, EpubGateway
 
 LOG = logging.getLogger(SERVICE)
@@ -94,6 +95,27 @@ class RepairCommand:
         return 0
 
 
+class RefreshCommand:
+    """`--refresh`: bring the oldest author data up to date, then exit.
+
+    This is what the weekly launchd job runs. It asks about ten authors
+    a week, oldest first, so a library of this size comes round in about
+    forty weeks without ever looking like a bulk sweep.
+    """
+
+    def __init__(self, config: Config, limit: int) -> None:
+        self._config = config
+        self._limit = limit
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.refresh_authors(limit=self._limit))
+        finally:
+            gateway.close()
+        return 0
+
+
 class GatewayRunner:
     """Owns the server lifecycle."""
 
@@ -157,6 +179,17 @@ class GatewayCLI:
             help="Check authors and titles, report, then exit without serving.",
         )
         parser.add_argument(
+            "--refresh",
+            action="store_true",
+            help="Re-ask about the oldest author data, then exit without serving.",
+        )
+        parser.add_argument(
+            "--max",
+            type=int,
+            default=BATCH,
+            help=f"With --refresh: how many authors to ask about (default {BATCH}).",
+        )
+        parser.add_argument(
             "--apply",
             action="store_true",
             help="With --repair: make the changes rather than only listing them.",
@@ -172,6 +205,8 @@ class GatewayCLI:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
         LoggingSetup(config).apply()
+        if args.refresh:
+            return RefreshCommand(config, limit=args.max).run()
         if args.repair:
             return RepairCommand(config, apply=args.apply).run()
         if args.scan:

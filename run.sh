@@ -24,6 +24,8 @@
 #   ./run.sh scan               # scan only, don't touch the service
 #   ./run.sh repair             # check authors and titles, change nothing
 #   ./run.sh repair --apply     # ...and fix what it can prove
+#   ./run.sh refresh            # re-ask about the oldest author data
+#   ./run.sh refresh --max 25   # ...more of it at once
 #   ./run.sh --env .env.test start
 # =============================================================================
 set -euo pipefail
@@ -39,12 +41,14 @@ PID_FILE=""   # derived from the env file once arguments are parsed
 FOREGROUND=0
 COMMAND=""
 APPLY=0
+MAX=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --env)        ENV_FILE="${2:?--env needs a path}"; shift 2 ;;
     --foreground|-f) FOREGROUND=1; shift ;;
     --apply)      APPLY=1; shift ;;
-    start|stop|restart|status|scan|repair|help)
+    --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
+    start|stop|restart|status|scan|repair|refresh|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -58,7 +62,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -114,6 +118,16 @@ do_repair() {
   else
     echo "▶  Checking authors and titles (nothing will be changed)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --repair
+  fi
+}
+
+do_refresh() {
+  # The weekly job. Ten authors, oldest first — never a bulk sweep.
+  echo "▶  Re-asking about the oldest author data…"
+  if [ -n "${MAX}" ]; then
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --refresh --max "${MAX}"
+  else
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --refresh
   fi
 }
 
@@ -192,6 +206,7 @@ do_status() {
 case "${COMMAND}" in
   scan)    do_scan ;;
   repair)  do_repair ;;
+  refresh) do_refresh ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
   stop)    do_stop ;;

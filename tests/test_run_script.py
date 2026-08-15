@@ -142,3 +142,62 @@ class TestRepair:
             [str(SCRIPT), "reapir", "--env", str(env_file)],
             capture_output=True, text=True, cwd=ROOT)
         assert result.returncode != 0
+
+
+class TestRefresh:
+    """The weekly launchd job runs `run.sh refresh`, so the script has
+    to know the word."""
+
+    def test_refresh_is_a_known_command(self, tmp_path):
+        library = tmp_path / "empty"
+        library.mkdir()
+        state = tmp_path / "state"
+        state.mkdir()
+        env = tmp_path / ".env.refresh"
+        env.write_text(ENV_BODY.format(library=library, state=state))
+        result = subprocess.run(
+            [str(SCRIPT), "refresh", "--env", str(env)],
+            capture_output=True, text=True, cwd=ROOT, timeout=60)
+        assert result.returncode == 0, result.stderr
+        assert "nothing due" in result.stdout
+
+    def test_refresh_is_listed_in_the_help(self):
+        result = subprocess.run([str(SCRIPT), "help"], capture_output=True,
+                                text=True, cwd=ROOT)
+        assert "refresh" in result.stdout
+
+
+class TestTheWeeklyJob:
+    """The plist that runs it. It is shipped as a template with a
+    placeholder path, like the service plist beside it."""
+
+    PLIST = ROOT / "com.roha.epub-reader.refresh.plist"
+
+    def test_it_exists(self):
+        assert self.PLIST.is_file()
+
+    def test_it_parses(self):
+        import plistlib
+        with self.PLIST.open("rb") as handle:
+            assert plistlib.load(handle)["Label"] == \
+                "com.roha.epub-reader.refresh"
+
+    def test_it_runs_weekly(self):
+        import plistlib
+        with self.PLIST.open("rb") as handle:
+            when = plistlib.load(handle)["StartCalendarInterval"]
+        assert "Weekday" in when, "a weekly job needs a day"
+
+    def test_it_does_not_stay_running(self):
+        # A refresh is a few seconds of work, not a service.
+        import plistlib
+        with self.PLIST.open("rb") as handle:
+            job = plistlib.load(handle)
+        assert job.get("RunAtLoad") is not True
+        assert job.get("KeepAlive") is not True
+
+    def test_it_calls_refresh(self):
+        import plistlib
+        with self.PLIST.open("rb") as handle:
+            args = plistlib.load(handle)["ProgramArguments"]
+        assert "--refresh" in args

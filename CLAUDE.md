@@ -419,6 +419,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Titles that are really filenames | `POST /api/books/repair-titles` | `epub_titles.py` |
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
+| Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 
 **Merging authors is destructive, so the bar is high.** A group merges only when the names are identical once spacing and punctuation are removed, when Open Library resolves both to the same author, when one spelling is *unknown to Open Library* while a near-identical one is well known — the signature of a typo — or when **everything the other name is credited with is in the keeper's bibliography**.
 
@@ -452,6 +453,29 @@ They run in dependency order — **authors → books → titles** — because ev
 `REPAIR_ON_SCAN=true` in `.env` makes `run.sh start|restart` do it after the scan, so dropping books into `LIBRARY_ROOT` and restarting is the whole workflow. It is **off by default**: reaching a provider is not something to do on someone's behalf without being asked.
 
 **A restart must not become 1,200 requests.** Everything a provider says is written to the database — the works list into `author_work`, the attempt itself into `author.fetched_at`, which is stamped even when Open Library has never heard of the author. Both are checked before asking, so an author is looked up **once, ever**, and every later run reads our own tables. That is what makes repair-on-restart affordable rather than antisocial.
+
+### 6.7 Keeping author data fresh: oldest first, ten a week
+
+A bibliography is not static — living authors publish — so author data needs re-asking about once a year. The obvious schedule is a letter of the alphabet every fortnight, which covers 26 letters in a year. **Surnames are not evenly spread, so that does not work**: this library has 49 authors filed under S and one under U, several letters with none at all, and a few sort names starting with a digit. One fortnight would make 147 requests and the next three, while the S authors waited a year regardless of what they published.
+
+Sorting by **when we last asked** balances itself, needs no calendar, and picks up wherever it left off when a week is missed.
+
+```sh
+./run.sh refresh            # the ten oldest, which is the weekly job
+./run.sh refresh --max 25   # more of it at once
+```
+
+`com.roha.epub-reader.refresh.plist` runs that every Sunday at 04:12 — not on the hour and not at midnight, where every other cron job lives. Ten authors is thirty requests, some fifteen seconds of traffic, and a full round of 395 authors in about forty weeks.
+
+The same budget then goes where books actually appear:
+
+| | Comes round | Because |
+| --- | --- | --- |
+| Living author | every 6 months | they publish |
+| Author who died | every 3 years | nothing new is coming, though editions and scholarship still trickle in |
+| Never found on Open Library | every year | a few hundred of these are series names and scanner handles; asking twice a year is asking twice for the same silence |
+
+An author whose books have all vanished from the library is not refreshed at all.
 
 ### 6.5 Asking a provider 1,200 times
 
@@ -597,6 +621,7 @@ epub_match.py       MatchScorer, Candidate, normalise_title, search_title
 epub_book_enrich.py BookEnricher — apply, queue, accept, reject
 epub_genres.py      GenreVocabulary — the BISAC subset and the map
 epub_maintenance.py LibraryRepair — the three passes, in dependency order
+epub_refresh.py     AuthorRefresh — the weekly round-robin, oldest first
 data/genres.tsv     ~40 BISAC terms; data/genre_map.tsv translates providers
 static/review.js    ReviewPanel — why it scored that, and what would change
 static/browse.js    Browser — mode strip, letter bar, drill-down
@@ -605,7 +630,8 @@ epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
 static/toc.js       TableOfContents
-run.sh              start / stop / restart / status / scan
+run.sh              start / stop / restart / status / scan / repair / refresh
+com.roha.epub-reader.refresh.plist   the weekly author refresh
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly author refresh for epub-reader.
+
+  A bibliography is not static — living authors publish — but re-asking
+  Open Library about every author at once is a bulk sweep, which is what
+  they ask people not to do. This asks about the ten oldest authors,
+  once a week: some fifteen seconds of traffic, and a full round of a
+  1,300-book library in about forty weeks.
+
+  Sunday at 04:12. Not on the hour, and not at midnight, because that is
+  when everybody else's cron jobs run.
+
+  Install:
+    cp com.roha.epub-reader.refresh.plist ~/Library/LaunchAgents/
+    # replace /path/to/epub-reader below with the real path first
+    launchctl load ~/Library/LaunchAgents/com.roha.epub-reader.refresh.plist
+
+  Check it is registered:
+    launchctl list | grep epub-reader.refresh
+
+  Run it now rather than waiting for Sunday:
+    launchctl kickstart -k gui/$(id -u)/com.roha.epub-reader.refresh
+
+  This does not serve anything and does not stay running: it wakes up,
+  asks about ten authors, writes what it learns to the database, and
+  exits. If the Mac is asleep at 04:12, launchd runs it when it wakes.
+  Missing a week costs nothing — the oldest simply stay oldest and are
+  picked up next time.
+
+  All configuration lives in .env — nothing is passed as an argument
+  here except the batch size, which is operational rather than secret.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.roha.epub-reader.refresh</string>
+
+    <key>WorkingDirectory</key>
+    <string>/path/to/epub-reader</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/epub-reader/.venv/bin/python</string>
+        <string>/path/to/epub-reader/epub_gateway.py</string>
+        <string>--env</string>
+        <string>/path/to/epub-reader/.env</string>
+        <string>--refresh</string>
+        <string>--max</string>
+        <string>10</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>12</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/path/to/epub-reader/gateway.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/path/to/epub-reader/gateway.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>

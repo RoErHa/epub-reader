@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
-  <div class="hdr-right">619 pytest · 270 playwright (chromium + webkit)</div>
+  <div class="hdr-right">642 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -722,6 +722,8 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr><td>Books filed under their own title</td><td><code>POST /api/books/repair-authors</code></td><td><code>epub_repair.py</code></td></tr>
 <tr><td>Titles that are really filenames</td><td><code>POST /api/books/repair-titles</code></td><td><code>epub_titles.py</code></td></tr>
 <tr><td>Merge two authors on your say-so</td><td><code>POST /api/authors/merge</code></td><td><code>epub_dedupe.py</code></td></tr>
+<tr><td>All three together</td><td><code>./run.sh repair [--apply]</code></td><td><code>epub_maintenance.py</code></td></tr>
+<tr><td>Weekly author refresh</td><td><code>./run.sh refresh [--max N]</code></td><td><code>epub_refresh.py</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -773,6 +775,29 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
   <span class="eyebrow">Rule</span>
   <p>A restart must not become 1,200 requests. Everything a provider says is written down — the works list into <code>author_work</code>, the attempt itself into <code>author.fetched_at</code>, which is stamped <strong>even when Open Library has never heard of the author</strong>. Both are checked before asking, so an author is looked up <strong>once, ever</strong>, and every later run reads our own tables.</p>
 </div>
+
+<h3>6.7 &nbsp;Keeping author data fresh: oldest first, ten a week</h3>
+<p>A bibliography is not static — living authors publish — so author data needs re-asking about once a year. The obvious schedule is a letter of the alphabet every fortnight, which covers 26 letters in a year.</p>
+
+<div class="note">
+  <span class="eyebrow">Why not the alphabet</span>
+  <p>Surnames are not evenly spread. This library has <strong>49 authors under S and one under U</strong>, several letters with none at all, and a few sort names starting with a digit. One fortnight would make 147 requests and the next three, while the S authors waited a year regardless of what they published.</p>
+</div>
+
+<p>Sorting by <strong>when we last asked</strong> balances itself, needs no calendar, and picks up wherever it left off when a week is missed. <code>com.roha.epub-reader.refresh.plist</code> runs it every Sunday at 04:12 — not on the hour and not at midnight, where every other cron job lives. Ten authors is thirty requests, some fifteen seconds of traffic, and a full round of 395 authors in about forty weeks.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>Comes round</th><th>Because</th></tr></thead>
+<tbody>
+<tr><td>Living author</td><td class="num">6 months</td><td>they publish</td></tr>
+<tr><td>Author who died</td><td class="num">3 years</td><td>nothing new is coming, though editions still trickle in</td></tr>
+<tr><td>Never found</td><td class="num">1 year</td><td>series names and scanner handles — asking twice a year is asking twice for the same silence</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>An author whose books have all vanished from the library is not refreshed at all.</p>
 
 <h3>6.5 &nbsp;Asking a provider 1,200 times</h3>
 <p>A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns <code>503</code>, <code>Connection reset by peer</code>, and SSL handshake timeouts — all three, in one run.</p>

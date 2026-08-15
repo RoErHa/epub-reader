@@ -21,6 +21,7 @@ from epub_reading import STATUSES, ReadingStateStore
 from epub_book_enrich import BookEnricher
 from epub_dedupe import AuthorDeduplicator
 from epub_maintenance import LibraryRepair
+from epub_refresh import AuthorRefresh
 from epub_repair import TitleAsAuthorRepair
 from epub_titles import TitleFromWorks
 from epub_enrich import AuthorEnricher
@@ -182,6 +183,7 @@ class EpubGateway:
                                            enricher=self._enricher)
         self._repairer = TitleAsAuthorRepair(self._database, [self._open_library])
         self._titles = TitleFromWorks(self._database, self._enricher)
+        self._refresher = AuthorRefresh(self._database, self._enricher)
         self._maintenance = LibraryRepair(
             self._database, self._open_library, [self._open_library],
             self._enricher)
@@ -218,6 +220,11 @@ class EpubGateway:
 
     def reindex(self):
         return self._indexer.run()
+
+    def refresh_authors(self, limit: int = 10) -> str:
+        """Bring the oldest author data up to date, and say what
+        happened in one line."""
+        return AuthorRefresh.summary(self._refresher.run(limit=limit))
 
     def repair(self, apply: bool = False) -> str:
         """Check authors and titles, and say what happened in one line."""
