@@ -362,6 +362,109 @@ class TestTypos:
         assert count == 3
 
 
+def bibliography(gateway, author, titles):
+    """Give an author a works list, as enrichment does."""
+    db = gateway.database.connection
+    author_id = db.execute("SELECT id FROM author WHERE name = ?",
+                           (author,)).fetchone()["id"]
+    for title in titles:
+        db.execute(
+            "INSERT INTO author_work (author_id, title, work_type, source,"
+            " fetched_at) VALUES (?, ?, 'novel', 'openlibrary', 1)",
+            (author_id, title))
+    return author_id
+
+
+class TestTheBooksThemselves:
+    """The strongest evidence is not the name at all — it is what the
+    books are. The real library kept three Donaldsons apart: Open
+    Library holds a *second* record for "Stephen Donaldson", and
+    "Stephan Donaldson" sits just under the typo bar. But all four of
+    their books are Thomas Covenant novels, every one of them in
+    Stephen R. Donaldson's bibliography.
+    """
+
+    @staticmethod
+    def covenant(library, gateway, other):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        for i, title in enumerate(["Lord Foul's Bane", "The Illearth War"]):
+            EpubBuilder(title=title, author="Stephen R. Donaldson").build(
+                library / f"k{i}.epub")
+        EpubBuilder(title="Covenant 4 - The Wounded Land", author=other).build(
+            library / "o.epub")
+        gateway.reindex()
+        bibliography(gateway, "Stephen R. Donaldson",
+                     ["Lord Foul's Bane", "The Illearth War",
+                      "The Wounded Land", "The One Tree"])
+
+    def test_a_second_provider_record_does_not_split_an_author(self, client,
+                                                               library, gateway):
+        # Open Library really does hold two Donaldsons.
+        self.covenant(library, gateway, "Stephen Donaldson")
+        answers = {"Stephen R. Donaldson": ("OL227779A", "Stephen R. Donaldson"),
+                   "Stephen Donaldson": ("OL7308536A", "Stephen Donaldson")}
+        report = deduper(gateway, answers).run(apply=True)
+        assert report["merged"] == 1
+        assert "Stephen Donaldson" not in authors(gateway)
+
+    def test_a_name_too_far_apart_to_be_a_typo_still_merges(self, client,
+                                                            library, gateway):
+        # "Stephan Donaldson" against "Stephen R. Donaldson" scores 0.87,
+        # under the typo bar. Its book settles it.
+        self.covenant(library, gateway, "Stephan Donaldson")
+        answers = {"Stephen R. Donaldson": ("OL227779A", "Stephen R. Donaldson")}
+        assert deduper(gateway, answers).run(apply=True)["merged"] == 1
+
+    def test_the_reason_says_it_was_the_books(self, client, library, gateway):
+        self.covenant(library, gateway, "Stephan Donaldson")
+        answers = {"Stephen R. Donaldson": ("OL227779A", "Stephen R. Donaldson")}
+        plan, _ = deduper(gateway, answers).plan()
+        assert "books" in plan[0]["reason"]
+
+    def test_a_look_alike_writing_other_books_is_left_alone(self, client,
+                                                            library, gateway):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        for i in range(2):
+            EpubBuilder(title=f"Novel {i}", author="Stephen King").build(
+                library / f"k{i}.epub")
+        EpubBuilder(title="A Brief History of Time",
+                    author="Stephen Hawking").build(library / "h.epub")
+        gateway.reindex()
+        bibliography(gateway, "Stephen King", ["Novel 0", "Novel 1", "It"])
+        answers = {"Stephen King": ("OL19981A", "Stephen King"),
+                   "Stephen Hawking": ("OL2675573A", "Stephen Hawking")}
+        assert deduper(gateway, answers).run(apply=True)["merged"] == 0
+
+    def test_one_book_out_of_several_is_not_enough(self, client, library,
+                                                   gateway):
+        # Two writers can name a book the same thing, so a single
+        # overlap is not an identity.
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        for i in range(3):
+            EpubBuilder(title=f"His Own {i}", author="Stephen King").build(
+                library / f"k{i}.epub")
+        for i, title in enumerate(["His Own 0", "Something Else Entirely"]):
+            EpubBuilder(title=title, author="Stephen Kingg").build(
+                library / f"h{i}.epub")
+        gateway.reindex()
+        bibliography(gateway, "Stephen King",
+                     ["His Own 0", "His Own 1", "His Own 2"])
+        answers = {"Stephen King": ("OL1A", "Stephen King"),
+                   "Stephen Kingg": ("OL2A", "Stephen Kingg")}
+        assert deduper(gateway, answers).run(apply=True)["merged"] == 0
+
+    def test_an_author_with_no_bibliography_proves_nothing(self, client,
+                                                           library, gateway):
+        self.covenant(library, gateway, "Stephen Donaldson")
+        gateway.database.connection.execute("DELETE FROM author_work")
+        answers = {"Stephen R. Donaldson": ("OL227779A", "Stephen R. Donaldson"),
+                   "Stephen Donaldson": ("OL7308536A", "Stephen Donaldson")}
+        assert deduper(gateway, answers).run(apply=True)["merged"] == 0
+
+
 class TestSurvivingARescan:
     """A merge is a correction, and the indexer only keeps a correction
     when provenance says the file no longer owns the field. Without this

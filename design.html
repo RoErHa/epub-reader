@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
-  <div class="hdr-right">581 pytest · 270 playwright (chromium + webkit)</div>
+  <div class="hdr-right">587 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -725,14 +725,16 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </table>
 </div>
 
-<p>Applied to the real library: <strong>607 → 404 authors</strong>, 192 books given their real author, 60 titles corrected so far.</p>
+<p>Applied to the real library: <strong>607 → 400 authors</strong>, 192 books given their real author, 60 titles corrected so far.</p>
 
 <div class="note">
   <span class="eyebrow">Rule</span>
-  <p>Merging authors is destructive, so the bar is high. A group merges only when the names are <strong>identical once spacing and punctuation are removed</strong>, when Open Library resolves both to the <strong>same author</strong>, or when one spelling is <strong>unknown to Open Library</strong> beside a near-identical one it knows well — the signature of a typo. Anything refused is <strong>reported</strong>, never silently dropped.</p>
+  <p>Merging authors is destructive, so the bar is high. A group merges only when the names are <strong>identical once spacing and punctuation are removed</strong>, when Open Library resolves both to the <strong>same author</strong>, when one spelling is <strong>unknown to Open Library</strong> beside a near-identical one it knows well — the signature of a typo — or when <strong>everything the other name is credited with is in the keeper's bibliography</strong>. Anything refused is <strong>reported</strong>, never silently dropped.</p>
 </div>
 
-<p>That last rule is what separates <code>Issac Asimov</code> from <code>Isaac Asimov</code> while leaving <code>Stephen King</code> and <code>Stephen Hawking</code> alone — both of those are real people, and the provider knows both. Five look-alike groups remain reported and unmerged, including <code>Anne Rice / Ann Rice</code> and <code>Arthur Clarke / Arthur C. Clarke</code>, where Open Library itself holds two records.</p>
+<p>The bibliography rule is the strongest of the four, because it asks what the books <em>are</em> rather than how the name is spelled — and it is the only one that settled the three Donaldsons. Open Library holds a <strong>second record</strong> for "Stephen Donaldson", 38 works beside the canonical 126, and <code>Stephan Donaldson</code> scores 0.87, just under the typo bar. But all four of their books are Thomas Covenant novels, every one in the keeper's works list. A single shared title would prove nothing — two writers can name a book the same — so it asks for all of them.</p>
+
+<p>The typo rule is what separates <code>Issac Asimov</code> from <code>Isaac Asimov</code> while leaving <code>Stephen King</code> and <code>Stephen Hawking</code> alone — both of those are real people, and the provider knows both. Five look-alike groups remain reported and unmerged, including <code>Anne Rice / Ann Rice</code> and <code>Arthur Clarke / Arthur C. Clarke</code>, where Open Library itself holds two records.</p>
 
 <p>The spelling that survives is <em>not</em> the one with the most books — that kept <code>DIANE CAREY</code> over <code>Diane Carey</code>, and <code>Raymond E Feist</code> over <code>Raymond E. Feist</code>. Open Library supplies it instead, but only when its answer is the same name and better formed: it holds <code>J.k. Rowling</code>, which is an improvement on nothing.</p>
 

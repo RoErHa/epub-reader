@@ -169,7 +169,8 @@ class EpubGateway:
         self._enricher = AuthorEnricher(
             self._database, self._open_library, cover_root=config.cover_cache,
         )
-        self._deduper = AuthorDeduplicator(self._database, self._open_library)
+        self._deduper = AuthorDeduplicator(self._database, self._open_library,
+                                           enricher=self._enricher)
         self._repairer = TitleAsAuthorRepair(self._database, [self._open_library])
         self._titles = TitleFromWorks(self._database, self._enricher)
         self._books_enricher = BookEnricher(self._database, [

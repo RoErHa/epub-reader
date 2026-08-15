@@ -22,6 +22,7 @@ import logging
 import re
 import time
 
+from epub_match import normalise_title, search_title
 from epub_names import PersonName, fold
 from epub_providers import ProviderError
 
@@ -45,9 +46,12 @@ def squash(name: str) -> str:
 
 
 class AuthorDeduplicator:
-    def __init__(self, database, resolver) -> None:
+    def __init__(self, database, resolver, enricher=None) -> None:
         self._db = database
         self._resolver = resolver
+        # Optional: fetches a bibliography that is not stored yet.
+        self._enricher = enricher
+        self._works: dict[int, set[str]] = {}
 
     # ── planning ──────────────────────────────────────────────────────
     def _authors(self) -> list[dict]:
@@ -191,7 +195,8 @@ class AuthorDeduplicator:
         others = [a for a in cluster if a["id"] != keeper["id"]]
 
         by_spacing, remaining = self._split(keeper, others)
-        resolved = {}
+        resolved: dict = {}
+        by_books: list[dict] = []
 
         if remaining:
             resolved = self._resolve([keeper, *remaining])
@@ -235,13 +240,26 @@ class AuthorDeduplicator:
                               if not self._key(resolved, a)
                               and self._ratio(keeper, a) >= TYPO]
 
+        if remaining:
+            # The strongest evidence is not the name but the books. Open
+            # Library holds two records for Donaldson, and "Stephan
+            # Donaldson" is too far from "Stephen R. Donaldson" to be
+            # called a typo — but all their books are Thomas Covenant
+            # novels, every one in the keeper's bibliography.
+            known = {a["id"] for a in confirmed}
+            by_books = [a for a in remaining if a["id"] not in known
+                        and self._writes_their_books(keeper, a)]
+            confirmed += by_books
+
         if not confirmed:
             return None
         reasons = []
         if by_spacing:
             reasons.append("identical once spacing is ignored")
-        if key and len(confirmed) > len(by_spacing):
+        if key and len(confirmed) > len(by_spacing) + len(by_books):
             reasons.append("confirmed by Open Library")
+        if by_books:
+            reasons.append("writes the keeper's books")
         return {"keep": keeper, "merge": confirmed, "canonical": canonical,
                 "key": key, "reason": "; ".join(reasons)}
 
@@ -257,6 +275,47 @@ class AuthorDeduplicator:
         for group in groups:
             report["merged"] += self._merge(group)
         return report
+
+    # ── the books as evidence ─────────────────────────────────────────
+    def _writes_their_books(self, keeper: dict, other: dict) -> bool:
+        """Whether everything the other name is credited with belongs to
+        the keeper's bibliography.
+
+        One shared title proves nothing — two writers can name a book the
+        same — so this asks for all of them.
+        """
+        works = self._bibliography(keeper["id"])
+        if not works:
+            return False
+        titles = [search_title(t) or normalise_title(t)
+                  for t in self._titles_of(other["id"])]
+        titles = [t for t in titles if t]
+        return bool(titles) and all(t in works for t in titles)
+
+    def _titles_of(self, author_id: int) -> list[str]:
+        return [r["title"] for r in self._db.connection.execute(
+            """SELECT m.title FROM metadata m
+                 JOIN book_author ba ON ba.book_id = m.book_id
+                 JOIN book b ON b.id = m.book_id
+                WHERE ba.author_id = ? AND b.missing_since IS NULL
+                  AND m.title IS NOT NULL""", (author_id,))]
+
+    def _bibliography(self, author_id: int) -> set[str]:
+        if author_id in self._works:
+            return self._works[author_id]
+
+        def stored():
+            return {normalise_title(r["title"]) for r in
+                    self._db.connection.execute(
+                        "SELECT title FROM author_work WHERE author_id = ?",
+                        (author_id,))}
+
+        works = stored()
+        if not works and self._enricher is not None:
+            self._enricher.enrich(author_id)
+            works = stored()
+        self._works[author_id] = works
+        return works
 
     def _record(self, book_ids: list[int]) -> None:
         now = int(time.time())
