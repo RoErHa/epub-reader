@@ -106,3 +106,45 @@ class TestSecrecy:
         body = MINIMAL_ENV + "ISBNDB_API_KEY=super-secret-value\n"
         cfg = Config.from_file(write_env(tmp_path, body))
         assert "super-secret-value" not in repr(cfg)
+
+
+class TestTLS:
+    """Certificate locations are configuration, not a guess. The service
+    died with a bare FileNotFoundError when TAILSCALE_CERT_HOST was set
+    but the invented default path did not exist."""
+
+    def test_no_cert_host_means_no_tls(self, tmp_path):
+        cfg = Config.from_file(write_env(tmp_path))
+        assert cfg.cert_host is None
+        assert cfg.tls_cert_file is None
+        assert cfg.tls_key_file is None
+
+    def test_explicit_cert_paths_are_used(self, tmp_path):
+        crt, key = tmp_path / "h.crt", tmp_path / "h.key"
+        crt.write_text("x")
+        key.write_text("x")
+        body = (MINIMAL_ENV + "TAILSCALE_CERT_HOST=h.ts.net\n"
+                + f"TLS_CERT_FILE={crt}\nTLS_KEY_FILE={key}\n")
+        cfg = Config.from_file(write_env(tmp_path, body))
+        assert cfg.tls_cert_file == crt
+        assert cfg.tls_key_file == key
+
+    def test_paths_are_found_next_to_the_env_file_by_host_name(self, tmp_path):
+        (tmp_path / "h.ts.net.crt").write_text("x")
+        (tmp_path / "h.ts.net.key").write_text("x")
+        body = MINIMAL_ENV + "TAILSCALE_CERT_HOST=h.ts.net\n"
+        cfg = Config.from_file(write_env(tmp_path, body))
+        assert cfg.tls_cert_file == tmp_path / "h.ts.net.crt"
+
+    def test_a_missing_certificate_is_reported_clearly(self, tmp_path):
+        body = MINIMAL_ENV + "TAILSCALE_CERT_HOST=absent.ts.net\n"
+        cfg = Config.from_file(write_env(tmp_path, body))
+        with pytest.raises(ConfigError) as exc:
+            cfg.require_tls_files()
+        message = str(exc.value)
+        assert "absent.ts.net" in message
+        assert "TLS_CERT_FILE" in message   # says how to fix it
+
+    def test_tls_is_optional_and_silence_means_plain_http(self, tmp_path):
+        cfg = Config.from_file(write_env(tmp_path))
+        assert cfg.require_tls_files() is None

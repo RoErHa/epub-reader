@@ -16,6 +16,10 @@
     <span id="book-title"></span>
     <span id="book-author"></span>
   </div>
+  <div class="hdr-pick">
+    <label class="hdr-pick-label" for="sort-select">Sort</label>
+    <select id="sort-select" aria-label="Sort the library"></select>
+  </div>
   <div class="search-wrap">
     <input type="search" id="search-input" placeholder="🔍 Search library…"
            autocomplete="off" spellcheck="false" aria-label="Search library">
@@ -30,6 +34,7 @@
   <div id="browser">
     <div class="browse-modes" id="browse-modes"></div>
     <div class="letter-bar" id="letter-bar" hidden></div>
+    <button id="new-shelf" hidden>＋ New shelf</button>
     <div class="browse-back" id="browse-back" hidden>
       <button class="back-link">← back</button>
       <span id="browse-back-title"></span>
@@ -56,7 +61,17 @@
     </div>
     <div class="controls">
       <button class="btn" id="btn-prev">‹ Prev</button>
+      <button class="btn" id="btn-shelf">＋ Shelf</button>
       <button class="btn" id="btn-next">Next ›</button>
+    </div>
+
+    <div id="shelf-sheet" hidden>
+      <div class="sheet-head">
+        <span>Put this book on…</span>
+        <button class="btn" id="shelf-close">Done</button>
+      </div>
+      <div id="shelf-choices"></div>
+      <button class="btn" id="shelf-new">＋ New shelf</button>
     </div>
   </div>
 

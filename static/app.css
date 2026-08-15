@@ -61,7 +61,53 @@ header{
   border-right:1px solid var(--border);background:var(--surface);
 }
 
-.search-wrap{margin-left:auto;flex-shrink:0}
+/* ── Sort picker, shelves ────────────────────────────────────────────── */
+.hdr-pick{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
+.hdr-pick-label{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim-soft);
+}
+#sort-select{
+  background:var(--raised);color:var(--ink);
+  border:1px solid var(--border-hi);border-radius:var(--r);
+  padding:4px 8px;font:inherit;font-size:12px;
+}
+#sort-select:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+
+#new-shelf{
+  margin:8px 12px;padding:7px 10px;flex-shrink:0;
+  background:var(--raised);color:var(--ink);
+  border:1px dashed var(--border-hi);border-radius:var(--r);
+  font:inherit;font-size:12px;cursor:pointer;text-align:left;
+}
+#new-shelf:hover{border-color:var(--amber-d);border-style:solid}
+#new-shelf:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+
+#shelf-sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:7;
+  background:var(--surface);border-top:1px solid var(--border-hi);
+  padding:12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  display:flex;flex-direction:column;gap:8px;max-height:60%;
+  box-shadow:0 -12px 30px rgba(0,0,0,.45);
+}
+.sheet-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:13px;color:var(--ink-dim);
+}
+#shelf-choices{display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.shelf-choice{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:9px 12px;border-radius:var(--r);
+  background:var(--raised);border:1px solid var(--border);
+  color:var(--ink);text-align:left;font:inherit;font-size:13px;cursor:pointer;
+}
+.shelf-choice::before{content:"○";color:var(--ink-dim-soft);flex-shrink:0}
+.shelf-choice:hover{border-color:var(--border-hi)}
+.shelf-choice:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+.shelf-choice.on-shelf{border-color:var(--amber-d);color:var(--amber)}
+.shelf-choice.on-shelf::before{content:"●";color:var(--amber)}
+
+.search-wrap{flex-shrink:0}
 #search-input{
   width:220px;background:var(--raised);color:var(--ink);
   border:1px solid var(--border-hi);border-radius:var(--r);
@@ -371,6 +417,7 @@ foliate-view{display:block;width:100%;height:100%}
   /* While reading, the book's name matters and searching does not —
      the back arrow is the way out. */
   body[data-view="read"] .search-wrap{display:none}
+  body[data-view="read"] .hdr-pick{display:none}
 }
 
 /* Phone: the header has room for a title and a percentage, no more. A

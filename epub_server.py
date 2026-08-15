@@ -19,6 +19,7 @@ from epub_db import Database
 from epub_index import LibraryIndexer
 from epub_reading import STATUSES, ReadingStateStore
 from epub_search import SearchQueries
+from epub_shelves import SMART, ShelfError, ShelfExists, ShelfStore
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
 
 VERSION = "0.1.0"
@@ -104,6 +105,10 @@ class PositionUpdate(BaseModel):
     fraction: float = Field(..., description="0..1; clamped, not refused.")
 
 
+class ShelfName(BaseModel):
+    name: str
+
+
 class StatusUpdate(BaseModel):
     status: str
 
@@ -146,6 +151,7 @@ class EpubGateway:
         self._reading = ReadingStateStore(self._database)
         self._browse = BrowseQueries(self._database)
         self._search = SearchQueries(self._database, self._browse)
+        self._shelves = ShelfStore(self._database)
         self._indexer = LibraryIndexer(
             self._database, self._library, config.cover_cache
         )
@@ -242,13 +248,13 @@ class EpubGateway:
             sort: str = "title", letter: str | None = None,
             author_id: int | None = None, series_id: int | None = None,
             genre_id: int | None = None, decade: int | None = None,
-            limit: int = 200, offset: int = 0,
+            shelf_id: int | None = None, limit: int = 200, offset: int = 0,
         ) -> JSONResponse:
             try:
                 page = browse.books(
                     sort=sort, letter=letter, author_id=author_id,
                     series_id=series_id, genre_id=genre_id, decade=decade,
-                    limit=min(limit, 500), offset=offset,
+                    shelf_id=shelf_id, limit=min(limit, 500), offset=offset,
                 )
             except BrowseError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from None
@@ -305,6 +311,83 @@ class EpubGateway:
             result = self._search.search(q, limit=min(limit, 200))
             result["books"] = with_progress(result["books"])
             return JSONResponse(result)
+
+        shelves = self._shelves
+
+        @app.get("/api/sorts")
+        def list_sorts() -> JSONResponse:
+            return JSONResponse({"sorts": browse.sorts()})
+
+        @app.get("/api/shelves")
+        def list_shelves() -> JSONResponse:
+            return JSONResponse({"shelves": shelves.list()})
+
+        @app.post("/api/shelves")
+        def create_shelf(body: ShelfName) -> JSONResponse:
+            try:
+                return JSONResponse({"shelf": shelves.create(body.name)})
+            except ShelfExists as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from None
+            except ShelfError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+
+        @app.put("/api/shelves/{shelf_id}")
+        def rename_shelf(shelf_id: int, body: ShelfName) -> JSONResponse:
+            try:
+                return JSONResponse({"shelf": shelves.rename(shelf_id, body.name)})
+            except ShelfExists as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from None
+            except ShelfError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+
+        @app.delete("/api/shelves/{shelf_id}")
+        def delete_shelf(shelf_id: int) -> JSONResponse:
+            try:
+                shelves.delete(shelf_id)
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            return JSONResponse({"deleted": shelf_id})
+
+        @app.get("/api/shelves/{shelf_id}/books")
+        def shelf_books(shelf_id: int) -> JSONResponse:
+            page = browse.books(shelf_id=shelf_id, limit=500)
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
+        @app.put("/api/shelves/{shelf_id}/books/{book_id}")
+        def add_to_shelf(shelf_id: int, book_id: int) -> JSONResponse:
+            try:
+                shelves.add_book(shelf_id, book_id)
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            return JSONResponse({"shelf": shelves.get(shelf_id)})
+
+        @app.delete("/api/shelves/{shelf_id}/books/{book_id}")
+        def remove_from_shelf(shelf_id: int, book_id: int) -> JSONResponse:
+            try:
+                shelves.remove_book(shelf_id, book_id)
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            return JSONResponse({"shelf": shelves.get(shelf_id)})
+
+        # Smart shelves are read-only by construction: there is no route
+        # to put a book on one, because membership is a consequence.
+        @app.get("/api/shelves/smart/{key}/books")
+        def smart_shelf_books(key: str) -> JSONResponse:
+            if key not in SMART:
+                raise HTTPException(status_code=404, detail="No such shelf.")
+            page = browse.books(smart=key, sort="opened", limit=500)
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
+        @app.get("/api/books/{book_id}/shelves")
+        def book_shelves(book_id: int) -> JSONResponse:
+            book_or_404(book_id)
+            return JSONResponse({"shelves": shelves.shelves_of(book_id)})
 
         @app.get("/api/status")
         def index_status() -> JSONResponse:

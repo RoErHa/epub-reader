@@ -10,7 +10,8 @@ export const MODES = [
   { id: 'authors', label: 'Authors', endpoint: '/api/authors', key: 'authors' },
   { id: 'series', label: 'Series', endpoint: '/api/series', key: 'series' },
   { id: 'genres', label: 'Genres', endpoint: '/api/genres', key: 'genres' },
-  { id: 'years', label: 'Years', endpoint: '/api/years', key: 'decades' }
+  { id: 'years', label: 'Years', endpoint: '/api/years', key: 'decades' },
+  { id: 'shelves', label: 'Shelves', endpoint: '/api/shelves', key: 'shelves' }
 ]
 
 const json = async url => {
@@ -26,6 +27,7 @@ export class Browser {
   #letter = null
   #drill = null // { title, endpoint }
   #query = ''
+  #sort = 'title'
 
   constructor (dom, onOpenBook) {
     this.#dom = dom
@@ -39,6 +41,15 @@ export class Browser {
     this.#letter = null
     await this.#render()
   }
+
+  /** Reorder whatever is on screen. */
+  async setSort (sort) {
+    this.#sort = sort || 'title'
+    this.#letter = null
+    await this.#render()
+  }
+
+  get sort () { return this.#sort }
 
   async start () {
     this.#renderModes()
@@ -77,7 +88,9 @@ export class Browser {
     const bar = this.#dom.letters
     // Only titles and authors have a meaningful alphabet to jump around.
     const mode = this.#mode === 'authors' ? 'authors'
-      : this.#mode === 'series' ? 'series' : 'titles'
+      : this.#mode === 'series' ? 'series'
+        // Sorting books by author means the alphabet is authors' initials.
+        : this.#sort === 'author' ? 'authors' : 'titles'
     const usable = ['titles', 'authors', 'series'].includes(this.#mode)
     bar.hidden = !usable || this.#drill !== null || Boolean(this.#query)
     if (bar.hidden) return
@@ -103,10 +116,26 @@ export class Browser {
     this.#render()
   }
 
+  /** Create a shelf, then show it. */
+  async createShelf (name) {
+    const res = await fetch('/api/shelves', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}))
+      throw new Error(detail.detail ?? `Could not create that shelf (${res.status}).`)
+    }
+    await this.#render()
+    return (await res.json()).shelf
+  }
+
   // ── content ───────────────────────────────────────────────────────
   async #render () {
     await this.#renderLetters()
     this.#dom.back.hidden = this.#drill === null
+    if (this.#drill || this.#query) this.#dom.newShelf.hidden = true
     if (this.#drill) {
       this.#dom.backTitle.textContent = this.#drill.title
       return this.#renderBooks(this.#drill.endpoint)
@@ -114,8 +143,9 @@ export class Browser {
     if (this.#query) return this.#renderSearch()
     const mode = MODES.find(m => m.id === this.#mode)
     if (!mode.endpoint) {
-      const query = this.#letter ? `?letter=${encodeURIComponent(this.#letter)}` : ''
-      return this.#renderBooks(`/api/books${query}`)
+      const query = new URLSearchParams({ sort: this.#sort })
+      if (this.#letter) query.set('letter', this.#letter)
+      return this.#renderBooks(`/api/books?${query}`)
     }
     return this.#renderGroups(mode)
   }
@@ -193,6 +223,7 @@ export class Browser {
     list.replaceChildren()
     if (!rows.length) return this.#message('Nothing here yet.')
 
+    this.#dom.newShelf.hidden = mode.id !== 'shelves'
     for (const row of rows) {
       const isYear = mode.id === 'years'
       const label = isYear ? `${row.decade}s` : row.name
@@ -207,10 +238,14 @@ export class Browser {
         this.#drill = {
           title: label,
           endpoint: isYear
-            ? `/api/books?decade=${row.decade}`
+            ? `/api/books?decade=${row.decade}&sort=${this.#sort}`
             : mode.id === 'genres'
               ? `/api/genres/${row.id}/books`
-              : `/api/${mode.id}/${row.id}/books`
+              : mode.id === 'shelves'
+                ? (row.smart
+                    ? `/api/shelves/smart/${row.key}/books`
+                    : `/api/shelves/${row.id}/books`)
+                : `/api/${mode.id}/${row.id}/books`
         }
         this.#render()
       })

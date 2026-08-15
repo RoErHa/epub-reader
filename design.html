@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M3 IN PROGRESS</span>
-  <div class="hdr-right">267 pytest · 190 playwright (chromium + webkit)</div>
+  <div class="hdr-right">295 pytest · 212 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M3 in progress — search works over the real 1,326-book library, and it reads properly on iPhone, iPad and Mac. Shelves and the remaining sort options are next.</div>
+<div class="status">Status: M3 complete — search, sorting and shelves all work over the real 1,326-book library, served over TLS, reading properly on iPhone, iPad and Mac.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -729,7 +729,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M0</td><td>Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M1</td><td>Reader: pagination, TOC, themes, font controls, CFI position persisted server-side</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M2</td><td>Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar</td><td class="num win">done</td></tr>
-<tr><td class="num">◑ M3</td><td>Search (FTS5) <strong>done</strong>; sorting, series, shelves outstanding</td><td class="num">~3 days</td></tr>
+<tr class="self"><td class="num">✅ M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num win">done</td></tr>
 <tr><td class="num">M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num">~1 week</td></tr>
 <tr><td class="num">M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num">2–3 weeks</td></tr>
 <tr><td class="num">M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
@@ -825,6 +825,24 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
 </div>
 
 <p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
+
+<h3>Shelves</h3>
+<p>Two kinds, and the distinction is the design.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Kind</th><th>Examples</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td><strong>stored</strong></td><td>Holiday, Re-read</td><td>lists the reader maintains; books added and removed by hand</td></tr>
+<tr><td><strong>smart</strong></td><td>Reading now, Finished</td><td>derived from reading state — a view of a fact, so there is deliberately <em>no route</em> to put a book on one</td></tr>
+</tbody>
+</table>
+</div>
+<p>Sorting gained <code>opened</code> and <code>progress</code>, which join <code>reading_state</code>; untouched books sort last via <code>COALESCE</code> rather than <code>NULLS LAST</code>, so the order is identical on any SQLite. The chosen sort lives with the per-device display settings — how you like the list arranged is a fact about you, where you are in a book is a fact about the book.</p>
+
+<div class="rule">
+  <span class="eyebrow">TLS</span>
+  <p><strong>Certificate paths are configuration, not a guess.</strong> Setting <code>TAILSCALE_CERT_HOST</code> killed the service with a bare <code>FileNotFoundError</code> from inside hypercorn, because the code assumed certificates live in <code>~/.config/tailscale-certs/</code>. They are now <code>TLS_CERT_FILE</code> / <code>TLS_KEY_FILE</code> in <code>.env</code>, falling back to <code>&lt;host&gt;.crt</code> beside the .env file — and a missing certificate is reported with what to set.</p>
+</div>
 
 <h3>Indexing</h3>
 <p><code>epub_index.py</code> answers one question on every start: what appeared, changed or vanished? The earlier JSON-manifest scanner has been deleted — the <code>book</code> table tracks the same facts and more.</p>

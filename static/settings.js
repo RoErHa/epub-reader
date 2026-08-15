@@ -29,7 +29,8 @@ export class ReaderSettings {
     lineHeight: 1.5,
     margin: 48,
     columns: 1,
-    flow: 'paginated'
+    flow: 'paginated',
+    sort: 'title'
   }
 
   static LIMITS = { fontSize: [70, 220], lineHeight: [1.0, 2.4] }

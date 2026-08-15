@@ -166,6 +166,33 @@ class MigrationRunner:
             );
             """,
         ),
+        Migration(
+            4,
+            "shelves",
+            """
+            -- Shelves the reader makes. Smart shelves ("Reading now",
+            -- "Finished") are NOT stored: they are derived from reading
+            -- state, because they are a view of a fact rather than a
+            -- list someone maintains.
+            CREATE TABLE IF NOT EXISTS shelf (
+              id         INTEGER PRIMARY KEY,
+              name       TEXT NOT NULL,
+              sort_name  TEXT NOT NULL,
+              created_at INTEGER NOT NULL
+            );
+            -- Case-insensitive: "Holiday" and "holiday" are one shelf.
+            CREATE UNIQUE INDEX IF NOT EXISTS shelf_name
+              ON shelf(lower(name));
+
+            CREATE TABLE IF NOT EXISTS shelf_book (
+              shelf_id INTEGER NOT NULL REFERENCES shelf(id) ON DELETE CASCADE,
+              book_id  INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+              added_at INTEGER NOT NULL,
+              PRIMARY KEY (shelf_id, book_id)
+            );
+            CREATE INDEX IF NOT EXISTS shelf_book_book ON shelf_book(book_id);
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

@@ -74,6 +74,13 @@ class TestLibrary:
             cover=True,
         ).build(self.library / "huge-section.epub")
 
+        # The "Reading now" shelf test opens a book, which writes
+        # reading state — so it needs its own, like the position tests.
+        EpubBuilder(
+            title="Shelf Reading Fixture", author="Test Author",
+            chapters=2, paragraphs_per_chapter=4,
+        ).build(self.library / "shelf-reading.epub")
+
         # Opening-position tests need books NOTHING else opens: any test
         # that opens a book saves a position, and a book with a saved
         # position correctly resumes instead of opening at the start.

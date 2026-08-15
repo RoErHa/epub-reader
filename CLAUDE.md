@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M3 in progress — search works; shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M3 complete — shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -448,7 +448,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M0 | Service skeleton on :8770 + plist; FastAPI serves a static page rendering an EPUB via foliate-js; CSP containment proven by test | done |
 | ✅ M1 | Reader: pagination, TOC, themes, font controls, CFI position persisted server-side | done |
 | ✅ M2 | Library: scan, hash, SQLite index, cover extraction, Browse tab with modes + letter bar | done |
-| M3 | Search (FTS5), sorting, series, shelves | ~3 days |
+| ✅ M3 | Search (FTS5), sorting, series, shelves | done |
 | M4 | Book detail: synopsis, About the author, Also published | ~1 week |
 | M5 | Enrichment: providers, scoring, BISAC genre map, review queue | 2–3 weeks |
 | M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | — |
@@ -536,6 +536,7 @@ epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results
+epub_shelves.py     ShelfStore — stored shelves and smart ones
 static/browse.js    Browser — mode strip, letter bar, drill-down
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
@@ -566,6 +567,28 @@ produced a flake that passed in isolation and failed in the full run.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
+
+### 10.9 Shelves, sorting, and a TLS trap
+
+**Two kinds of shelf, and the distinction is the design.** Stored shelves
+are lists the reader maintains. Smart shelves ("Reading now", "Finished")
+are derived from reading state — a view of a fact, not a list — so they
+have no rows and there is deliberately **no route to put a book on one**.
+
+Sorting gained `opened` and `progress`, which need a join to
+`reading_state`; untouched books sort last via `COALESCE`, not `NULLS
+LAST`, so the order is the same on any SQLite. The chosen sort lives with
+the other per-device display settings, not on the server: how you like
+the list arranged is a fact about you, where you are in a book is a fact
+about the book.
+
+> **TLS paths are configuration, not a guess.** Setting
+> `TAILSCALE_CERT_HOST` killed the service with a bare `FileNotFoundError`
+> from inside hypercorn, because the code assumed certificates live in
+> `~/.config/tailscale-certs/`. They are now `TLS_CERT_FILE` /
+> `TLS_KEY_FILE` in `.env`, falling back to `<host>.crt` beside the .env
+> file — and a missing certificate is reported with what to set, rather
+> than improvised or crashed on.
 
 ### 10.8 Touch layout: one screen at a time
 

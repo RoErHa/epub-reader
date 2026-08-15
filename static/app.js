@@ -84,6 +84,74 @@ class DisplayPanel {
   }
 }
 
+class ShelfSheet {
+  /** Choosing which shelves the open book sits on. Membership is shown
+   *  by state on each row, so one list does both adding and removing. */
+  #dom = null
+  #bookId = null
+
+  constructor (dom) {
+    this.#dom = dom
+    dom.shelfClose.addEventListener('click', () => this.hide())
+    dom.shelfNew.addEventListener('click', () => this.#create())
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') this.hide()
+    })
+  }
+
+  hide () { this.#dom.shelfSheet.hidden = true }
+
+  async show (bookId) {
+    this.#bookId = bookId
+    this.#dom.shelfSheet.hidden = false
+    await this.render()
+  }
+
+  async render () {
+    const [all, mine] = await Promise.all([
+      fetch('/api/shelves').then(r => r.json()),
+      fetch(`/api/books/${this.#bookId}/shelves`).then(r => r.json())
+    ])
+    const on = new Set(mine.shelves.map(s => s.id))
+    const list = this.#dom.shelfChoices
+    list.replaceChildren()
+    // Smart shelves are a consequence of reading, not a choice.
+    const stored = all.shelves.filter(s => !s.smart)
+    if (!stored.length) {
+      const p = document.createElement('div')
+      p.className = 'msg'
+      p.textContent = 'No shelves yet.'
+      list.append(p)
+      return
+    }
+    for (const shelf of stored) {
+      const row = document.createElement('button')
+      row.className = 'shelf-choice' + (on.has(shelf.id) ? ' on-shelf' : '')
+      row.textContent = shelf.name
+      row.addEventListener('click', () => this.#toggle(shelf, on.has(shelf.id)))
+      list.append(row)
+    }
+  }
+
+  async #toggle (shelf, isOn) {
+    await fetch(`/api/shelves/${shelf.id}/books/${this.#bookId}`, {
+      method: isOn ? 'DELETE' : 'PUT'
+    })
+    await this.render()
+  }
+
+  async #create () {
+    const name = window.prompt('Name the shelf')
+    if (!name) return
+    const res = await fetch('/api/shelves', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+    if (res.ok) await this.render()
+  }
+}
+
 class BooksApp {
   #reader = null
   #list = null
@@ -91,6 +159,7 @@ class BooksApp {
   #settings = null
   #positions = null
   #loading = null
+  #sheet = null
   #current = null
 
   constructor (root = document) {
@@ -109,6 +178,13 @@ class BooksApp {
       progress: root.getElementById('progress'),
       chapter: root.getElementById('chapter'),
       readerBack: root.getElementById('reader-back'),
+      sort: root.getElementById('sort-select'),
+      newShelf: root.getElementById('new-shelf'),
+      shelf: root.getElementById('btn-shelf'),
+      shelfSheet: root.getElementById('shelf-sheet'),
+      shelfChoices: root.getElementById('shelf-choices'),
+      shelfClose: root.getElementById('shelf-close'),
+      shelfNew: root.getElementById('shelf-new'),
       prev: root.getElementById('btn-prev'),
       next: root.getElementById('btn-next'),
       toc: root.getElementById('toc-list'),
@@ -134,11 +210,12 @@ class BooksApp {
       {
         list: this.dom.list, modes: this.dom.modes, letters: this.dom.letters,
         back: this.dom.back, backTitle: this.dom.backTitle,
-        statusbar: this.dom.statusbar
+        statusbar: this.dom.statusbar, newShelf: this.dom.newShelf
       },
       book => this.open(book)
     )
     this.#toc = new TableOfContents(this.dom.toc, item => this.#reader.goTo(item.href))
+    this.#sheet = new ShelfSheet(this.dom)
   }
 
   async start () {
@@ -153,6 +230,8 @@ class BooksApp {
 
     this.#showView('browse')
     this.#toc.clear()
+    await this.#bindShelves()
+    await this.#bindSort()
     await this.#list.start()
     this.#status('Ready')
   }
@@ -161,6 +240,41 @@ class BooksApp {
    *  kept accurate everywhere so the CSS stays declarative. */
   #showView (view) {
     document.body.dataset.view = view
+  }
+
+  /** The sort order is a display preference, so it lives on the device
+   *  alongside the reader's typography — not on the server. */
+  async #bindSort () {
+    const { sorts } = await fetch('/api/sorts').then(r => r.json())
+    this.dom.sort.replaceChildren()
+    for (const sort of sorts) {
+      const option = document.createElement('option')
+      option.value = sort.key
+      option.textContent = sort.label
+      this.dom.sort.append(option)
+    }
+    const saved = this.#settings.get('sort')
+    if (sorts.some(s => s.key === saved)) this.dom.sort.value = saved
+    await this.#list.setSort(this.dom.sort.value)
+    this.dom.sort.addEventListener('change', async () => {
+      this.#settings.set('sort', this.dom.sort.value)
+      await this.#list.setSort(this.dom.sort.value)
+    })
+  }
+
+  async #bindShelves () {
+    this.dom.newShelf.addEventListener('click', async () => {
+      const name = window.prompt('Name the shelf')
+      if (!name) return
+      try {
+        await this.#list.createShelf(name)
+      } catch (err) {
+        this.#status(err.message)
+      }
+    })
+    this.dom.shelf.addEventListener('click', () => {
+      if (this.#current) this.#sheet.show(this.#current)
+    })
   }
 
   #bindReaderControls () {

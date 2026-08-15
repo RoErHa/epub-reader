@@ -16,6 +16,16 @@ SORTS = {
     "year": "m.first_published",
     "added": "b.added_at DESC",
     "size": "b.size_bytes DESC",
+    # Untouched books sort last rather than first — COALESCE, not NULLS
+    # LAST, so the ordering is the same on any SQLite.
+    "opened": "COALESCE(r.opened_at, 0) DESC",
+    "progress": "COALESCE(r.fraction, 0) DESC",
+}
+
+SORT_LABELS = {
+    "title": "Title", "author": "Author", "series": "Series",
+    "year": "First published", "added": "Recently added",
+    "opened": "Recently read", "progress": "Progress", "size": "File size",
 }
 
 MODES = {"titles": "m.title_sort", "authors": "a.sort_name", "series": "s.sort_name"}
@@ -49,6 +59,7 @@ class BrowseQueries:
           FROM book b
           JOIN metadata m ON m.book_id = b.id
           LEFT JOIN series s ON s.id = m.series_id
+          LEFT JOIN reading_state r ON r.content_hash = b.content_hash
          WHERE b.missing_since IS NULL
     """
 
@@ -59,6 +70,7 @@ class BrowseQueries:
     def books(self, sort: str = "title", letter: str | None = None,
               author_id: int | None = None, series_id: int | None = None,
               genre_id: int | None = None, decade: int | None = None,
+              shelf_id: int | None = None, smart: str | None = None,
               limit: int = 200, offset: int = 0) -> Page:
         if sort not in SORTS:
             raise BrowseError(
@@ -78,6 +90,13 @@ class BrowseQueries:
         if genre_id is not None:
             sql += " AND b.id IN (SELECT book_id FROM book_genre WHERE genre_id = ?)"
             params.append(genre_id)
+        if shelf_id is not None:
+            sql += " AND b.id IN (SELECT book_id FROM shelf_book WHERE shelf_id = ?)"
+            params.append(shelf_id)
+        if smart == "reading":
+            sql += " AND r.status = 'reading'"
+        elif smart == "finished":
+            sql += " AND r.status = 'finished'"
         if decade is not None:
             sql += " AND m.first_published BETWEEN ? AND ?"
             params += [decade, decade + 9]
@@ -190,6 +209,9 @@ class BrowseQueries:
         if any(not r["c"].isalpha() for r in rows):
             letters.append("#")
         return letters
+
+    def sorts(self) -> list[dict]:
+        return [{"key": key, "label": SORT_LABELS.get(key, key)} for key in SORTS]
 
     def book_row(self, book_id: int):
         return self._db.connection.execute(

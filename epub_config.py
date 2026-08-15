@@ -108,6 +108,50 @@ class Config:
     def cert_host(self) -> str | None:
         return self._values.get("TAILSCALE_CERT_HOST") or None
 
+    def _tls_path(self, key: str, suffix: str) -> Path | None:
+        """Explicit path if given, else <cert host><suffix> beside the
+        .env file. Nothing is invented: if neither exists, this returns
+        None and require_tls_files() explains what to set."""
+        explicit = self._values.get(key)
+        if explicit:
+            return self._as_path(key)
+        host = self.cert_host
+        if not host:
+            return None
+        candidate = self._base_dir / f"{host}{suffix}"
+        return candidate if candidate.is_file() else None
+
+    @property
+    def tls_cert_file(self) -> Path | None:
+        return self._tls_path("TLS_CERT_FILE", ".crt")
+
+    @property
+    def tls_key_file(self) -> Path | None:
+        return self._tls_path("TLS_KEY_FILE", ".key")
+
+    def require_tls_files(self) -> tuple[Path, Path] | None:
+        """Resolve the certificate pair, or explain what is missing.
+
+        Returns None when TLS is not configured at all — plain HTTP is a
+        valid choice, an unreadable certificate is not.
+        """
+        if not self.cert_host:
+            return None
+        cert, key = self.tls_cert_file, self.tls_key_file
+        missing = [
+            name for name, path in (("certificate", cert), ("private key", key))
+            if path is None or not path.is_file()
+        ]
+        if missing:
+            raise ConfigError(
+                f"TAILSCALE_CERT_HOST is set to {self.cert_host!r} but the "
+                f"{' and '.join(missing)} could not be found.\n"
+                f"Looked for {self._base_dir}/{self.cert_host}.crt and .key.\n"
+                "Set TLS_CERT_FILE and TLS_KEY_FILE in the .env file, or "
+                "clear TAILSCALE_CERT_HOST to serve plain HTTP."
+            )
+        return cert, key
+
     def provider_key(self, name: str) -> str | None:
         if name not in self.PROVIDER_KEYS:
             raise ConfigError(

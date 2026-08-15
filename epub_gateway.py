@@ -12,8 +12,6 @@ import argparse
 import asyncio
 import logging
 import sys
-from pathlib import Path
-
 from hypercorn.asyncio import serve
 from hypercorn.config import Config as HypercornConfig
 
@@ -86,11 +84,14 @@ class GatewayRunner:
         cfg.bind = [f"{self._config.bind}:{self._config.port}"]
         cfg.accesslog = "-"
         cfg.errorlog = "-"
-        cert_host = self._config.cert_host
-        if cert_host:
-            cert_dir = Path.home() / ".config" / "tailscale-certs"
-            cfg.certfile = str(cert_dir / f"{cert_host}.crt")
-            cfg.keyfile = str(cert_dir / f"{cert_host}.key")
+        # Raises ConfigError with an explanation if TLS is asked for but
+        # the certificate cannot be found — the service used to die with
+        # a bare FileNotFoundError from inside hypercorn.
+        tls = self._config.require_tls_files()
+        if tls:
+            cert, key = tls
+            cfg.certfile = str(cert)
+            cfg.keyfile = str(key)
         return cfg
 
     def scan_library(self) -> None:
@@ -143,6 +144,9 @@ class GatewayCLI:
             return ScanCommand(config).run()
         try:
             GatewayRunner(config).run()
+        except ConfigError as exc:
+            print(f"Configuration error: {exc}", file=sys.stderr)
+            return 2
         except KeyboardInterrupt:
             LOG.info("Stopped.")
         return 0

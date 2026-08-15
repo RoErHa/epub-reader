@@ -18,7 +18,7 @@ test.describe('browse modes', () => {
   test('every mode is offered', async ({ page }) => {
     await ready(page)
     const modes = await page.locator('.browse-mode').allTextContents()
-    expect(modes).toEqual(['Titles', 'Authors', 'Series', 'Genres', 'Years'])
+    expect(modes).toEqual(['Titles', 'Authors', 'Series', 'Genres', 'Years', 'Shelves'])
   })
 
   test('authors mode lists authors with counts', async ({ page }) => {
