@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
-  <div class="hdr-right">587 pytest · 270 playwright (chromium + webkit)</div>
+  <div class="hdr-right">594 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -721,16 +721,19 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr><td>Merge duplicate authors</td><td><code>POST /api/authors/dedupe</code></td><td><code>epub_dedupe.py</code></td></tr>
 <tr><td>Books filed under their own title</td><td><code>POST /api/books/repair-authors</code></td><td><code>epub_repair.py</code></td></tr>
 <tr><td>Titles that are really filenames</td><td><code>POST /api/books/repair-titles</code></td><td><code>epub_titles.py</code></td></tr>
+<tr><td>Merge two authors on your say-so</td><td><code>POST /api/authors/merge</code></td><td><code>epub_dedupe.py</code></td></tr>
 </tbody>
 </table>
 </div>
 
-<p>Applied to the real library: <strong>607 → 400 authors</strong>, 192 books given their real author, 60 titles corrected so far.</p>
+<p>Applied to the real library: <strong>607 → 395 authors</strong>, 192 books given their real author, 60 titles corrected so far.</p>
 
 <div class="note">
   <span class="eyebrow">Rule</span>
   <p>Merging authors is destructive, so the bar is high. A group merges only when the names are <strong>identical once spacing and punctuation are removed</strong>, when Open Library resolves both to the <strong>same author</strong>, when one spelling is <strong>unknown to Open Library</strong> beside a near-identical one it knows well — the signature of a typo — or when <strong>everything the other name is credited with is in the keeper's bibliography</strong>. Anything refused is <strong>reported</strong>, never silently dropped.</p>
 </div>
+
+<p>What the rules refuse is reported, and <code>POST /api/authors/merge</code> is how a reader who knows better overrides them — which is what settled <code>Anne Rice / Ann Rice</code>, <code>Arthur Clarke / Arthur C. Clarke</code> and the <em>four</em> spellings of <code>L. E. Modesitt Jr.</code>. Open Library holds two records for each of the first two and none of their books overlap here, so nothing could have proved it. A hand merge records provenance like any other correction.</p>
 
 <p>The bibliography rule is the strongest of the four, because it asks what the books <em>are</em> rather than how the name is spelled — and it is the only one that settled the three Donaldsons. Open Library holds a <strong>second record</strong> for "Stephen Donaldson", 38 works beside the canonical 126, and <code>Stephan Donaldson</code> scores 0.87, just under the typo bar. But all four of their books are Thomas Covenant novels, every one in the keeper's works list. A single shared title would prove nothing — two writers can name a book the same — so it asks for all of them.</p>
 

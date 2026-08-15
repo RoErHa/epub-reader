@@ -520,6 +520,99 @@ class TestReportingWhatWasNotMerged:
                        for group in report["unresolved"] for n in group)
 
 
+class TestMergingByHand:
+    """The rules refuse anything they cannot prove, and some of what
+    they refuse is still one person: Open Library holds two records for
+    Anne Rice and two for Arthur C. Clarke, and their books do not
+    overlap in the library, so nothing can settle it automatically.
+    A reader who knows better says so.
+    """
+
+    @staticmethod
+    def two_of_them(library, gateway):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        for i in range(2):
+            EpubBuilder(title=f"Vampire {i}", author="Anne Rice").build(
+                library / f"a{i}.epub")
+        EpubBuilder(title="Interview", author="Ann Rice").build(library / "b.epub")
+        gateway.reindex()
+        return {r["name"]: r["id"] for r in gateway.database.connection.execute(
+            "SELECT id, name FROM author")}
+
+    def test_the_books_move_to_the_keeper(self, client, library, gateway):
+        ids = self.two_of_them(library, gateway)
+        report = deduper(gateway).merge(ids["Anne Rice"], [ids["Ann Rice"]])
+        assert report["merged"] == 1
+        assert authors(gateway)["Anne Rice"]
+        assert "Ann Rice" not in authors(gateway)
+        assert gateway.database.connection.execute(
+            "SELECT COUNT(*) n FROM book_author ba JOIN author a"
+            " ON a.id = ba.author_id WHERE a.name = 'Anne Rice'"
+        ).fetchone()["n"] == 3
+
+    def test_the_keeper_can_be_renamed_at_the_same_time(self, client, library,
+                                                        gateway):
+        # "Arthur Clarke" has the books; "Arthur C. Clarke" is the name.
+        ids = self.two_of_them(library, gateway)
+        deduper(gateway).merge(ids["Anne Rice"], [ids["Ann Rice"]],
+                               name="Anne Rice the Elder")
+        assert "Anne Rice the Elder" in authors(gateway)
+
+    def test_a_rename_recomputes_the_sort_name(self, client, library, gateway):
+        # Chicago order: the suffix trails the given names rather than
+        # clinging to the surname, so he files under M.
+        ids = self.two_of_them(library, gateway)
+        deduper(gateway).merge(ids["Anne Rice"], [ids["Ann Rice"]],
+                               name="L. E. Modesitt Jr.")
+        assert gateway.database.connection.execute(
+            "SELECT sort_name FROM author WHERE name = 'L. E. Modesitt Jr.'"
+        ).fetchone()["sort_name"] == "modesitt, l. e. jr."
+
+    def test_the_book_that_moved_survives_a_rescan(self, client, library,
+                                                   gateway):
+        # Only the book that moved needs protecting: the keeper's own
+        # files still say what the database says.
+        ids = self.two_of_them(library, gateway)
+        deduper(gateway).merge(ids["Anne Rice"], [ids["Ann Rice"]])
+        row = gateway.database.connection.execute(
+            """SELECT f.origin FROM field_provenance f
+                 JOIN metadata m ON m.book_id = f.book_id
+                WHERE f.field = 'authors' AND m.title = 'Interview'"""
+        ).fetchone()
+        assert row["origin"] == "provider"
+
+    def test_an_author_that_does_not_exist_is_refused(self, client, library,
+                                                      gateway):
+        ids = self.two_of_them(library, gateway)
+        with pytest.raises(LookupError):
+            deduper(gateway).merge(ids["Anne Rice"], [999999])
+
+    def test_merging_an_author_into_itself_is_refused(self, client, library,
+                                                      gateway):
+        ids = self.two_of_them(library, gateway)
+        with pytest.raises(ValueError):
+            deduper(gateway).merge(ids["Anne Rice"], [ids["Anne Rice"]])
+
+    def test_several_at_once(self, client, library, gateway):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        for name in ("L. E. Modesitt", "L. E. Modesitt Jr.",
+                     "L.E. Modesitt Jr.", "Jr. L. E. Modesitt"):
+            EpubBuilder(title=f"Recluce by {name}", author=name).build(
+                library / f"{abs(hash(name))}.epub")
+        gateway.reindex()
+        ids = {r["name"]: r["id"] for r in gateway.database.connection.execute(
+            "SELECT id, name FROM author")}
+        keeper = ids["L. E. Modesitt"]
+        others = [ids[n] for n in ("L. E. Modesitt Jr.", "L.E. Modesitt Jr.",
+                                   "Jr. L. E. Modesitt")]
+        report = deduper(gateway).merge(keeper, others, name="L. E. Modesitt Jr.")
+        assert report["merged"] == 3
+        assert [n for n in authors(gateway) if "Modesitt" in n] == \
+            ["L. E. Modesitt Jr."]
+
+
 class TestTheEndpoints:
     def test_dedupe_defaults_to_a_dry_run(self, donaldsons):
         # It changes the index, so seeing the plan first is the point.

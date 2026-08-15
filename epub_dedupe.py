@@ -332,6 +332,40 @@ class AuthorDeduplicator:
                 (book_id, now),
             )
 
+    def merge(self, keeper_id: int, other_ids: list[int],
+              name: str | None = None) -> dict:
+        """Merge by hand, on a reader's say-so.
+
+        The rules above refuse whatever they cannot prove, and some of
+        what they refuse is still one person — Open Library holds two
+        records for Anne Rice and two for Arthur C. Clarke, and their
+        books do not overlap here, so nothing can settle it. This is how
+        you say so yourself, and it records provenance like any other
+        correction so a rescan does not undo it.
+        """
+        keeper = self._author(keeper_id)
+        others = []
+        for other_id in other_ids:
+            if other_id == keeper_id:
+                raise ValueError("An author cannot be merged into itself.")
+            others.append(self._author(other_id))
+        if not others:
+            return {"merged": 0, "name": keeper["name"]}
+
+        group = {"keep": keeper, "merge": others,
+                 "canonical": name or keeper["name"]}
+        moved = self._merge(group)
+        return {"merged": moved, "name": group["canonical"]}
+
+    def _author(self, author_id: int) -> dict:
+        row = self._db.connection.execute(
+            "SELECT id, name, sort_name FROM author WHERE id = ?", (author_id,)
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"No author with id {author_id}.")
+        return {"id": row["id"], "name": row["name"],
+                "sort_name": row["sort_name"], "books": 0}
+
     def _merge(self, group: dict) -> int:
         cursor = self._db.connection
         keeper = group["keep"]["id"]

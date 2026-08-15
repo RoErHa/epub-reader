@@ -112,6 +112,14 @@ class PositionUpdate(BaseModel):
     fraction: float = Field(..., description="0..1; clamped, not refused.")
 
 
+class AuthorMerge(BaseModel):
+    """Say so by hand when the rules refuse a merge they cannot prove."""
+
+    keep: int
+    merge: list[int]
+    name: str | None = None
+
+
 class ShelfName(BaseModel):
     name: str
 
@@ -475,6 +483,17 @@ class EpubGateway:
         @app.post("/api/authors/dedupe")
         def dedupe_authors(apply: bool = False) -> JSONResponse:
             return JSONResponse(self._deduper.run(apply=apply))
+
+        @app.post("/api/authors/merge")
+        def merge_authors(body: AuthorMerge) -> JSONResponse:
+            """Merge authors the rules would not merge on their own."""
+            try:
+                return JSONResponse(
+                    self._deduper.merge(body.keep, body.merge, body.name))
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from None
 
         @app.post("/api/books/repair-authors")
         def repair_authors(apply: bool = False) -> JSONResponse:
