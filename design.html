@@ -496,6 +496,10 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <li><strong>downloading</strong> — a real percentage, from <code>Content-Length</code> against bytes read off the stream. The app fetches the book itself so the bytes can be counted, then hands foliate a <code>File</code> (not a <code>Blob</code>: it sniffs format partly by <code>file.name</code>).</li>
 <li><strong>preparing</strong> — foliate exposes no progress while parsing and laying out, and a 1.2&nbsp;MB single-section book spends 6–8&nbsp;s there. The bar goes indeterminate and the label says so, rather than inventing a number that would be wrong.</li>
 </ul>
+<div class="rule">
+  <span class="eyebrow">A second WebKit lesson</span>
+  <p><strong>WebKit will not paint an <code>&lt;img&gt;</code> inside a <code>transform-style: preserve-3d</code> context.</strong> The cover rendered as a flat navy rectangle in Safari while Chromium was perfect, from identical markup. A wrapper element did not help and removing <code>backface-visibility</code> did not help — only dropping <code>preserve-3d</code> did. The book now turns within ±58° on perspective alone, which needs no back face and keeps the cover visible throughout.</p>
+</div>
 
 <h2 id="s5"><span class="n">05</span>Data model</h2>
 
