@@ -286,36 +286,50 @@ class LibraryIndexer:
                 "series", meta.series, title_sort_key(meta.series)
             )
 
+        # The file is the first word on a book's metadata, not the last:
+        # a field corrected by hand or by enrichment keeps its value when
+        # the book is read again. Without this, replacing a file puts the
+        # wrong author straight back.
+        spoken_for = self._spoken_for(book_id)
+        values = {
+            "title": meta.title, "title_sort": meta.title_sort,
+            "synopsis": meta.description,
+            "first_published": meta.first_published,
+            "edition_date": meta.edition_date, "publisher": meta.publisher,
+            "language": meta.language, "isbn13": meta.isbn13,
+            "spine_length": meta.spine_length, "cover_path": cover_path,
+            "series_id": series_id, "series_index": meta.series_index,
+        }
+        keep = [column for column in values if self._field(column) in spoken_for]
+        assignments = ", ".join(
+            f"{c}=excluded.{c}" for c in values if c not in keep
+        )
+        if cover_path is None and "cover_path" not in keep:
+            # A book whose cover was already extracted keeps it rather
+            # than losing it to a file that has none.
+            assignments = assignments.replace(
+                "cover_path=excluded.cover_path",
+                "cover_path=COALESCE(excluded.cover_path, metadata.cover_path)")
+        columns = ", ".join(values)
         cursor.execute(
-            """
-            INSERT INTO metadata (book_id, title, title_sort, synopsis,
-                first_published, edition_date, publisher, language, isbn13,
-                spine_length, cover_path, series_id, series_index)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            ON CONFLICT(book_id) DO UPDATE SET
-                title=excluded.title, title_sort=excluded.title_sort,
-                synopsis=excluded.synopsis,
-                first_published=excluded.first_published,
-                edition_date=excluded.edition_date,
-                publisher=excluded.publisher, language=excluded.language,
-                isbn13=excluded.isbn13, spine_length=excluded.spine_length,
-                cover_path=COALESCE(excluded.cover_path, metadata.cover_path),
-                series_id=excluded.series_id, series_index=excluded.series_index
+            f"""
+            INSERT INTO metadata (book_id, {columns})
+            VALUES (?{", ?" * len(values)})
+            ON CONFLICT(book_id) DO UPDATE SET {assignments or "book_id=book_id"}
             """,
-            (book_id, meta.title, meta.title_sort, meta.description,
-             meta.first_published, meta.edition_date, meta.publisher,
-             meta.language, meta.isbn13, meta.spine_length, cover_path,
-             series_id, meta.series_index),
+            (book_id, *values.values()),
         )
 
-        cursor.execute("DELETE FROM book_author WHERE book_id = ?", (book_id,))
-        for position, person in enumerate(meta.authors):
-            author_id = self._upsert("author", person.display, person.sort)
-            cursor.execute(
-                "INSERT OR IGNORE INTO book_author (book_id, author_id, role,"
-                " position) VALUES (?, ?, 'author', ?)",
-                (book_id, author_id, position),
-            )
+        if "authors" not in spoken_for:
+            cursor.execute("DELETE FROM book_author WHERE book_id = ?",
+                           (book_id,))
+            for position, person in enumerate(meta.authors):
+                author_id = self._upsert("author", person.display, person.sort)
+                cursor.execute(
+                    "INSERT OR IGNORE INTO book_author (book_id, author_id,"
+                    " role, position) VALUES (?, ?, 'author', ?)",
+                    (book_id, author_id, position),
+                )
 
         cursor.execute("DELETE FROM book_genre WHERE book_id = ?", (book_id,))
         for position, subject in enumerate(meta.subjects):
@@ -334,6 +348,23 @@ class LibraryIndexer:
             (now, book_id),
         )
         self._search.reindex_book(book_id)
+
+    @staticmethod
+    def _field(column: str) -> str:
+        """The provenance field a metadata column belongs to. The sort
+        key follows its title, and the series columns move together."""
+        return {"title_sort": "title", "series_id": "series",
+                "series_index": "series"}.get(column, column)
+
+    def _spoken_for(self, book_id: int) -> set[str]:
+        """Fields the file no longer owns: corrected by hand, filled in
+        by a provider, or locked."""
+        return {
+            row["field"] for row in self._db.connection.execute(
+                "SELECT field, origin, locked FROM field_provenance"
+                " WHERE book_id = ?", (book_id,))
+            if row["locked"] or row["origin"] in ("user", "provider")
+        }
 
     def _upsert(self, table: str, name: str, sort_name: str) -> int:
         cursor = self._db.connection

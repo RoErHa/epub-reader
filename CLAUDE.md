@@ -408,6 +408,38 @@ Open Library is the primary source precisely because it models **authors and wor
 
 **Series** comes from provider data first. An EPUB's OPF may also carry a `calibre:series` / `series_index` custom meta — that is just a field inside the file, so we read it as a hint like any other embedded metadata. It implies no dependency on Calibre.
 
+### 6.3 Repairing a library that was catalogued by hand
+
+A real collection carries thirty years of other people's filing. Four maintenance passes fix it, all of them **dry-run by default**, all of them **database-only — no file is ever renamed, moved or written**.
+
+| Pass | Endpoint | Module |
+| --- | --- | --- |
+| Merge duplicate authors | `POST /api/authors/dedupe` | `epub_dedupe.py` |
+| Books filed under their own title | `POST /api/books/repair-authors` | `epub_repair.py` |
+| Titles that are really filenames | `POST /api/books/repair-titles` | `epub_titles.py` |
+
+**Merging authors is destructive, so the bar is high.** A group merges only when the names are identical once spacing and punctuation are removed, when Open Library resolves both to the same author, or when one spelling is *unknown to Open Library* while a near-identical one is well known — the signature of a typo. That last rule is what separates `Issac Asimov` from `Isaac Asimov` while leaving `Stephen King` and `Stephen Hawking` alone: both of those are real people, and the provider knows both. Whatever is refused is **reported**, never silently dropped.
+
+The spelling that survives is not simply the one with the most books — that kept `DIANE CAREY` over `Diane Carey` and `Raymond E Feist` over `Raymond E. Feist`. Open Library supplies the spelling, but only when its answer is the same name and better formed: it holds `J.k. Rowling`, which is not an improvement on anything.
+
+**A book filed under its own title** ("Annihilation" by Annihilation) is looked up by title. The trap is that a bare title is weak evidence — "Second Chance" returned a book James Patterson did not write — so where the filename names its author (`Cussler, Clive - Dirk Pitt 01 - Pacific Vortex`), that name arbitrates, and a candidate contradicting it is refused. The same rule catches authors holding a *fragment* of the title: `Jack And Jill` was split on the "and" and both halves became people.
+
+**Titles come from the author's bibliography, not from a title search** — the idea being that once the author is settled, the only question left is *which of their books this is*. Matching is against that author's works and nothing else. Two guards earn their keep: Open Library caps a bibliography at 200 works, so Asimov's list has `Foundation` but not `Foundation and Empire` — a contained work must account for most of the title, or `Foundation and Empire` quietly becomes `Foundation`. And a leading series number comes off without asking anyone (`01 Lord Foul's Bane`), except when the number is the title: `10 is Better Than 01` and `50 Philosophy Ideas You Really Need to Know` are real books, and zero-padding is what tells them apart.
+
+The title the file gave is kept in `metadata.file_title`, so every rename is reversible.
+
+### 6.4 The file is the first word, not the last
+
+Corrections have to survive a rescan, and until this was fixed they did not: `_write_metadata` overwrote every column and ran `DELETE FROM book_author` unconditionally, so replacing a book file put its wrong author straight back. The indexer now reads `field_provenance` first and **only takes from the file what the file still owns** — the same rule enrichment follows. A routine scan short-circuits on unchanged size and mtime, so this only ever bit when a file was touched, edited, or replaced with a better copy.
+
+Every pass records provenance for what it changes, or the next scan would undo it.
+
+### 6.5 Asking a provider 1,200 times
+
+A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns `503`, `Connection reset by peer`, and SSL handshake timeouts — all three, in one run. `PoliteFetcher` spaces requests out and retries what is worth retrying (429, 5xx, connection failures; never a 404, which is an answer). It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and **one instance is shared by the whole service** — four providers each pacing themselves is four unsynchronised streams.
+
+The test suite injects a fetcher that refuses immediately, so nothing in it touches the network. One endpoint test had been quietly making real requests all along; it took 48 seconds on the day Open Library was struggling.
+
 ### 6.1 Genre vocabulary — BISAC subset (decision 5)
 
 Providers return BISAC codes, free-text categories, and folksonomy tags interchangeably. We normalize onto a **fixed ~40-term subset of BISAC subject headings**, stored in `genres.tsv` in the repo and loaded into the `genre` table at startup.
@@ -451,6 +483,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M3 | Search (FTS5), sorting, series, shelves | done |
 | ✅ M4 | Book detail: synopsis, About the author, Also published | done |
 | ✅ M5 | Enrichment: providers, scoring, BISAC genre map, review queue | done |
+| ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
 | M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | — |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.

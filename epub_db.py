@@ -250,6 +250,17 @@ class MigrationRunner:
               ON metadata_candidate(status);
             """,
         ),
+        Migration(
+            7,
+            "file_title",
+            """
+            -- The title as the file gave it. A title corrected from its
+            -- author's bibliography replaces what you see, and this is
+            -- what it replaced: the change stays reversible, and the
+            -- name you know from your own folders is not lost.
+            ALTER TABLE metadata ADD COLUMN file_title TEXT;
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

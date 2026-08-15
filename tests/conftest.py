@@ -25,6 +25,13 @@ LOG_FILE=test.log
 """
 
 
+def no_network(url, headers=None):
+    """The suite never talks to a provider. Anything that tries gets an
+    immediate refusal rather than a real request — and, before this
+    existed, a 48-second one when Open Library was having a bad day."""
+    raise OSError(f"the test suite does not use the network ({url})")
+
+
 @pytest.fixture
 def library(tmp_path) -> Path:
     """A library folder holding one plain and one hostile book."""
@@ -48,7 +55,7 @@ def config(tmp_path, library) -> Config:
 
 @pytest.fixture
 def gateway(config) -> EpubGateway:
-    gw = EpubGateway(config)
+    gw = EpubGateway(config, fetch=no_network)
     gw.reindex()   # the real service indexes at startup
     yield gw
     gw.close()

@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -35,6 +37,64 @@ def http_json(url: str, headers: dict | None = None) -> dict:
     request = urllib.request.Request(url, headers=headers or {})
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+class PoliteFetcher:
+    """Spaces requests out and retries the failures worth retrying.
+
+    A library-wide run asks Open Library about 400 authors, three
+    requests each. Sent flat out that earns 503s, connection resets and
+    SSL handshake timeouts — which is what a real run produced. Wrapping
+    the fetcher rather than the provider keeps the providers ignorant of
+    it, exactly as the module docstring promised.
+    """
+
+    # Statuses worth asking again about. A 404 is an answer.
+    AGAIN = frozenset({429, 500, 502, 503, 504})
+
+    def __init__(self, fetch=http_json, interval: float = 0.4,
+                 attempts: int = 4, backoff: float = 0.5, sleep=time.sleep,
+                 clock=time.monotonic, jitter=random.uniform) -> None:
+        self._fetch = fetch
+        # Spacing and backing off are different things: one paces a
+        # healthy server, the other gives a struggling one room.
+        self._interval = interval
+        self._backoff = backoff
+        self._attempts = attempts
+        self._sleep = sleep
+        self._clock = clock
+        self._jitter = jitter
+        self._last = None
+
+    def __call__(self, url: str, headers: dict | None = None) -> dict:
+        for attempt in range(1, self._attempts + 1):
+            self._wait()
+            try:
+                return self._fetch(url, headers=headers)
+            except urllib.error.HTTPError as exc:
+                if exc.code not in self.AGAIN or attempt == self._attempts:
+                    raise
+                LOG.warning("%s answered %s; retrying (%s/%s)", url, exc.code,
+                            attempt, self._attempts)
+            except (urllib.error.URLError, OSError) as exc:
+                if attempt == self._attempts:
+                    raise
+                LOG.warning("%s did not answer (%s); retrying (%s/%s)", url,
+                            exc, attempt, self._attempts)
+            # Back off further each time, so a struggling server is not
+            # asked again at the same rate that overwhelmed it.
+            self._sleep(self._backoff * (2 ** attempt) + self._jitter(0, 0.2))
+        raise ProviderError(f"{url} did not answer.")   # unreachable
+
+    def _wait(self) -> None:
+        if self._last is None:
+            self._last = self._clock()
+            return
+        now = self._clock()
+        remaining = self._interval - (now - self._last)
+        if remaining > 0:
+            self._sleep(remaining)
+        self._last = self._clock()
 
 
 class WorkClassifier:

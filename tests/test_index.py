@@ -6,6 +6,8 @@ mean re-hashing 34 GB every time.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from epub_db import Database
@@ -246,3 +248,126 @@ class TestReport:
         add(library, "a.epub")
         indexer.run()
         assert "no changes" in indexer.run().summary().lower()
+
+
+class TestRescanningDoesNotUndoCorrections:
+    """The file is only the *first* word on a book's metadata, not the
+    last. Author de-duplication and the title-as-author repair correct
+    what the file says; a rescan, which happens on every restart, must
+    not quietly put the wrong answer back.
+
+    The rule is the same one enrichment follows: a field may be taken
+    from the file only while the file still owns it.
+
+    A rescan short-circuits on an unchanged file, so this only bites
+    when the bytes or the timestamp move — a file touched by another
+    tool, a better scan dropped in over an old one.
+    """
+
+    @staticmethod
+    def touch(path):
+        """Make the next scan re-read this book, as replacing the file
+        with a better copy would."""
+        stamp = path.stat().st_mtime + 60
+        os.utime(path, (stamp, stamp))
+
+    @staticmethod
+    def owned_by(db, book_id, field, origin, locked=0):
+        db.connection.execute(
+            "INSERT INTO field_provenance (book_id, field, origin, locked,"
+            " updated_at) VALUES (?, ?, ?, ?, 1)"
+            " ON CONFLICT(book_id, field) DO UPDATE SET origin = excluded.origin,"
+            " locked = excluded.locked",
+            (book_id, field, origin, locked),
+        )
+
+    @staticmethod
+    def author_of(db, book_id):
+        row = db.connection.execute(
+            "SELECT a.name FROM book_author ba JOIN author a"
+            " ON a.id = ba.author_id WHERE ba.book_id = ?", (book_id,)
+        ).fetchone()
+        return row["name"] if row else None
+
+    def book_id(self, db):
+        return db.connection.execute("SELECT id FROM book").fetchone()["id"]
+
+    def test_a_repaired_author_survives_a_rescan(self, indexer, library, db):
+        # The file credits the book to its own title; the repair fixed it.
+        add(library, "a.epub", title="Annihilation", author="Annihilation")
+        indexer.run()
+        book = self.book_id(db)
+        db.connection.execute("DELETE FROM book_author WHERE book_id = ?", (book,))
+        db.connection.execute(
+            "INSERT INTO author (name, sort_name) VALUES ('Jeff VanderMeer',"
+            " 'vandermeer, jeff')")
+        db.connection.execute(
+            "INSERT INTO book_author (book_id, author_id, role, position)"
+            " SELECT ?, id, 'author', 0 FROM author WHERE name = 'Jeff VanderMeer'",
+            (book,))
+        self.owned_by(db, book, "authors", "provider")
+
+        self.touch(library / "a.epub")
+        indexer.run()
+        assert self.author_of(db, book) == "Jeff VanderMeer"
+
+    def test_a_merged_author_is_not_split_again(self, indexer, library, db):
+        add(library, "a.epub", title="Kesrith", author="C J Cherryh")
+        indexer.run()
+        book = self.book_id(db)
+        db.connection.execute("UPDATE author SET name = 'C. J. Cherryh',"
+                              " sort_name = 'cherryh, c. j.'")
+        self.owned_by(db, book, "authors", "provider")
+
+        self.touch(library / "a.epub")
+        indexer.run()
+        assert self.author_of(db, book) == "C. J. Cherryh"
+
+    def test_a_title_you_set_by_hand_survives_a_rescan(self, indexer, library,
+                                                       db):
+        add(library, "a.epub", title="Herbert, Frank - Dune 01 - Dune",
+            author="Frank Herbert")
+        indexer.run()
+        book = self.book_id(db)
+        db.connection.execute("UPDATE metadata SET title = 'Dune' WHERE book_id = ?",
+                              (book,))
+        self.owned_by(db, book, "title", "user")
+
+        self.touch(library / "a.epub")
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT title FROM metadata WHERE book_id = ?", (book,)
+        ).fetchone()["title"] == "Dune"
+
+    def test_a_locked_field_survives_a_rescan(self, indexer, library, db):
+        add(library, "a.epub", title="Dune", author="Frank Herbert",
+            language="en")
+        indexer.run()
+        book = self.book_id(db)
+        db.connection.execute(
+            "UPDATE metadata SET language = 'nl' WHERE book_id = ?", (book,))
+        self.owned_by(db, book, "language", "file", locked=1)
+
+        self.touch(library / "a.epub")
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT language FROM metadata WHERE book_id = ?", (book,)
+        ).fetchone()["language"] == "nl"
+
+    def test_a_field_the_file_still_owns_is_refreshed(self, indexer, library, db):
+        # The point of a rescan: an edited EPUB updates the library.
+        path = add(library, "a.epub", title="Dune", author="Frank Herbert")
+        indexer.run()
+        book = self.book_id(db)
+        path.unlink()
+        add(library, "a.epub", title="Dune Messiah", author="Frank Herbert")
+
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT title FROM metadata WHERE book_id = ?", (book,)
+        ).fetchone()["title"] == "Dune Messiah"
+
+    def test_a_new_book_is_still_taken_from_its_file(self, indexer, library, db):
+        add(library, "a.epub", title="Dune", author="Frank Herbert")
+        indexer.run()
+        assert self.author_of(db, self.book_id(db)) == "Frank Herbert"

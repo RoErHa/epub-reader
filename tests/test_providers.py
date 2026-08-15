@@ -9,6 +9,8 @@ argument, and every response below is canned.
 """
 from __future__ import annotations
 
+import urllib.error
+
 import pytest
 
 from epub_providers import (
@@ -285,3 +287,100 @@ class TestGoogleBooks:
         fetcher = FakeFetcher({"googleapis.com": GOOGLE_BOOKS})
         GoogleBooksProvider(fetcher).find_books("Dune", None)
         assert "key=" not in fetcher.calls[0]
+
+
+class TestBeingPolite:
+    """A library-wide run asks Open Library about 400 authors, three
+    requests each. Sent flat out that earns 503s, connection resets and
+    SSL timeouts — which is exactly what happened. The fetcher spaces
+    requests out and retries the failures that are worth retrying.
+    """
+
+    def test_requests_are_spaced_out(self):
+        from epub_providers import PoliteFetcher
+        # Read once to set the mark, then once as "now" and once to
+        # re-mark: a tenth of a second has gone by.
+        slept, clock = [], iter([0.0, 0.1, 0.1])
+        fetcher = PoliteFetcher(lambda url, headers=None: {"ok": True},
+                               interval=0.5, sleep=slept.append,
+                               clock=lambda: next(clock))
+        fetcher("https://example.test/1")
+        fetcher("https://example.test/2")
+        assert slept and slept[0] == pytest.approx(0.4, abs=0.01)
+
+    def test_the_first_request_does_not_wait(self):
+        from epub_providers import PoliteFetcher
+        slept = []
+        fetcher = PoliteFetcher(lambda url, headers=None: {"ok": True},
+                               interval=0.5, sleep=slept.append,
+                               clock=lambda: 0.0)
+        fetcher("https://example.test/1")
+        assert slept == []
+
+    def test_a_server_error_is_retried(self):
+        from epub_providers import PoliteFetcher
+        calls = []
+
+        def flaky(url, headers=None):
+            calls.append(url)
+            if len(calls) < 3:
+                raise urllib.error.HTTPError(url, 503, "busy", {}, None)
+            return {"ok": True}
+
+        fetcher = PoliteFetcher(flaky, interval=0, sleep=lambda s: None,
+                               clock=lambda: 0.0)
+        assert fetcher("https://example.test/1") == {"ok": True}
+        assert len(calls) == 3
+
+    def test_a_connection_reset_is_retried(self):
+        from epub_providers import PoliteFetcher
+        calls = []
+
+        def flaky(url, headers=None):
+            calls.append(url)
+            if len(calls) < 2:
+                raise urllib.error.URLError(OSError(54, "Connection reset by peer"))
+            return {"ok": True}
+
+        fetcher = PoliteFetcher(flaky, interval=0, sleep=lambda s: None,
+                               clock=lambda: 0.0)
+        assert fetcher("https://example.test/1") == {"ok": True}
+
+    def test_retrying_gives_up_and_says_so(self):
+        from epub_providers import PoliteFetcher
+
+        def down(url, headers=None):
+            raise urllib.error.HTTPError(url, 503, "busy", {}, None)
+
+        fetcher = PoliteFetcher(down, interval=0, sleep=lambda s: None,
+                               clock=lambda: 0.0, attempts=3)
+        with pytest.raises(urllib.error.HTTPError):
+            fetcher("https://example.test/1")
+
+    def test_a_missing_page_is_not_retried(self):
+        from epub_providers import PoliteFetcher
+        calls = []
+
+        def missing(url, headers=None):
+            calls.append(url)
+            raise urllib.error.HTTPError(url, 404, "gone", {}, None)
+
+        fetcher = PoliteFetcher(missing, interval=0, sleep=lambda s: None,
+                               clock=lambda: 0.0)
+        with pytest.raises(urllib.error.HTTPError):
+            fetcher("https://example.test/1")
+        assert len(calls) == 1, "a 404 is an answer, not a failure"
+
+    def test_each_wait_is_longer_than_the_last(self):
+        from epub_providers import PoliteFetcher
+        slept = []
+
+        def down(url, headers=None):
+            raise urllib.error.HTTPError(url, 503, "busy", {}, None)
+
+        fetcher = PoliteFetcher(down, interval=0, backoff=0.1,
+                               sleep=slept.append, clock=lambda: 0.0,
+                               attempts=4, jitter=lambda a, b: 0.0)
+        with pytest.raises(urllib.error.HTTPError):
+            fetcher("https://example.test/1")
+        assert slept == sorted(slept) and len(set(slept)) == len(slept)

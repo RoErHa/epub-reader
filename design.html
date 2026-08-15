@@ -199,8 +199,8 @@ footer{
 <header>
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
-  <span class="hdr-tag">M3 IN PROGRESS</span>
-  <div class="hdr-right">456 pytest · 270 playwright (chromium + webkit)</div>
+  <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
+  <div class="hdr-right">581 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -711,6 +711,58 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </ul>
 <p>The filter is a display filter. Every fetched work is stored, so reclassification never needs a re-fetch.</p>
 
+<h3>6.3 &nbsp;Repairing a library that was catalogued by hand</h3>
+<p>A real collection carries thirty years of other people's filing. Three maintenance passes fix it — all <strong>dry-run by default</strong>, all <strong>database-only: no file is ever renamed, moved, or written</strong>.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Pass</th><th>Endpoint</th><th>Module</th></tr></thead>
+<tbody>
+<tr><td>Merge duplicate authors</td><td><code>POST /api/authors/dedupe</code></td><td><code>epub_dedupe.py</code></td></tr>
+<tr><td>Books filed under their own title</td><td><code>POST /api/books/repair-authors</code></td><td><code>epub_repair.py</code></td></tr>
+<tr><td>Titles that are really filenames</td><td><code>POST /api/books/repair-titles</code></td><td><code>epub_titles.py</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Applied to the real library: <strong>607 → 404 authors</strong>, 192 books given their real author, 60 titles corrected so far.</p>
+
+<div class="note">
+  <span class="eyebrow">Rule</span>
+  <p>Merging authors is destructive, so the bar is high. A group merges only when the names are <strong>identical once spacing and punctuation are removed</strong>, when Open Library resolves both to the <strong>same author</strong>, or when one spelling is <strong>unknown to Open Library</strong> beside a near-identical one it knows well — the signature of a typo. Anything refused is <strong>reported</strong>, never silently dropped.</p>
+</div>
+
+<p>That last rule is what separates <code>Issac Asimov</code> from <code>Isaac Asimov</code> while leaving <code>Stephen King</code> and <code>Stephen Hawking</code> alone — both of those are real people, and the provider knows both. Five look-alike groups remain reported and unmerged, including <code>Anne Rice / Ann Rice</code> and <code>Arthur Clarke / Arthur C. Clarke</code>, where Open Library itself holds two records.</p>
+
+<p>The spelling that survives is <em>not</em> the one with the most books — that kept <code>DIANE CAREY</code> over <code>Diane Carey</code>, and <code>Raymond E Feist</code> over <code>Raymond E. Feist</code>. Open Library supplies it instead, but only when its answer is the same name and better formed: it holds <code>J.k. Rowling</code>, which is an improvement on nothing.</p>
+
+<div class="note">
+  <span class="eyebrow">A bare title is weak evidence</span>
+  <p>Looking up "Second Chance" returned a book James Patterson did not write. Where the filename names its author — <code>Cussler, Clive - Dirk Pitt 01 - Pacific Vortex</code> — <strong>that name arbitrates</strong>, and a candidate contradicting it is refused. The same rule catches an author holding a <em>fragment</em> of the title: <code>Jack And Jill</code> was split on the "and" and both halves became people.</p>
+</div>
+
+<p><strong>Titles come from the author's bibliography, not from a title search.</strong> Once the author is settled the only question left is <em>which of their books this is</em>, and the candidate set shrinks from millions to a few hundred. Two guards earn their keep:</p>
+<ul>
+<li>Open Library caps a bibliography at 200 works, so Asimov's list holds <code>Foundation</code> but not <code>Foundation and Empire</code>. A contained work must account for most of the title, or the one quietly becomes the other.</li>
+<li>A leading series number comes off without asking anybody — <code>01 Lord Foul's Bane</code>, <code>11.Scion of Cyador</code> — <strong>except when the number is the title</strong>. <code>10 is Better Than 01</code> and <code>50 Philosophy Ideas You Really Need to Know</code> are real books; zero-padding is what tells them apart.</li>
+</ul>
+<p>The title the file gave is kept in <code>metadata.file_title</code>, so every rename is reversible.</p>
+
+<h3>6.4 &nbsp;The file is the first word, not the last</h3>
+<p>Corrections have to survive a rescan, and until this was found they did not: <code>_write_metadata</code> overwrote every column and ran <code>DELETE FROM book_author</code> unconditionally, so replacing a book file put its wrong author straight back.</p>
+
+<div class="note">
+  <span class="eyebrow">Rule</span>
+  <p>The indexer reads <code>field_provenance</code> first and <strong>takes from the file only what the file still owns</strong> — the same rule enrichment follows. Every repair pass records provenance for what it changed, or the next scan would undo it.</p>
+</div>
+
+<p>A routine scan short-circuits on unchanged size and mtime, so this only ever bit when a file was touched, edited, or replaced with a better copy — which is exactly what a growing library does.</p>
+
+<h3>6.5 &nbsp;Asking a provider 1,200 times</h3>
+<p>A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns <code>503</code>, <code>Connection reset by peer</code>, and SSL handshake timeouts — all three, in one run.</p>
+<p><code>PoliteFetcher</code> spaces requests out and retries what is worth retrying: 429, 5xx, and connection failures, but never a 404, which is an answer. It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and <strong>one instance is shared by the whole service</strong> — four providers each pacing themselves is four unsynchronised streams.</p>
+<p>The suite now injects a fetcher that refuses immediately, so no test touches the network. One endpoint test had been making real requests all along; it took 48 seconds on the day Open Library was struggling.</p>
+
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s7"><span class="n">07</span>Sorting</h2>
 
@@ -736,6 +788,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M3</td><td>Search (FTS5), sorting, series, shelves</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M5.1</td><td>Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety</td><td class="num win">done</td></tr>
 <tr><td class="num">M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
 </tbody>
 </table>
