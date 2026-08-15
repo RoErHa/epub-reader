@@ -42,6 +42,17 @@
     <div id="reader-stage" data-state="empty">
       <!-- ReaderEngine appends a foliate-view here on open. -->
     </div>
+
+    <div id="loading" data-phase="idle" aria-live="polite" hidden>
+      <div class="loading-book no-cover">
+        <div class="loading-face loading-front">
+          <img class="loading-cover" alt="">
+        </div>
+        <div class="loading-face loading-back" aria-hidden="true"></div>
+      </div>
+      <div class="loading-bar"><div class="loading-fill"></div></div>
+      <div class="loading-label">Downloading 0%</div>
+    </div>
     <div class="controls">
       <button class="btn" id="btn-prev">‹ Prev</button>
       <button class="btn" id="btn-next">Next ›</button>

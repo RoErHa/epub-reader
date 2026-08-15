@@ -567,6 +567,33 @@ produced a flake that passed in isolation and failed in the full run.
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
 
+### 10.7 The loading indicator, and another WebKit lesson
+
+The book's own cover, turning, above a bar and a label. Two phases,
+because only one can be measured honestly:
+
+- **downloading** — a real percentage, from `Content-Length` against
+  bytes read off the stream. The book is fetched by the app rather than
+  by foliate so the bytes can be counted, then handed over as a **File**
+  (not a Blob: foliate sniffs format partly by `file.name`).
+- **preparing** — foliate exposes no progress while it parses and lays
+  out, and a 1.2 MB single-section book spends 6-8 s there. The bar goes
+  indeterminate and the label says what is happening, rather than
+  inventing a number that would be wrong.
+
+> **WebKit will not paint an `<img>` inside a `transform-style:
+> preserve-3d` context.** The cover rendered as a flat navy rectangle in
+> Safari while Chromium was perfect, with identical markup. Neither a
+> wrapper element nor dropping `backface-visibility` helped; only
+> removing `preserve-3d` did. The book now turns within ±58° using
+> perspective alone, which needs no back face and keeps the cover
+> visible throughout. A test samples the image's actual pixels rather
+> than merely asserting the element exists.
+
+Also fixed while building it: the overlay covered the whole window
+because `#reader` was not positioned, so the library was unusable
+during a load.
+
 ### 10.6 Books that are one enormous section
 
 Some EPUBs hold the whole book in a single document. CSS multi-column

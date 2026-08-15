@@ -221,7 +221,7 @@ header{
   font-size:12px;line-height:1.5;color:var(--ink-dim-soft);
 }
 
-#reader{flex:1;display:flex;flex-direction:column;min-width:0}
+#reader{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
 #reader-stage{flex:1;position:relative;min-height:0;background:var(--bg)}
 #reader-stage[data-state="empty"]::after{
   content:"Choose a book from the library.";
@@ -234,6 +234,89 @@ header{
   color:var(--ink-dim-soft);font-size:13px;
 }
 foliate-view{display:block;width:100%;height:100%}
+
+/* ── Loading: the book's own cover, turning ─────────────────────────── */
+/* Confined to the reading pane — the library stays usable while a book
+   loads, which is why #reader is positioned. */
+#loading{
+  position:absolute;inset:0;z-index:5;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:22px;background:var(--bg);
+  perspective:900px;              /* on the container, not the book */
+}
+.loading-book{
+  width:104px;height:150px;position:relative;
+  animation:book-turn 4s cubic-bezier(.37,0,.63,1) infinite;
+}
+/* Two faces, so turning past 90° shows the back of the book rather than
+   a mirror image of its cover. */
+/* Deliberately NOT a 3D scene: no transform-style: preserve-3d and no
+   backface-visibility. WebKit refuses to paint an <img> inside such a
+   context — the cover came out as a flat navy rectangle in Safari while
+   Chromium rendered it perfectly, with identical markup. Perspective on
+   the container plus a rotation within ±58° gives the same turning
+   book, needs no back face, and keeps the cover visible throughout —
+   which is the whole point of showing it. */
+.loading-face{
+  position:absolute;inset:0;overflow:hidden;
+  border-radius:2px 4px 4px 2px;
+  box-shadow:0 14px 30px rgba(0,0,0,.55);
+  background:var(--raised);
+}
+.loading-cover{width:100%;height:100%;object-fit:cover;display:block}
+/* The page block, sitting just off the fore-edge to give it thickness. */
+.loading-back{
+  left:auto;right:-5px;width:6px;border-radius:0 3px 3px 0;
+  background:linear-gradient(90deg,
+    var(--ink-dim-soft), var(--raised) 55%, var(--surface));
+  box-shadow:none;
+}
+.loading-book.no-cover .loading-cover{visibility:hidden}
+.loading-book.no-cover::after{
+  content:"📕";position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;font-size:56px;
+  backface-visibility:hidden;
+}
+
+/* Turning, not tumbling: the cover swings toward and away from the
+   reader and never passes edge-on. */
+@keyframes book-turn{
+  0%   {transform:rotateY(-58deg)}
+  50%  {transform:rotateY(58deg)}
+  100% {transform:rotateY(-58deg)}
+}
+
+.loading-bar{
+  width:min(260px,60%);height:4px;border-radius:2px;
+  background:var(--border);overflow:hidden;
+}
+.loading-fill{
+  height:100%;width:0;border-radius:2px;background:var(--amber);
+  transition:width .18s linear;
+}
+/* No measurable progress: sweep instead of pretending to fill. */
+#loading[data-phase="preparing"] .loading-fill{
+  width:100%;
+  background:linear-gradient(90deg,
+    transparent 0%, var(--amber) 35%, var(--amber) 65%, transparent 100%);
+  background-size:200% 100%;
+  animation:bar-sweep 1.25s ease-in-out infinite;
+  transition:none;
+}
+@keyframes bar-sweep{
+  0%   {background-position:150% 0}
+  100% {background-position:-50% 0}
+}
+
+.loading-label{
+  font-family:var(--fm);font-size:var(--fs-sub);color:var(--ink-dim);
+  letter-spacing:.04em;font-variant-numeric:tabular-nums;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .loading-book{animation:none}
+  #loading[data-phase="preparing"] .loading-fill{animation:none;opacity:.7}
+}
 
 .controls{
   display:flex;gap:8px;justify-content:center;align-items:center;

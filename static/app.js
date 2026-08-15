@@ -2,6 +2,7 @@
  * The full Browse/Search/Read interface lands in M2–M3.
  */
 import { Browser } from '/static/browse.js'
+import { LoadingIndicator, fetchWithProgress } from '/static/loading.js'
 import { ReaderEngine } from '/static/reader.js'
 import { ReaderSettings } from '/static/settings.js'
 import { TableOfContents } from '/static/toc.js'
@@ -89,6 +90,7 @@ class BooksApp {
   #toc = null
   #settings = null
   #positions = null
+  #loading = null
   #current = null
 
   constructor (root = document) {
@@ -123,6 +125,7 @@ class BooksApp {
       fontSizeValue: root.getElementById('font-size-value')
     }
 
+    this.#loading = new LoadingIndicator(root)
     this.#settings = new ReaderSettings()
     this.#reader = new ReaderEngine(this.dom.stage)
     this.#positions = new PositionStore()
@@ -198,21 +201,31 @@ class BooksApp {
     this.#status(`Opening ${book.title ?? book.name}…`)
     this.dom.stage.dataset.state = 'loading'
     this.#current = book.id
+    this.#loading.show({ cover: book.cover, title: book.title })
 
     try {
       const saved = await this.#positions.load(book.id)
-      const meta = await this.#reader.open(
+      // Fetched here rather than by the engine, so the bytes can be
+      // counted; foliate opens a Blob just as happily as a URL.
+      const file = await fetchWithProgress(
         book.file ?? `/api/books/${book.id}/file`,
-        { cfi: saved?.cfi ?? null }
+        fraction => this.#loading.downloading(fraction),
+        book.name
       )
+      this.#loading.preparing(
+        book.size > 1_000_000 ? 'this is a large book' : ''
+      )
+      const meta = await this.#reader.open(file, { cfi: saved?.cfi ?? null })
       this.dom.title.textContent = book.title ?? meta?.title ?? book.name
       this.dom.author.textContent = meta?.author ?? ''
       this.#toc.render(this.#reader.toc)
+      this.#loading.hide()
       this.dom.stage.dataset.state = 'open'
       this.#status(this.#reader.forcedScrolled
         ? 'Reading — one very large chapter, shown scrolled'
         : 'Reading')
     } catch (err) {
+      this.#loading.hide()
       this.dom.stage.dataset.state = 'error'
       this.#toc.clear()
       this.#status(`Could not open that book: ${err.message}`)
