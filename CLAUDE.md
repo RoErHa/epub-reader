@@ -418,6 +418,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Books filed under their own title | `POST /api/books/repair-authors` | `epub_repair.py` |
 | Titles that are really filenames | `POST /api/books/repair-titles` | `epub_titles.py` |
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
+| All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 
 **Merging authors is destructive, so the bar is high.** A group merges only when the names are identical once spacing and punctuation are removed, when Open Library resolves both to the same author, when one spelling is *unknown to Open Library* while a near-identical one is well known — the signature of a typo — or when **everything the other name is credited with is in the keeper's bibliography**.
 
@@ -437,9 +438,26 @@ Corrections have to survive a rescan, and until this was fixed they did not: `_w
 
 Every pass records provenance for what it changes, or the next scan would undo it.
 
+### 6.6 Running the passes as the library grows
+
+New books arrive with the same defects the first 1,300 had, so the three passes are also a command:
+
+```sh
+./run.sh repair            # check authors and titles, change nothing
+./run.sh repair --apply    # ...and fix what it can prove
+```
+
+They run in dependency order — **authors → books → titles** — because everything else is asked *of* an author: a book filed under its own title is looked up by the name in its filename, and a title is matched against that author's bibliography. Fixing the names last would mean asking the wrong person.
+
+`REPAIR_ON_SCAN=true` in `.env` makes `run.sh start|restart` do it after the scan, so dropping books into `LIBRARY_ROOT` and restarting is the whole workflow. It is **off by default**: reaching a provider is not something to do on someone's behalf without being asked.
+
+**A restart must not become 1,200 requests.** Everything a provider says is written to the database — the works list into `author_work`, the attempt itself into `author.fetched_at`, which is stamped even when Open Library has never heard of the author. Both are checked before asking, so an author is looked up **once, ever**, and every later run reads our own tables. That is what makes repair-on-restart affordable rather than antisocial.
+
 ### 6.5 Asking a provider 1,200 times
 
-A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns `503`, `Connection reset by peer`, and SSL handshake timeouts — all three, in one run. `PoliteFetcher` spaces requests out and retries what is worth retrying (429, 5xx, connection failures; never a 404, which is an answer). It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and **one instance is shared by the whole service** — four providers each pacing themselves is four unsynchronised streams.
+A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns `503`, `Connection reset by peer`, and SSL handshake timeouts — all three, in one run. **Open Library publishes its limits: 1 request/second anonymously, 3/second for a client that identifies itself** with an application name and contact address — which `OPENLIBRARY_CONTACT_EMAIL` is for. `PROVIDER_MAX_RPS` sets the pace, defaults to **2** to leave headroom, and is capped at their published ceiling. Their APIs are explicitly not a bulk backend; for bulk work they ask you to use the monthly data dumps, which is a fair description of what a 1,300-book sweep is, and the reason every answer is cached.
+
+`PoliteFetcher` spaces requests out and retries what is worth retrying (429, 5xx, connection failures; never a 404, which is an answer). It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and **one instance is shared by the whole service** — four providers each pacing themselves is four unsynchronised streams.
 
 The test suite injects a fetcher that refuses immediately, so nothing in it touches the network. One endpoint test had been quietly making real requests all along; it took 48 seconds on the day Open Library was struggling.
 
@@ -578,6 +596,7 @@ epub_enrich.py      AuthorEnricher — provider results, honouring provenance
 epub_match.py       MatchScorer, Candidate, normalise_title, search_title
 epub_book_enrich.py BookEnricher — apply, queue, accept, reject
 epub_genres.py      GenreVocabulary — the BISAC subset and the map
+epub_maintenance.py LibraryRepair — the three passes, in dependency order
 data/genres.tsv     ~40 BISAC terms; data/genre_map.tsv translates providers
 static/review.js    ReviewPanel — why it scored that, and what would change
 static/browse.js    Browser — mode strip, letter bar, drill-down

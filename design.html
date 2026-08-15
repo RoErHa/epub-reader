@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
-  <div class="hdr-right">594 pytest · 270 playwright (chromium + webkit)</div>
+  <div class="hdr-right">619 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -763,8 +763,20 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <p>A routine scan short-circuits on unchanged size and mtime, so this only ever bit when a file was touched, edited, or replaced with a better copy — which is exactly what a growing library does.</p>
 
+<h3>6.6 &nbsp;Running the passes as the library grows</h3>
+<p>New books arrive with the same defects the first 1,300 had, so the passes are a command too:</p>
+<pre><code>./run.sh repair            # check authors and titles, change nothing
+./run.sh repair --apply    # ...and fix what it can prove</code></pre>
+<p>They run in dependency order — <strong>authors → books → titles</strong> — because everything else is asked <em>of</em> an author. Setting <code>REPAIR_ON_SCAN=true</code> makes <code>run.sh start|restart</code> do it after the scan, so dropping books in and restarting is the whole workflow. Off by default: reaching a provider is not something to do on someone's behalf without being asked.</p>
+
+<div class="note">
+  <span class="eyebrow">Rule</span>
+  <p>A restart must not become 1,200 requests. Everything a provider says is written down — the works list into <code>author_work</code>, the attempt itself into <code>author.fetched_at</code>, which is stamped <strong>even when Open Library has never heard of the author</strong>. Both are checked before asking, so an author is looked up <strong>once, ever</strong>, and every later run reads our own tables.</p>
+</div>
+
 <h3>6.5 &nbsp;Asking a provider 1,200 times</h3>
 <p>A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns <code>503</code>, <code>Connection reset by peer</code>, and SSL handshake timeouts — all three, in one run.</p>
+<p><strong>Open Library publishes its limits: 1 request/second anonymously, 3/second for a client that identifies itself</strong> with an application name and contact address — which <code>OPENLIBRARY_CONTACT_EMAIL</code> provides. <code>PROVIDER_MAX_RPS</code> sets the pace, defaults to <strong>2</strong> for headroom, and is capped at their ceiling. Their APIs are explicitly not a bulk backend — for bulk work they ask you to use the monthly data dumps, which is a fair description of a 1,300-book sweep, and the reason every answer is cached.</p>
 <p><code>PoliteFetcher</code> spaces requests out and retries what is worth retrying: 429, 5xx, and connection failures, but never a 404, which is an answer. It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and <strong>one instance is shared by the whole service</strong> — four providers each pacing themselves is four unsynchronised streams.</p>
 <p>The suite now injects a fetcher that refuses immediately, so no test touches the network. One endpoint test had been making real requests all along; it took 48 seconds on the day Open Library was struggling.</p>
 

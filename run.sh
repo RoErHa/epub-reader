@@ -5,6 +5,8 @@
 # Every start and restart FIRST scans the library folder and reports what has
 # appeared, changed or vanished since the last run, so books dropped into
 # LIBRARY_ROOT are picked up without you having to remember a separate step.
+# Set REPAIR_ON_SCAN=true in .env and that scan also checks the authors and
+# titles of what it found.
 #
 # All configuration comes from the .env file — this script sets nothing itself
 # and passes no settings to the app. Secrets never appear here.
@@ -20,6 +22,8 @@
 #   ./run.sh stop
 #   ./run.sh status
 #   ./run.sh scan               # scan only, don't touch the service
+#   ./run.sh repair             # check authors and titles, change nothing
+#   ./run.sh repair --apply     # ...and fix what it can prove
 #   ./run.sh --env .env.test start
 # =============================================================================
 set -euo pipefail
@@ -34,11 +38,13 @@ PID_FILE=""   # derived from the env file once arguments are parsed
 # ── Argument handling ────────────────────────────────────────────────────────
 FOREGROUND=0
 COMMAND=""
+APPLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --env)        ENV_FILE="${2:?--env needs a path}"; shift 2 ;;
     --foreground|-f) FOREGROUND=1; shift ;;
-    start|stop|restart|status|scan|help)
+    --apply)      APPLY=1; shift ;;
+    start|stop|restart|status|scan|repair|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -52,7 +58,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -98,6 +104,17 @@ running_pid() {
 do_scan() {
   echo "▶  Scanning library…"
   "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --scan
+}
+
+do_repair() {
+  # Looking is the default; --apply is what changes anything.
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Checking authors and titles, and fixing what is safe to fix…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --repair --apply
+  else
+    echo "▶  Checking authors and titles (nothing will be changed)…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --repair
+  fi
 }
 
 do_start() {
@@ -174,6 +191,7 @@ do_status() {
 
 case "${COMMAND}" in
   scan)    do_scan ;;
+  repair)  do_repair ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
   stop)    do_stop ;;

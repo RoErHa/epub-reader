@@ -111,3 +111,34 @@ class TestStatus:
         # Stopping something already stopped is the desired end state.
         result = run("stop", env_file=env_file)
         assert result.returncode == 0
+
+
+class TestRepair:
+    """`run.sh repair` reaches the maintenance passes from a terminal.
+    Looking is the default; `--apply` is what changes anything."""
+
+    def test_repair_is_a_known_command(self, tmp_path):
+        # An empty library, so the passes have nobody to look up: this
+        # is about the script reaching the command, not about the work.
+        library = tmp_path / "empty"
+        library.mkdir()
+        state = tmp_path / "state"
+        state.mkdir()
+        env = tmp_path / ".env.empty"
+        env.write_text(ENV_BODY.format(library=library, state=state))
+        result = subprocess.run(
+            [str(SCRIPT), "repair", "--env", str(env)],
+            capture_output=True, text=True, cwd=ROOT, timeout=60)
+        assert result.returncode == 0, result.stderr
+        assert "nothing to do" in result.stdout
+
+    def test_repair_is_listed_in_the_help(self):
+        result = subprocess.run([str(SCRIPT), "help"], capture_output=True,
+                                text=True, cwd=ROOT)
+        assert "repair" in result.stdout
+
+    def test_an_unknown_command_is_still_refused(self, env_file):
+        result = subprocess.run(
+            [str(SCRIPT), "reapir", "--env", str(env_file)],
+            capture_output=True, text=True, cwd=ROOT)
+        assert result.returncode != 0

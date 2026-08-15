@@ -52,10 +52,15 @@ class PoliteFetcher:
     # Statuses worth asking again about. A 404 is an answer.
     AGAIN = frozenset({429, 500, 502, 503, 504})
 
-    def __init__(self, fetch=http_json, interval: float = 0.4,
-                 attempts: int = 4, backoff: float = 0.5, sleep=time.sleep,
+    def __init__(self, fetch=http_json, interval: float | None = None,
+                 rps: float | None = None, attempts: int = 4,
+                 backoff: float = 0.5, sleep=time.sleep,
                  clock=time.monotonic, jitter=random.uniform) -> None:
         self._fetch = fetch
+        if interval is None:
+            # Open Library allows three a second to a client that says
+            # who it is. Two is the default, and leaves them room.
+            interval = 1.0 / (rps or 2.0)
         # Spacing and backing off are different things: one paces a
         # healthy server, the other gives a struggling one room.
         self._interval = interval
@@ -65,6 +70,11 @@ class PoliteFetcher:
         self._clock = clock
         self._jitter = jitter
         self._last = None
+
+    @property
+    def interval(self) -> float:
+        """Seconds between requests — the pace, read back."""
+        return self._interval
 
     def __call__(self, url: str, headers: dict | None = None) -> dict:
         for attempt in range(1, self._attempts + 1):

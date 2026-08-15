@@ -224,20 +224,30 @@ class TitleFromWorks:
         rows = self._db.connection.execute(
             "SELECT title FROM author_work WHERE author_id = ?", (author_id,)
         ).fetchall()
-        if rows or author_id in self._asked:
+        if rows or author_id in self._asked or self._already_asked(author_id):
             # Polished before matching, so a series tag on the work does
             # not stop it matching the book it belongs to.
             return [TitlePolish.apply(r["title"]) for r in rows]
 
-        # No bibliography yet: fetch it once, then never ask again this
-        # run — an author with nothing on Open Library must not be
-        # looked up once per book.
+        # No bibliography yet: fetch it once, then never ask again — not
+        # this run, and not on the next restart either. An author with
+        # nothing on Open Library must not cost a request every time the
+        # service comes up.
         self._asked.add(author_id)
         self._enricher.enrich(author_id)
         return [TitlePolish.apply(r["title"])
                 for r in self._db.connection.execute(
                     "SELECT title FROM author_work WHERE author_id = ?",
                     (author_id,))]
+
+    def _already_asked(self, author_id: int) -> bool:
+        """Whether this author has been looked up before and had nothing
+        to give. Enrichment stamps `fetched_at` even when it finds
+        nothing, exactly so the question is not asked twice."""
+        row = self._db.connection.execute(
+            "SELECT fetched_at FROM author WHERE id = ?", (author_id,)
+        ).fetchone()
+        return bool(row and row["fetched_at"])
 
     # ── doing it ──────────────────────────────────────────────────────
     def run(self, apply: bool = False) -> dict:

@@ -67,6 +67,28 @@ class ScanCommand:
         gateway = EpubGateway(self._config)
         try:
             print(gateway.reindex().summary())
+            if self._config.repair_on_scan:
+                print(gateway.repair(apply=True))
+        finally:
+            gateway.close()
+        return 0
+
+
+class RepairCommand:
+    """`--repair`: check authors and titles, report, then exit.
+
+    Looking is the default. `--apply` is what changes anything, and the
+    same passes run after a startup scan when REPAIR_ON_SCAN is set.
+    """
+
+    def __init__(self, config: Config, apply: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.repair(apply=self._apply))
         finally:
             gateway.close()
         return 0
@@ -129,6 +151,16 @@ class GatewayCLI:
             action="store_true",
             help="Report what changed in the library, then exit without serving.",
         )
+        parser.add_argument(
+            "--repair",
+            action="store_true",
+            help="Check authors and titles, report, then exit without serving.",
+        )
+        parser.add_argument(
+            "--apply",
+            action="store_true",
+            help="With --repair: make the changes rather than only listing them.",
+        )
         return parser.parse_args(argv)
 
     @classmethod
@@ -140,6 +172,8 @@ class GatewayCLI:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
         LoggingSetup(config).apply()
+        if args.repair:
+            return RepairCommand(config, apply=args.apply).run()
         if args.scan:
             return ScanCommand(config).run()
         try:

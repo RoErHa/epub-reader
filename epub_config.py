@@ -105,6 +105,33 @@ class Config:
 
     # ── optional values ───────────────────────────────────────────────
     @property
+    def repair_on_scan(self) -> bool:
+        """Whether a scan also checks authors and titles.
+
+        Off unless asked for: the passes reach a provider, and doing
+        that on every restart is not something to decide for someone.
+        """
+        return self._values.get("REPAIR_ON_SCAN", "").strip().lower() in (
+            "1", "true", "yes", "on")
+
+    # Open Library allows 1 request/second anonymously and 3/second to a
+    # client that identifies itself, which we do. Two leaves headroom:
+    # their APIs are explicitly not a bulk data backend.
+    PROVIDER_RPS_DEFAULT = 2.0
+    PROVIDER_RPS_CEILING = 3.0
+
+    @property
+    def provider_max_rps(self) -> float:
+        raw = self._values.get("PROVIDER_MAX_RPS", "").strip()
+        try:
+            rate = float(raw)
+        except ValueError:
+            return self.PROVIDER_RPS_DEFAULT
+        if rate <= 0:
+            return self.PROVIDER_RPS_DEFAULT
+        return min(rate, self.PROVIDER_RPS_CEILING)
+
+    @property
     def cert_host(self) -> str | None:
         return self._values.get("TAILSCALE_CERT_HOST") or None
 

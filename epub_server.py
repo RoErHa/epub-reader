@@ -20,6 +20,7 @@ from epub_index import LibraryIndexer
 from epub_reading import STATUSES, ReadingStateStore
 from epub_book_enrich import BookEnricher
 from epub_dedupe import AuthorDeduplicator
+from epub_maintenance import LibraryRepair
 from epub_repair import TitleAsAuthorRepair
 from epub_titles import TitleFromWorks
 from epub_enrich import AuthorEnricher
@@ -171,7 +172,7 @@ class EpubGateway:
         # One fetcher for every provider, so the pacing is the whole
         # service's rather than each caller's: four separate streams is
         # how a library-wide run earns 503s.
-        self._fetch = fetch or PoliteFetcher()
+        self._fetch = fetch or PoliteFetcher(rps=config.provider_max_rps)
         self._open_library = OpenLibraryProvider(
             self._fetch, contact=config.provider_key("OPENLIBRARY_CONTACT_EMAIL"))
         self._enricher = AuthorEnricher(
@@ -181,6 +182,9 @@ class EpubGateway:
                                            enricher=self._enricher)
         self._repairer = TitleAsAuthorRepair(self._database, [self._open_library])
         self._titles = TitleFromWorks(self._database, self._enricher)
+        self._maintenance = LibraryRepair(
+            self._database, self._open_library, [self._open_library],
+            self._enricher)
         self._books_enricher = BookEnricher(self._database, [
             self._open_library,
             GoogleBooksProvider(
@@ -214,6 +218,10 @@ class EpubGateway:
 
     def reindex(self):
         return self._indexer.run()
+
+    def repair(self, apply: bool = False) -> str:
+        """Check authors and titles, and say what happened in one line."""
+        return LibraryRepair.summary(self._maintenance.run(apply=apply))
 
     def close(self) -> None:
         self._database.close()
