@@ -147,6 +147,25 @@ class MigrationRunner:
             );
             """,
         ),
+        Migration(
+            3,
+            "search",
+            """
+            -- Same tokenizer dlna-gateway already uses, so "le carre"
+            -- finds "le Carre" and nobody has to type the accent.
+            --
+            -- A plain FTS5 table, NOT contentless: the source columns
+            -- span four tables, and a contentless table cannot be
+            -- deleted from without replaying the original values —
+            -- getting that wrong corrupts the index outright
+            -- ("database disk image is malformed"). Storing a copy of a
+            -- few short fields is cheap; correctness is not.
+            CREATE VIRTUAL TABLE IF NOT EXISTS book_fts USING fts5(
+              title, authors, series, genres, synopsis,
+              tokenize='unicode61 remove_diacritics 1'
+            );
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

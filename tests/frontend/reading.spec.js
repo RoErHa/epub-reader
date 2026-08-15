@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
-  openBook, expectBookText, bookBodyStyle
+  openBook, expectBookText, bookBodyStyle, bookId
 } from './helpers.js'
 
 const BOOK = 'left-hand-of-darkness.epub'
@@ -151,7 +151,7 @@ test.describe('reading position', () => {
     let saved = null
     await expect.poll(async () => {
       const shown = (await page.locator('#progress').textContent()).trim()
-      const r = await page.request.get(`/api/books/${BOOK}/position`)
+      const r = await page.request.get(`/api/books/${await bookId(page, BOOK)}/position`)
       const percent = (await r.json()).position?.percent
       if (percent > 0 && `${percent}%` === shown) {
         saved = shown
@@ -180,7 +180,7 @@ test.describe('reading position', () => {
     await page.locator('.toc-item', { hasText: 'Chapter Four' }).click()
 
     await expect.poll(async () => {
-      const r = await page.request.get(`/api/books/${OTHER}/position`)
+      const r = await page.request.get(`/api/books/${await bookId(page, OTHER)}/position`)
       return (await r.json()).position?.percent ?? 0
     }, { timeout: 10000 }).toBeGreaterThan(0)
 

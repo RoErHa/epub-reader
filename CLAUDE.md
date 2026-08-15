@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M2 complete — the library is indexed and browsable, validated against the real 1,300-book library (§3.2).** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M3 in progress — search works; shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
 
 ---
 
@@ -535,6 +535,7 @@ epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
+epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results
 static/browse.js    Browser — mode strip, letter bar, drill-down
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
@@ -565,6 +566,24 @@ produced a flake that passed in isolation and failed in the full run.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
+
+### 10.4 Two bugs the running app exposed
+
+Both were found by running the service against the real library, not by
+tests — worth recording because neither could surface at fixture scale.
+
+- **Books are addressed by index id, never by path.** 44% of the library
+  lives in subfolders, so a book's relative path contains slashes, which
+  cannot be a single path segment — every one of those books 404'd when
+  clicked. Ids also remove the `/position` routing ambiguity and the
+  traversal surface entirely. As a bonus the listing no longer re-hashes
+  files: the index already stored each content hash.
+- **A new FTS table does not backfill itself.** After migration every
+  book was "unchanged", so nothing populated `book_fts` and search found
+  authors but zero books. `LibraryIndexer` now catches up any book with
+  metadata and no search row ("1326 newly searchable" on the first run).
+- **One pidfile per configuration.** `run.sh --env` shared a single
+  pidfile, so a test config could see — and stop — the live service.
 
 ### 10.3 What M2 established
 

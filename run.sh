@@ -28,8 +28,8 @@ cd "$(dirname "$0")"
 LABEL="com.roha.epub-reader"
 PYTHON=".venv/bin/python"
 RUN_DIR=".run"
-PID_FILE="${RUN_DIR}/epub-reader.pid"
 ENV_FILE=".env"
+PID_FILE=""   # derived from the env file once arguments are parsed
 
 # ── Argument handling ────────────────────────────────────────────────────────
 FOREGROUND=0
@@ -46,6 +46,10 @@ while [ $# -gt 0 ]; do
                   exit 2 ;;
   esac
 done
+
+# One pidfile per configuration: a --env pointing at a different port is
+# a different service, and must not see (or stop) the live one.
+PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
   sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//'

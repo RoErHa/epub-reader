@@ -18,6 +18,7 @@ from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
 from epub_reading import STATUSES, ReadingStateStore
+from epub_search import SearchQueries
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
 
 VERSION = "0.1.0"
@@ -144,6 +145,7 @@ class EpubGateway:
         self._database.migrate()
         self._reading = ReadingStateStore(self._database)
         self._browse = BrowseQueries(self._database)
+        self._search = SearchQueries(self._database, self._browse)
         self._indexer = LibraryIndexer(
             self._database, self._library, config.cover_cache
         )
@@ -160,6 +162,10 @@ class EpubGateway:
     @property
     def reading(self) -> ReadingStateStore:
         return self._reading
+
+    @property
+    def database(self) -> Database:
+        return self._database
 
     @property
     def indexer(self) -> LibraryIndexer:
@@ -185,9 +191,6 @@ class EpubGateway:
         reading = self._reading
         shell = self._static / "index.html"
 
-        def state_of(name: str):
-            return reading.get(library.content_hash(library.resolve(name)))
-
         @app.get("/healthz")
         def healthz() -> JSONResponse:
             return JSONResponse(
@@ -207,20 +210,32 @@ class EpubGateway:
         covers = self._config.cover_cache
 
         def with_progress(books: list[dict]) -> list[dict]:
-            hashes = {}
+            # The index already knows every book's content hash, so this
+            # never touches the filesystem.
+            states = reading.get_many(b["content_hash"] for b in books)
             for book in books:
-                try:
-                    hashes[book["id"]] = library.content_hash(
-                        library.root / book["path"]
-                    )
-                except OSError:
-                    continue
-            states = reading.get_many(hashes.values())
-            for book in books:
-                state = states.get(hashes.get(book["id"]))
+                state = states.get(book["content_hash"])
                 book["percent"] = state.percent if state else 0
                 book["status"] = state.status if state else "unread"
             return books
+
+        def book_or_404(book_id: int):
+            row = browse.book_row(book_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="No such book.")
+            return row
+
+        def book_file(row):
+            path = (library.root / row["path"]).resolve()
+            try:
+                path.relative_to(library.root.resolve())
+            except ValueError:
+                raise HTTPException(
+                    status_code=404, detail="No such book."
+                ) from None
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="No such book.")
+            return path
 
         @app.get("/api/books")
         def list_books(
@@ -285,6 +300,12 @@ class EpubGateway:
             except BrowseError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from None
 
+        @app.get("/api/search")
+        def search(q: str = "", limit: int = 50) -> JSONResponse:
+            result = self._search.search(q, limit=min(limit, 200))
+            result["books"] = with_progress(result["books"])
+            return JSONResponse(result)
+
         @app.get("/api/status")
         def index_status() -> JSONResponse:
             return JSONResponse(browse.status())
@@ -304,28 +325,32 @@ class EpubGateway:
                 raise HTTPException(status_code=404, detail="No such cover.")
             return FileResponse(path, media_type="image/jpeg")
 
-        @app.get("/api/books/{name}/position")
-        def get_position(name: str) -> JSONResponse:
-            state = state_of(name)
+        @app.get("/api/books/{book_id}/position")
+        def get_position(book_id: int) -> JSONResponse:
+            row = book_or_404(book_id)
+            state = reading.get(row["content_hash"])
             return JSONResponse({"position": state.as_dict() if state else None})
 
-        @app.put("/api/books/{name}/position")
-        def put_position(name: str, update: PositionUpdate) -> JSONResponse:
-            content_hash = library.content_hash(library.resolve(name))
+        @app.put("/api/books/{book_id}/position")
+        def put_position(book_id: int, update: PositionUpdate) -> JSONResponse:
+            row = book_or_404(book_id)
             state = reading.save(
-                content_hash, cfi=update.cfi, fraction=update.fraction
+                row["content_hash"], cfi=update.cfi, fraction=update.fraction
             )
             return JSONResponse({"position": state.as_dict()})
 
-        @app.put("/api/books/{name}/status")
-        def put_status(name: str, update: StatusUpdate) -> JSONResponse:
-            content_hash = library.content_hash(library.resolve(name))
-            state = reading.set_status(content_hash, update.validated())
+        @app.put("/api/books/{book_id}/status")
+        def put_status(book_id: int, update: StatusUpdate) -> JSONResponse:
+            row = book_or_404(book_id)
+            state = reading.set_status(row["content_hash"], update.validated())
             return JSONResponse({"position": state.as_dict()})
 
-        @app.get("/api/books/{name}")
-        def get_book(name: str) -> FileResponse:
-            path = library.resolve(name)
+        @app.get("/api/books/{book_id}/file")
+        def get_book(book_id: int) -> FileResponse:
+            # Addressed by id, not by path: 44% of a real library lives in
+            # subfolders, and a relative path with slashes cannot be a
+            # single path segment.
+            path = book_file(book_or_404(book_id))
             media = self.MEDIA_TYPES.get(
                 path.suffix.lower(), "application/octet-stream"
             )

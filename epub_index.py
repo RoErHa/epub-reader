@@ -18,6 +18,7 @@ from pathlib import Path
 
 from epub_metadata import BookMetadata, EpubMetadataReader, MetadataError
 from epub_names import fold, title_sort_key
+from epub_search import SearchIndex
 
 LOG = logging.getLogger("epub-reader.index")
 
@@ -33,6 +34,7 @@ class IndexReport:
     missing: int = 0
     returned: int = 0
     failed: int = 0
+    searchable: int = 0
     seconds: float = 0.0
     added_names: list[str] = field(default_factory=list)
     missing_names: list[str] = field(default_factory=list)
@@ -42,7 +44,7 @@ class IndexReport:
     def has_changes(self) -> bool:
         return bool(
             self.added or self.updated or self.moved or self.missing
-            or self.returned or self.failed
+            or self.returned or self.failed or self.searchable
         )
 
     @staticmethod
@@ -55,7 +57,8 @@ class IndexReport:
         parts = []
         for count, label in (
             (self.added, "new"), (self.updated, "updated"), (self.moved, "moved"),
-            (self.returned, "back"), (self.missing, "missing"), (self.failed, "failed"),
+            (self.returned, "back"), (self.missing, "missing"),
+            (self.failed, "failed"), (self.searchable, "newly searchable"),
         ):
             if count:
                 parts.append(f"{self._books(count) if label == 'new' else count} {label}")
@@ -119,6 +122,7 @@ class LibraryIndexer:
         self._library = library
         self._covers = CoverStore(cover_root)
         self._reader = EpubMetadataReader()
+        self._search = SearchIndex(database)
         self.hashed = 0  # observable so tests can assert we skip work
 
     # ── public ────────────────────────────────────────────────────────
@@ -139,8 +143,23 @@ class LibraryIndexer:
                     report.failed += 1
 
         self._mark_missing(seen, report)
+        self._backfill_search(report)
         report.seconds = time.time() - started
         return report
+
+    def _backfill_search(self, report: IndexReport) -> None:
+        """Books indexed before the search table existed are 'unchanged'
+        on every later run, so nothing would ever populate their search
+        entry. Catch them up here."""
+        rows = self._db.connection.execute(
+            """
+            SELECT m.book_id FROM metadata m
+             WHERE NOT EXISTS (SELECT 1 FROM book_fts f WHERE f.rowid = m.book_id)
+            """
+        ).fetchall()
+        for row in rows:
+            self._search.reindex_book(row["book_id"])
+        report.searchable += len(rows)
 
     # ── walking ───────────────────────────────────────────────────────
     def _walk(self, root: Path):
@@ -314,6 +333,7 @@ class LibraryIndexer:
             "UPDATE book SET indexed_at = ?, index_error = NULL WHERE id = ?",
             (now, book_id),
         )
+        self._search.reindex_book(book_id)
 
     def _upsert(self, table: str, name: str, sort_name: str) -> int:
         cursor = self._db.connection

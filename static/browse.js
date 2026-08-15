@@ -25,10 +25,19 @@ export class Browser {
   #mode = 'titles'
   #letter = null
   #drill = null // { title, endpoint }
+  #query = ''
 
   constructor (dom, onOpenBook) {
     this.#dom = dom
     this.#onOpenBook = onOpenBook
+  }
+
+  /** Show results for a query, or return to browsing when it is empty. */
+  async search (query) {
+    this.#query = (query ?? '').trim()
+    this.#drill = null
+    this.#letter = null
+    await this.#render()
   }
 
   async start () {
@@ -70,7 +79,7 @@ export class Browser {
     const mode = this.#mode === 'authors' ? 'authors'
       : this.#mode === 'series' ? 'series' : 'titles'
     const usable = ['titles', 'authors', 'series'].includes(this.#mode)
-    bar.hidden = !usable || this.#drill !== null
+    bar.hidden = !usable || this.#drill !== null || Boolean(this.#query)
     if (bar.hidden) return
 
     const { letters } = await json(`/api/letters?mode=${mode}`)
@@ -102,12 +111,74 @@ export class Browser {
       this.#dom.backTitle.textContent = this.#drill.title
       return this.#renderBooks(this.#drill.endpoint)
     }
+    if (this.#query) return this.#renderSearch()
     const mode = MODES.find(m => m.id === this.#mode)
     if (!mode.endpoint) {
       const query = this.#letter ? `?letter=${encodeURIComponent(this.#letter)}` : ''
       return this.#renderBooks(`/api/books${query}`)
     }
     return this.#renderGroups(mode)
+  }
+
+  async #renderSearch () {
+    const result = await json(`/api/search?q=${encodeURIComponent(this.#query)}`)
+    const list = this.#dom.list
+    list.replaceChildren()
+
+    const total = result.books.length + result.authors.length +
+      result.series.length
+    if (!total) return this.#message(`Nothing found for “${this.#query}”.`)
+
+    // Grouped by kind: at library scale, "le guin" should offer the
+    // author before forty loose rows.
+    if (result.authors.length) {
+      list.append(this.#groupHeading('Authors'))
+      for (const author of result.authors) {
+        list.append(this.#group(author.name, author.books, () => {
+          this.#drill = {
+            title: author.name,
+            endpoint: `/api/authors/${author.id}/books`
+          }
+          this.#query = ''
+          this.#render()
+        }))
+      }
+    }
+    if (result.series.length) {
+      list.append(this.#groupHeading('Series'))
+      for (const series of result.series) {
+        list.append(this.#group(series.name, series.books, () => {
+          this.#drill = {
+            title: series.name,
+            endpoint: `/api/series/${series.id}/books`
+          }
+          this.#query = ''
+          this.#render()
+        }))
+      }
+    }
+    if (result.books.length) {
+      list.append(this.#groupHeading('Books'))
+      this.#appendBooks(list, result.books)
+    }
+  }
+
+  #groupHeading (text) {
+    const heading = document.createElement('div')
+    heading.className = 'result-group'
+    heading.textContent = text
+    return heading
+  }
+
+  #group (label, count, onClick) {
+    const button = document.createElement('button')
+    button.className = 'group-row'
+    button.innerHTML =
+      '<span class="group-name"></span><span class="group-count"></span>'
+    button.querySelector('.group-name').textContent = label
+    button.querySelector('.group-count').textContent = String(count)
+    button.addEventListener('click', onClick)
+    return button
   }
 
   async #renderGroups (mode) {
@@ -152,7 +223,10 @@ export class Browser {
     const list = this.#dom.list
     list.replaceChildren()
     if (!books.length) return this.#message('No books here.')
+    this.#appendBooks(list, books)
+  }
 
+  #appendBooks (list, books) {
     for (const book of books) {
       const row = document.createElement('button')
       row.className = 'book-row'

@@ -49,9 +49,12 @@ class TestFormatScope:
         formats = {b["format"] for b in client.get("/api/books").json()["books"]}
         assert formats == {"epub"}
 
-    def test_a_non_epub_is_not_served(self, client, library):
+    def test_a_non_epub_is_not_indexed_so_cannot_be_served(self, client, library,
+                                                          gateway):
         (library / "manual.pdf").write_bytes(b"%PDF-1.4")
-        assert client.get("/api/books/manual.pdf").status_code == 404
+        gateway.reindex()
+        names = {b["name"] for b in client.get("/api/books").json()["books"]}
+        assert "manual.pdf" not in names
 
 
 class TestLibraryEndpoint:
@@ -59,23 +62,25 @@ class TestLibraryEndpoint:
         names = {b["name"] for b in client.get("/api/books").json()["books"]}
         assert "test-book.epub" in names
 
-    def test_a_book_can_be_fetched_by_name(self, client):
-        r = client.get("/api/books/test-book.epub")
+    def test_a_book_can_be_fetched_by_id(self, client):
+        book = client.get("/api/books").json()["books"][0]
+        r = client.get(book["file"])
         assert r.status_code == 200
         assert r.headers["content-type"] == "application/epub+zip"
         assert r.content[:2] == b"PK"
 
     def test_missing_book_is_a_404(self, client):
-        assert client.get("/api/books/absent.epub").status_code == 404
+        assert client.get("/api/books/999999/file").status_code == 404
 
     def test_path_traversal_is_refused(self, client):
         for attempt in ("../.env", "..%2f.env", "/etc/passwd"):
-            r = client.get(f"/api/books/{attempt}")
-            assert r.status_code in (400, 404), attempt
+            r = client.get(f"/api/books/{attempt}/file")
+            assert r.status_code in (400, 404, 422), attempt
 
     def test_library_is_read_only(self, client):
-        assert client.delete("/api/books/test-book.epub").status_code == 405
-        assert client.post("/api/books/test-book.epub").status_code == 405
+        book = client.get("/api/books").json()["books"][0]
+        assert client.delete(book["file"]).status_code == 405
+        assert client.post(book["file"]).status_code == 405
 
 
 class TestSecurityHeaders:

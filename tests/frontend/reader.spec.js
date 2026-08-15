@@ -111,14 +111,17 @@ test.describe('security', () => {
 })
 
 test.describe('library API', () => {
-  test('refuses to serve files outside the library root', async ({ request }) => {
-    for (const attempt of ['..%2f.env', '..%2F..%2Fetc%2Fpasswd']) {
-      const res = await request.get(`/api/books/${attempt}`)
-      expect([400, 404]).toContain(res.status())
+  test('refuses anything that is not a known book id', async ({ request }) => {
+    for (const attempt of ['..%2f.env', '999999', 'abc']) {
+      const res = await request.get(`/api/books/${attempt}/file`)
+      expect([400, 404, 422]).toContain(res.status())
     }
   })
 
-  test('is read-only', async ({ request }) => {
-    expect((await request.delete(`/api/books/${PLAIN}`)).status()).toBe(405)
+  test('is read-only', async ({ page, request }) => {
+    await page.goto('/')
+    const { books } = await (await request.get('/api/books')).json()
+    expect((await request.delete(`/api/books/${books[0].id}/file`)).status())
+      .toBe(405)
   })
 })

@@ -102,6 +102,8 @@ class BrowseQueries:
         authors = row["author_names"].split(" & ") if row["author_names"] else []
         return {
             "id": row["id"],
+            "file": f"/api/books/{row['id']}/file",
+            "content_hash": row["content_hash"],
             "name": row["path"].rsplit("/", 1)[-1],
             "path": row["path"],
             "title": row["title"],
@@ -188,6 +190,13 @@ class BrowseQueries:
         if any(not r["c"].isalpha() for r in rows):
             letters.append("#")
         return letters
+
+    def book_row(self, book_id: int):
+        return self._db.connection.execute(
+            "SELECT id, path, content_hash, format FROM book"
+            " WHERE id = ? AND missing_since IS NULL",
+            (book_id,),
+        ).fetchone()
 
     def status(self) -> dict:
         one = lambda sql: self._db.connection.execute(sql).fetchone()[0]  # noqa: E731

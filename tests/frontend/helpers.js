@@ -37,6 +37,15 @@ export async function bookBodyStyle (page, property) {
     .catch(() => null)
 }
 
+/** Books are addressed by index id; the DOM still carries the path. */
+export async function bookId (page, name) {
+  const res = await page.request.get('/api/books?limit=500')
+  const { books } = await res.json()
+  const book = books.find(b => b.path === name || b.name === name)
+  if (!book) throw new Error(`no such book in the index: ${name}`)
+  return book.id
+}
+
 export async function openBook (page, name) {
   await page.locator(`.book-row[data-name="${name}"]`).click()
   await expect(page.locator('#reader-stage')).toHaveAttribute(

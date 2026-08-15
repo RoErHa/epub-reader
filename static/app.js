@@ -17,14 +17,14 @@ class PositionStore {
     this.#delay = delay
   }
 
-  async load (name) {
-    const res = await fetch(`/api/books/${encodeURIComponent(name)}/position`)
+  async load (id) {
+    const res = await fetch(`/api/books/${id}/position`)
     if (!res.ok) return null
     return (await res.json()).position
   }
 
-  save (name, { cfi, fraction }) {
-    this.#pending = { name, cfi, fraction }
+  save (id, { cfi, fraction }) {
+    this.#pending = { id, cfi, fraction }
     clearTimeout(this.#timer)
     this.#timer = setTimeout(() => this.flush(), this.#delay)
   }
@@ -34,7 +34,7 @@ class PositionStore {
     if (!pending) return
     this.#pending = null
     clearTimeout(this.#timer)
-    await fetch(`/api/books/${encodeURIComponent(pending.name)}/position`, {
+    await fetch(`/api/books/${pending.id}/position`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cfi: pending.cfi, fraction: pending.fraction })
@@ -99,6 +99,7 @@ class BooksApp {
       back: root.getElementById('browse-back'),
       backTitle: root.getElementById('browse-back-title'),
       statusbar: root.getElementById('statusbar'),
+      search: root.getElementById('search-input'),
       stage: root.getElementById('reader-stage'),
       title: root.getElementById('book-title'),
       author: root.getElementById('book-author'),
@@ -159,6 +160,17 @@ class BooksApp {
       if (e.key === 'ArrowLeft') this.#reader.prev()
       if (e.key === 'ArrowRight') this.#reader.next()
     })
+    let timer = null
+    const run = () => this.#list.search(this.dom.search.value)
+    this.dom.search.addEventListener('input', () => {
+      clearTimeout(timer)
+      timer = setTimeout(run, 250)   // typing should not hammer the index
+    })
+    this.dom.search.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { clearTimeout(timer); run() }
+      if (e.key === 'Escape') { this.dom.search.value = ''; clearTimeout(timer); run() }
+    })
+
     // A page closed mid-chapter should not lose the last few pages.
     window.addEventListener('pagehide', () => this.#positions.flush())
   }
@@ -183,14 +195,14 @@ class BooksApp {
 
   async open (book) {
     await this.#positions.flush()
-    this.#status(`Opening ${book.name}…`)
+    this.#status(`Opening ${book.title ?? book.name}…`)
     this.dom.stage.dataset.state = 'loading'
-    this.#current = book.path ?? book.name
+    this.#current = book.id
 
     try {
-      const saved = await this.#positions.load(book.path ?? book.name)
+      const saved = await this.#positions.load(book.id)
       const meta = await this.#reader.open(
-        `/api/books/${encodeURIComponent(book.path ?? book.name)}`,
+        book.file ?? `/api/books/${book.id}/file`,
         { cfi: saved?.cfi ?? null }
       )
       this.dom.title.textContent = book.title ?? meta?.title ?? book.name

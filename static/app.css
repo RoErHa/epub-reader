@@ -61,6 +61,23 @@ header{
   border-right:1px solid var(--border);background:var(--surface);
 }
 
+.search-wrap{margin-left:auto;flex-shrink:0}
+#search-input{
+  width:220px;background:var(--raised);color:var(--ink);
+  border:1px solid var(--border-hi);border-radius:var(--r);
+  padding:5px 10px;font:inherit;font-size:12px;
+}
+#search-input::placeholder{color:var(--ink-dim-soft)}
+#search-input:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+.hdr-right{margin-left:12px!important}
+
+.result-group{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  text-transform:uppercase;letter-spacing:.1em;color:var(--ink-dim-soft);
+  padding:10px 14px 5px;background:var(--bg);
+  border-bottom:1px solid var(--border);
+}
+
 /* ── Browse chrome ──────────────────────────────────────────────────── */
 .browse-modes{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
 .browse-mode{
