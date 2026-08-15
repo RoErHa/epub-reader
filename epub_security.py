@@ -30,8 +30,12 @@ class ContentSecurityPolicy:
             # blob: — book resources are blob: URLs, so allowing it here
             # would hand every EPUB in the library code execution.
             "script-src": ["'self'"],
-            # Book CSS arrives inline. Stylesheets cannot execute script.
-            "style-src": ["'self'", "'unsafe-inline'"],
+            # Book CSS arrives inline AND as linked blob: stylesheets —
+            # foliate serves every book resource as a blob: URL, so
+            # omitting blob: here silently strips a book's typography.
+            # Stylesheets cannot execute script, which is what keeps this
+            # safe while script-src stays locked to 'self'.
+            "style-src": ["'self'", "'unsafe-inline'", "blob:"],
             "img-src": ["'self'", "blob:", "data:"],
             "font-src": ["'self'", "blob:", "data:"],
             "media-src": ["'self'", "blob:"],
@@ -41,7 +45,12 @@ class ContentSecurityPolicy:
             "object-src": ["'none'"],
             "base-uri": ["'self'"],
             "form-action": ["'none'"],
-            "frame-ancestors": ["'none'"],
+            # 'self', not 'none': WebKit propagates this policy into
+            # blob: documents, and every book section renders in a blob:
+            # iframe — 'none' makes books refuse to load in Safari
+            # entirely. X-Frame-Options: DENY still refuses framing by
+            # other origins, and is not inherited by blob: documents.
+            "frame-ancestors": ["'self'"],
         }
 
     def header_value(self) -> str:

@@ -47,6 +47,13 @@ class TestBookRenderingStillWorks:
         # EPUB CSS arrives inline; styles cannot execute script.
         assert "'unsafe-inline'" in directives["style-src"]
 
+    def test_blob_stylesheets_are_permitted(self, directives):
+        # Real books link their stylesheet, and foliate serves every book
+        # resource as a blob: URL — so blocking blob: here silently
+        # strips a book's typography. Stylesheets cannot execute script,
+        # which is why this is safe while script-src stays locked down.
+        assert "blob:" in directives["style-src"]
+
     def test_fonts_allow_blob_and_data(self, directives):
         assert "blob:" in directives["font-src"]
         assert "data:" in directives["font-src"]
@@ -54,7 +61,19 @@ class TestBookRenderingStillWorks:
 
 class TestClickjackingAndInjection:
     def test_framing_by_others_is_refused(self, directives):
-        assert directives["frame-ancestors"] == ["'none'"]
+        # 'self', NOT 'none'. WebKit propagates this policy into blob:
+        # documents, and foliate renders every book section in a blob:
+        # iframe — so 'none' makes the book refuse to load in Safari,
+        # which is the browser this is mostly read in. 'self' still
+        # refuses framing by any other origin.
+        assert directives["frame-ancestors"] == ["'self'"]
+
+    def test_the_page_still_refuses_cross_origin_framing(self):
+        from epub_security import SecurityHeaders
+
+        # X-Frame-Options carries the same protection and is NOT
+        # inherited by blob: documents, so it costs the reader nothing.
+        assert SecurityHeaders().values()["X-Frame-Options"] == "DENY"
 
     def test_base_uri_is_pinned(self, directives):
         assert directives["base-uri"] == ["'self'"]

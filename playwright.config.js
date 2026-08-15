@@ -20,7 +20,12 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // This is served to Safari on a Mac, an iPhone and an iPad, and
+    // foliate-js is developed against WebKitGTK — so WebKit is the
+    // engine that matters most here, not the one that was easiest to
+    // test first.
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } }
   ],
   webServer: {
     // Regenerate the fixture library, then serve it.

@@ -567,6 +567,33 @@ produced a flake that passed in isolation and failed in the full run.
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
 
+### 10.5 Safari is the browser that matters — test it
+
+**The app was completely broken in Safari and every test passed.** Books
+stuck on "Opening…" forever. Chromium was fine, and Chromium was all the
+UI suite ran against.
+
+Cause: **WebKit propagates a page's CSP into `blob:` documents.** Every
+book section renders in a `blob:` iframe, so `frame-ancestors 'none'`
+made the book's own frame refuse to load — *"Refused to load blob:…
+because it does not appear in the frame-ancestors directive"* — followed
+by `null is not an object (evaluating 'doc.head')`.
+
+- `frame-ancestors` is now `'self'`. Framing by other origins is still
+  refused, and `X-Frame-Options: DENY` carries the same protection while
+  **not** being inherited by `blob:` documents.
+- `style-src` now allows `blob:`. Real books link their stylesheet, and
+  foliate serves every resource as a `blob:` URL, so omitting it silently
+  stripped each book's typography. Stylesheets cannot execute script,
+  which is what keeps `script-src 'self'` meaningful.
+- The hostile-EPUB containment test passes **in both engines** after the
+  relaxation — checked, not assumed.
+
+> **Rule: the UI suite runs against Chromium AND WebKit.** This is read
+> in Safari on a Mac, an iPhone and an iPad, and foliate-js is developed
+> against WebKitGTK. Chromium-only testing is how a total failure shipped
+> unnoticed.
+
 ### 10.4 Two bugs the running app exposed
 
 Both were found by running the service against the real library, not by

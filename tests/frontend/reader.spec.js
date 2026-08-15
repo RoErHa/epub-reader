@@ -78,7 +78,10 @@ test.describe('security', () => {
     expect(csp).toContain("script-src 'self'")
     expect(csp).not.toContain('unsafe-inline\'; script')
     expect(csp).toContain("object-src 'none'")
-    expect(csp).toContain("frame-ancestors 'none'")
+    // 'self', not 'none' — WebKit propagates this into the book's blob:
+    // iframe, and 'none' stops books loading in Safari altogether.
+    expect(csp).toContain("frame-ancestors 'self'")
+    expect(response.headers()['x-frame-options']).toBe('DENY')
   })
 
   test('does NOT execute scripts embedded in an EPUB', async ({ page }) => {
