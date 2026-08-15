@@ -539,6 +539,7 @@ epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results
 epub_shelves.py     ShelfStore — stored shelves and smart ones
 epub_providers.py   OpenLibraryProvider, WorkClassifier — injected fetcher
 epub_enrich.py      AuthorEnricher — provider results, honouring provenance
+epub_match.py       MatchScorer, Candidate, normalise_title, search_title
 static/browse.js    Browser — mode strip, letter bar, drill-down
 static/detail.js    BookDetail — the book-detail screen
 epub_db.py          Database, Migration, MigrationRunner — forward-only
@@ -570,6 +571,36 @@ produced a flake that passed in isolation and failed in the full run.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
+
+### 10.12 Matching: scored by evidence, calibrated on real books
+
+The hard part of enrichment is not calling APIs. Most EPUBs have no
+ISBN, so matching is fuzzy against providers that confidently return the
+wrong edition — so the weights, thresholds and normalisation live in one
+small, heavily tested place (`epub_match.py`).
+
+**Two flaws the tests caught before any of it ran:**
+
+- **Weights must not be redistributed** over the fields we happen to
+  know. Doing so made a title-only match score 1.0 and auto-apply —
+  exactly the case that returns the wrong edition. An unknown field now
+  contributes nothing, so a thin match scores thinly: corroboration has
+  to be earned.
+- **A conflicting ISBN is evidence**, not something to ignore. Different
+  ISBNs mean at least a different edition, so the score is discounted
+  enough to keep it out of auto-apply while still allowing review.
+
+**Calibrated against the real library, not assumed.** A first run over 18
+random books returned *no candidates at all for 33% of them* — every one
+had filename scaffolding in its title: `Elliott, Kate - Crown Of Stars 01
+- King's Dragon`, `05 The Wounded Land`, `Anne McCaffrey - Tsw 5 City Who
+Fought`. What we **send** a provider is therefore not what we **compare**
+against: `search_title()` strips author, series and list-number prefixes,
+while `normalise_title()` stays conservative. That moved no-candidates
+from 33% to 22% and auto-apply from 38% to 44%.
+
+A hyphen becomes a space rather than nothing, because `Gilden-Fire` →
+`gildenfire` is a token no provider will ever match.
 
 ### 10.11 Author enrichment, and what real bibliographies look like
 

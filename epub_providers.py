@@ -17,6 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from epub_match import Candidate
 from epub_names import PersonName, fold
 
 LOG = logging.getLogger("epub-reader.providers")
@@ -159,6 +160,40 @@ class OpenLibraryProvider:
             })
         return works
 
+    # ── books ─────────────────────────────────────────────────────────
+    def find_books(self, title: str, author: str | None = None,
+                   limit: int = 8) -> list[Candidate]:
+        query = {"title": title, "limit": str(limit)}
+        if author:
+            query["author"] = author
+        url = f"{BASE}/search.json?{urllib.parse.urlencode(query)}"
+        data = self._get(url)
+        return [self._candidate(doc) for doc in data.get("docs", [])[:limit]]
+
+    def _candidate(self, doc: dict) -> Candidate:
+        isbns = [i for i in (doc.get("isbn") or []) if len(str(i)) == 13]
+        cover = doc.get("cover_i")
+        return Candidate(
+            title=doc.get("title", ""),
+            authors=list(doc.get("author_name") or []),
+            first_published=doc.get("first_publish_year"),
+            language=self._language(doc.get("language")),
+            isbn13=str(isbns[0]) if isbns else None,
+            subjects=list((doc.get("subject") or [])[:8]),
+            cover_url=f"{COVERS}/b/id/{cover}-M.jpg" if cover else None,
+            source="openlibrary",
+            source_id=doc.get("key"),
+        )
+
+    @staticmethod
+    def _language(values) -> str | None:
+        """Open Library uses MARC codes; the library speaks BCP 47."""
+        if not values:
+            return None
+        code = str(values[0]).lower()
+        return {"eng": "en", "ger": "de", "deu": "de", "fre": "fr", "fra": "fr",
+                "dut": "nl", "nld": "nl", "spa": "es", "ita": "it"}.get(code, code[:2])
+
     @staticmethod
     def _year(value) -> int | None:
         match = re.search(r"(\d{4})", str(value or ""))
@@ -166,3 +201,48 @@ class OpenLibraryProvider:
             return None
         year = int(match.group(1))
         return year if 1000 <= year <= 2100 else None
+
+
+class GoogleBooksProvider:
+    """Broad coverage and good synopses. Works unauthenticated, but is
+    rate limited without a key — hence GOOGLE_BOOKS_API_KEY in .env.
+    """
+
+    ENDPOINT = "https://www.googleapis.com/books/v1/volumes"
+
+    def __init__(self, fetch=http_json, api_key: str | None = None) -> None:
+        self._fetch = fetch
+        self._api_key = api_key
+
+    def find_books(self, title: str, author: str | None = None,
+                   limit: int = 8) -> list[Candidate]:
+        terms = [f'intitle:"{title}"']
+        if author:
+            terms.append(f'inauthor:"{author}"')
+        params = {"q": " ".join(terms), "maxResults": str(min(limit, 40))}
+        if self._api_key:
+            params["key"] = self._api_key
+        url = f"{self.ENDPOINT}?{urllib.parse.urlencode(params)}"
+        try:
+            data = self._fetch(url, headers={"Accept": "application/json"})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            raise ProviderError(f"Google Books did not answer: {exc}") from exc
+        return [self._candidate(item) for item in (data.get("items") or [])[:limit]]
+
+    def _candidate(self, item: dict) -> Candidate:
+        info = item.get("volumeInfo") or {}
+        isbns = [i.get("identifier") for i in (info.get("industryIdentifiers") or [])
+                 if i.get("type") == "ISBN_13"]
+        return Candidate(
+            title=info.get("title", ""),
+            authors=list(info.get("authors") or []),
+            first_published=OpenLibraryProvider._year(info.get("publishedDate")),
+            language=info.get("language"),
+            isbn13=isbns[0] if isbns else None,
+            synopsis=info.get("description"),
+            publisher=info.get("publisher"),
+            subjects=list(info.get("categories") or []),
+            cover_url=(info.get("imageLinks") or {}).get("thumbnail"),
+            source="googlebooks",
+            source_id=item.get("id"),
+        )

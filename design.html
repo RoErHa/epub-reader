@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M3 IN PROGRESS</span>
-  <div class="hdr-right">348 pytest · 250 playwright (chromium + webkit)</div>
+  <div class="hdr-right">397 pytest · 250 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M4 complete — the book-detail screen and author enrichment both work. Next action is M5. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
+<div class="status">Status: M5 in progress — the matching and scoring engine is built and calibrated on the real library. Candidate storage, the BISAC map and the review queue are next. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -829,6 +829,14 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
 </div>
 
 <p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
+
+<h3>Matching: scored by evidence</h3>
+<p>Most EPUBs have no ISBN, so matching is fuzzy against providers that confidently return the wrong edition. Two flaws the tests caught before any of it ran:</p>
+<ul>
+<li><strong>Weights must not be redistributed</strong> over the fields we happen to know — that made a title-only match score 1.0 and auto-apply, which is precisely the case that returns the wrong edition. An unknown field contributes nothing, so a thin match scores thinly.</li>
+<li><strong>A conflicting ISBN is evidence</strong>, not noise to ignore: the score is discounted enough to keep it out of auto-apply while still allowing review.</li>
+</ul>
+<p><strong>Calibrated on the real library.</strong> A first run over 18 random books returned <em>no candidates at all for 33% of them</em> — every one had filename scaffolding in its title (<code>Elliott, Kate - Crown Of Stars 01 - King's Dragon</code>). What we <em>send</em> a provider is therefore not what we <em>compare</em> against: <code>search_title()</code> strips author, series and list-number prefixes. No-candidates fell from 33% to 22%, auto-apply rose from 38% to 44%.</p>
 
 <h3>Author enrichment</h3>
 <p>Open Library fills <em>About the author</em> and <em>Also published</em>. <strong>The fetcher is injected</strong>, so no test touches the network and a cache or rate limiter can wrap it later without touching the provider.</p>

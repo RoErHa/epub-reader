@@ -209,3 +209,79 @@ class TestWorkClassifier:
 
     def test_classification_is_case_insensitive(self):
         assert WorkClassifier.classify("the COLLECTED stories", []) == "collection"
+
+
+BOOK_SEARCH = {
+    "docs": [
+        {"title": "The Left Hand of Darkness",
+         "author_name": ["Ursula K. Le Guin"],
+         "first_publish_year": 1969, "language": ["eng"],
+         "isbn": ["9780441478125"], "cover_i": 8231856,
+         "subject": ["Science fiction", "Gender identity"],
+         "key": "/works/OL453936W"},
+        {"title": "The Left Hand of Darkness: A Study Guide",
+         "author_name": ["Someone Else"], "first_publish_year": 2005},
+    ]
+}
+
+GOOGLE_BOOKS = {
+    "items": [
+        {"id": "gb1", "volumeInfo": {
+            "title": "Dune", "subtitle": "A Novel",
+            "authors": ["Frank Herbert"], "publishedDate": "1965-08-01",
+            "language": "en", "publisher": "Chilton",
+            "description": "A desert planet.",
+            "categories": ["Fiction / Science Fiction"],
+            "industryIdentifiers": [{"type": "ISBN_13",
+                                     "identifier": "9780441013593"}],
+            "imageLinks": {"thumbnail": "https://example/cover.jpg"},
+        }}
+    ]
+}
+
+
+class TestBookSearch:
+    def test_open_library_books_become_candidates(self, fetcher):
+        fetcher.responses["search.json"] = BOOK_SEARCH
+        found = OpenLibraryProvider(fetcher).find_books(
+            "The Left Hand of Darkness", "Ursula K. Le Guin")
+        assert found[0].title == "The Left Hand of Darkness"
+        assert found[0].authors == ["Ursula K. Le Guin"]
+        assert found[0].first_published == 1969
+        assert found[0].isbn13 == "9780441478125"
+        assert found[0].language == "en"          # eng → en
+        assert found[0].source == "openlibrary"
+
+    def test_a_cover_url_is_built(self, fetcher):
+        fetcher.responses["search.json"] = BOOK_SEARCH
+        found = OpenLibraryProvider(fetcher).find_books("x", None)
+        assert "8231856" in found[0].cover_url
+
+    def test_an_empty_result_is_an_empty_list(self, fetcher):
+        fetcher.responses["search.json"] = {"docs": []}
+        assert OpenLibraryProvider(fetcher).find_books("nothing", None) == []
+
+
+class TestGoogleBooks:
+    def test_volumes_become_candidates(self):
+        from epub_providers import GoogleBooksProvider
+        fetcher = FakeFetcher({"googleapis.com": GOOGLE_BOOKS})
+        found = GoogleBooksProvider(fetcher).find_books("Dune", "Frank Herbert")
+        assert found[0].title == "Dune"
+        assert found[0].synopsis == "A desert planet."
+        assert found[0].first_published == 1965
+        assert found[0].isbn13 == "9780441013593"
+        assert found[0].subjects == ["Fiction / Science Fiction"]
+        assert found[0].source == "googlebooks"
+
+    def test_an_api_key_is_sent_when_there_is_one(self):
+        from epub_providers import GoogleBooksProvider
+        fetcher = FakeFetcher({"googleapis.com": GOOGLE_BOOKS})
+        GoogleBooksProvider(fetcher, api_key="abc123").find_books("Dune", None)
+        assert "key=abc123" in fetcher.calls[0]
+
+    def test_no_key_is_fine(self):
+        from epub_providers import GoogleBooksProvider
+        fetcher = FakeFetcher({"googleapis.com": GOOGLE_BOOKS})
+        GoogleBooksProvider(fetcher).find_books("Dune", None)
+        assert "key=" not in fetcher.calls[0]
