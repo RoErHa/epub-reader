@@ -209,7 +209,9 @@ class BooksApp {
       this.dom.author.textContent = meta?.author ?? ''
       this.#toc.render(this.#reader.toc)
       this.dom.stage.dataset.state = 'open'
-      this.#status('Reading')
+      this.#status(this.#reader.forcedScrolled
+        ? 'Reading — one very large chapter, shown scrolled'
+        : 'Reading')
     } catch (err) {
       this.dom.stage.dataset.state = 'error'
       this.#toc.clear()

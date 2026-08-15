@@ -10,7 +10,8 @@ export class ReaderEngine {
   #view = null
   #host = null
   #styles = ''
-  #attributes = {}
+  #requested = {}        // what the display settings asked for
+  #forcedScrolled = false
   #listeners = { relocate: [], load: [] }
 
   constructor (host) {
@@ -19,6 +20,73 @@ export class ReaderEngine {
 
   get isOpen () {
     return this.#view !== null
+  }
+
+  /** True when this book was too large to paginate — see #mustScroll. */
+  get forcedScrolled () {
+    return this.#forcedScrolled
+  }
+
+  /* Some EPUBs hold the entire book in one document. CSS multi-column
+   * lays that out as a single strip whose width scales with the content
+   * — a 1.2 MB section measured 8,120,880 px wide, which neither
+   * Chromium nor WebKit can paint, so the reader showed the cover and
+   * then nothing. Scrolled flow skips columnisation and renders it fine.
+   *
+   * The threshold sits between what is known to work and known to fail
+   * in the real library: 252 kB paginates correctly, 1.18 MB does not.
+   */
+  static MAX_PAGINATED_SECTION = 400 * 1024
+
+  /* Books open where the words start, not on the cover.
+   *
+   * foliate's goToTextStart() uses the bodymatter landmark and falls
+   * back to the first linear section — but many EPUBs have no landmarks
+   * and list the cover as linear, so it lands on the cover anyway. A
+   * cover is a small image on a large empty pane, which reads as a
+   * broken reader.
+   *
+   * Front matter is tiny next to a chapter (cover.html 456 B against a
+   * 1.18 MB section) — but "tiny" only means anything relative to the
+   * book itself, so the threshold is a fraction of the median section
+   * rather than a fixed size. A fixed 2 kB skipped every section of a
+   * book whose chapters were 1 kB.
+   */
+  static CONTENT_FRACTION = 0.25
+  static MIN_CONTENT_FLOOR = 512
+  static MAX_FRONT_MATTER = 6
+
+  #firstContentIndex (book) {
+    const sections = book?.sections ?? []
+    const start = Math.max(0, sections.findIndex(s => s.linear !== 'no'))
+    const sizes = sections.slice(start).map(s => s?.size ?? 0)
+      .filter(n => n > 0).sort((a, b) => a - b)
+    if (!sizes.length) return start
+
+    const median = sizes[Math.floor(sizes.length / 2)]
+    const threshold = Math.max(
+      ReaderEngine.MIN_CONTENT_FLOOR, median * ReaderEngine.CONTENT_FRACTION
+    )
+    const limit = Math.min(sections.length, start + ReaderEngine.MAX_FRONT_MATTER)
+    for (let i = start; i < limit; i++) {
+      if ((sections[i]?.size ?? Infinity) >= threshold) return i
+    }
+    return start
+  }
+
+  async #goToStart (view) {
+    const landmark = view.book?.landmarks?.find(
+      m => (m.type ?? '').includes('bodymatter')
+    )
+    if (landmark?.href && await view.goTo(landmark.href)) return
+    if (await view.goTo(this.#firstContentIndex(view.book))) return
+    await view.renderer.next()
+  }
+
+  #mustScroll (book) {
+    return (book?.sections ?? []).some(
+      section => (section?.size ?? 0) > ReaderEngine.MAX_PAGINATED_SECTION
+    )
   }
 
   get view () {
@@ -48,6 +116,11 @@ export class ReaderEngine {
 
     await view.open(url)
     this.#guardRenderer(view.renderer)
+
+    // Decided before the first section lays out, because switching
+    // afterwards would mean paying for the unpaintable layout first.
+    this.#forcedScrolled = this.#mustScroll(view.book)
+
     this.#applyStyles()
 
     // Resuming beats starting over, but a stale CFI must not strand the
@@ -56,15 +129,16 @@ export class ReaderEngine {
       try {
         await view.goTo(cfi)
       } catch {
-        await view.renderer.next()
+        await this.#goToStart(view)
       }
     } else {
-      await view.renderer.next()
+      await this.#goToStart(view)
     }
     return this.metadata
   }
 
   close () {
+    this.#forcedScrolled = false
     if (!this.#view) return
     this.#view.remove()
     this.#view = null
@@ -148,8 +222,19 @@ export class ReaderEngine {
 
   /** Layout attributes the paginator reads directly. */
   setRendererAttributes (attributes) {
-    this.#attributes = { ...this.#attributes, ...attributes }
+    this.#requested = { ...this.#requested, ...attributes }
     this.#applyAttributes()
+  }
+
+  /** What the requested settings become for THIS book. The override
+   *  belongs to the book, not to the reader, so it is derived on every
+   *  application rather than written into the stored settings. */
+  #effectiveAttributes () {
+    const attributes = { ...this.#requested }
+    // A book that cannot be paginated stays scrolled whatever the
+    // settings say — a blank page is not a preference.
+    if (this.#forcedScrolled) attributes.flow = 'scrolled'
+    return attributes
   }
 
   #applyStyles () {
@@ -200,7 +285,7 @@ export class ReaderEngine {
     // document is null, so applying attributes early throws inside
     // foliate-js. Real books hit this; small fixtures usually did not.
     if (!this.#hasDocument()) return
-    for (const [name, value] of Object.entries(this.#attributes)) {
+    for (const [name, value] of Object.entries(this.#effectiveAttributes())) {
       if (renderer.getAttribute(name) !== String(value)) {
         renderer.setAttribute(name, value)
       }

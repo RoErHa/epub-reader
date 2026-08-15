@@ -63,6 +63,29 @@ class TestLibrary:
             encode_nav_hrefs=True,
         ).build(self.library / "comma-filenames.epub")
 
+        # One enormous single section, like the Donaldson EPUBs: 1.2 MB
+        # in one document columnises into an ~8-million-pixel strip that
+        # no browser can paint, so the reader must fall back to scrolled.
+        EpubBuilder(
+            title="One Huge Chapter",
+            author="Stephen R. Donaldson",
+            chapters=1,
+            paragraphs_per_chapter=3000,
+            cover=True,
+        ).build(self.library / "huge-section.epub")
+
+        # Opening-position tests need books NOTHING else opens: any test
+        # that opens a book saves a position, and a book with a saved
+        # position correctly resumes instead of opening at the start.
+        EpubBuilder(
+            title="Start With Cover", author="Test Author",
+            chapters=3, paragraphs_per_chapter=5, cover=True,
+        ).build(self.library / "start-with-cover.epub")
+        EpubBuilder(
+            title="Start No Cover", author="Test Author",
+            chapters=3, paragraphs_per_chapter=5,
+        ).build(self.library / "start-no-cover.epub")
+
         # Reserved for the position tests. Opening a book WRITES reading
         # state, and position is shared server-side, so a position test
         # needs a book no other test opens — not merely one no other test

@@ -9,7 +9,7 @@ test.describe('app shell', () => {
   test('loads and lists the library', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('#status')).toHaveText('Ready')
-    await expect(page.locator('.book-row')).toHaveCount(7)
+    await expect(page.locator('.book-row')).toHaveCount(10)
     await expect(page.locator(`.book-row[data-name="${PLAIN}"]`)).toBeVisible()
   })
 

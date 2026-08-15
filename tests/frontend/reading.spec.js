@@ -105,6 +105,23 @@ test.describe('display settings', () => {
   })
 })
 
+test.describe('opening position', () => {
+  // Own books, opened by nothing else: any test that opens a book saves
+  // a position, and a book with a saved position resumes rather than
+  // opening at the start — which is correct, and would fail these.
+  test('a book with a cover still opens on its first chapter', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, 'start-with-cover.epub')
+    await expectBookText(page, 'Chapter One')
+  })
+
+  test('a book without a cover opens at the start', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, 'start-no-cover.epub')
+    await expectBookText(page, 'Chapter One')
+  })
+})
+
 test.describe('front matter', () => {
   // Real books open on an image-only cover, and applying layout
   // attributes before that first section exists threw inside the
@@ -228,5 +245,70 @@ test.describe('books with commas in internal filenames', () => {
       await page.waitForTimeout(400)
     }
     expect(failures).toEqual([])
+  })
+})
+
+test.describe('books with one enormous section', () => {
+  /* Some EPUBs hold the whole book in a single 1.2 MB document. CSS
+   * multi-column turns that into an ~8-million-pixel-wide strip, which
+   * neither Chromium nor WebKit can paint — you get the cover and then
+   * a blank page. Scrolled flow skips columnisation entirely. */
+  const HUGE = 'huge-section.epub'
+
+  test('falls back to scrolled flow', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, HUGE)
+    await expect
+      .poll(() => page.evaluate(() =>
+        document.querySelector('foliate-view')?.renderer?.getAttribute('flow')),
+      { timeout: 15000 })
+      .toBe('scrolled')
+  })
+
+  test('and actually renders its text', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, HUGE)
+    await expectBookText(page, 'quick brown fox')
+  })
+
+  test('opens on the text, not on the cover', async ({ page }) => {
+    // A cover page is a small image on a large empty pane — it reads as
+    // a broken reader. Books open where the words start.
+    await page.goto('/')
+    await openBook(page, HUGE)
+    await expectBookText(page, 'quick brown fox')
+  })
+
+  test('the reader says why it changed', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, HUGE)
+    await expect(page.locator('#status')).toContainText('scrolled')
+  })
+
+  test('the forced flow does not leak into the next book', async ({ page }) => {
+    // Opening a huge book and then a normal one must not leave the
+    // normal one scrolled — the override belongs to the book, not the
+    // reader.
+    await page.goto('/')
+    await openBook(page, HUGE)
+    await expect
+      .poll(() => page.evaluate(() =>
+        document.querySelector('foliate-view')?.renderer?.getAttribute('flow')),
+      { timeout: 15000 }).toBe('scrolled')
+
+    await openBook(page, BOOK)
+    await expect
+      .poll(() => page.evaluate(() =>
+        document.querySelector('foliate-view')?.renderer?.getAttribute('flow')),
+      { timeout: 15000 }).toBe('paginated')
+  })
+
+  test('a normal book still paginates', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await expect
+      .poll(() => page.evaluate(() =>
+        document.querySelector('foliate-view')?.renderer?.getAttribute('flow')))
+      .toBe('paginated')
   })
 })

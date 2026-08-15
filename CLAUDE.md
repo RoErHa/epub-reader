@@ -567,6 +567,29 @@ produced a flake that passed in isolation and failed in the full run.
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
 > else may open any of them.
 
+### 10.6 Books that are one enormous section
+
+Some EPUBs hold the whole book in a single document. CSS multi-column
+lays that out as one strip whose width scales with the content: a 1.18 MB
+section measured **8,120,880 px wide**, which neither Chromium nor WebKit
+can paint — you got the cover and then a blank pane. 252 kB paginates
+correctly, so the failure is not about file size but section size.
+
+- `ReaderEngine` falls back to **scrolled flow** when any section exceeds
+  400 kB, and says so in the status line. Scrolled flow skips
+  columnisation entirely and the same book renders in full.
+- **The override belongs to the book, not the reader.** It is derived on
+  every application from the requested settings rather than written into
+  them, or opening a huge book would leave the next one scrolled too.
+- **Books now open where the words start.** foliate's `goToTextStart()`
+  uses the bodymatter landmark and falls back to the first linear
+  section, but many EPUBs have no landmarks and mark the cover linear —
+  so it lands on the cover, which is a small image on a large empty pane
+  and reads as a broken reader. Front matter is tiny next to a chapter,
+  so the first content section is found by size — as a **fraction of the
+  book's own median section**, because a fixed threshold skipped every
+  section of a book whose chapters were 1 kB.
+
 ### 10.5 Safari is the browser that matters — test it
 
 **The app was completely broken in Safari and every test passed.** Books
