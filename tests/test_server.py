@@ -43,18 +43,37 @@ class TestReaderShell:
 
 
 class TestFormatScope:
-    def test_only_epub_is_listed(self, client, library):
-        (library / "manual.pdf").write_bytes(b"%PDF-1.4")
-        (library / "kindle.azw3").write_bytes(b"x")
-        formats = {b["format"] for b in client.get("/api/books").json()["books"]}
-        assert formats == {"epub"}
+    """What the reflow engine reads, the library lists. What it cannot,
+    the library leaves alone rather than promising."""
 
-    def test_a_non_epub_is_not_indexed_so_cannot_be_served(self, client, library,
-                                                          gateway):
-        (library / "manual.pdf").write_bytes(b"%PDF-1.4")
+    def test_the_formats_it_can_render_are_listed(self, client, library,
+                                                  gateway):
+        from tests.mobi_fixtures import MobiBuilder
+        from tests.pdf_fixtures import PdfBuilder
+
+        MobiBuilder(title="A Kindle Book").build(library / "kindle.mobi")
+        PdfBuilder(title="A Scanned Book").build(library / "scanned.pdf")
+        gateway.reindex()
+        formats = {b["format"] for b in client.get("/api/books").json()["books"]}
+        assert {"epub", "mobi", "pdf"} <= formats
+
+    def test_a_comic_archive_is_left_alone(self, client, library, gateway):
+        # CBR is RAR, which nothing in the stack reads, and CBZ has no
+        # reader here yet. Listing them would promise what we do not
+        # deliver.
+        (library / "comic.cbz").write_bytes(b"PK\x03\x04")
+        (library / "comic.cbr").write_bytes(b"Rar!")
         gateway.reindex()
         names = {b["name"] for b in client.get("/api/books").json()["books"]}
-        assert "manual.pdf" not in names
+        assert "comic.cbz" not in names
+        assert "comic.cbr" not in names
+
+    def test_a_format_out_of_scope_cannot_be_served_either(self, client,
+                                                           library, gateway):
+        (library / "notes.txt").write_bytes(b"not a book")
+        gateway.reindex()
+        names = {b["name"] for b in client.get("/api/books").json()["books"]}
+        assert "notes.txt" not in names
 
 
 class TestLibraryEndpoint:

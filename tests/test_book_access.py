@@ -122,11 +122,20 @@ class TestOtherFormatsAreServed:
         assert res.status_code == 200
         assert res.content[60:68] == b"BOOKMOBI"
 
+    def test_a_pdf_can_be_fetched_too(self, client, library, gateway):
+        from tests.pdf_fixtures import PdfBuilder
+        PdfBuilder(title="Fetch This PDF").build(library / "fetch-me.pdf")
+        gateway.reindex()
+        book = next(b for b in client.get("/api/books").json()["books"]
+                    if b["title"] == "Fetch This PDF")
+        res = client.get(f"/api/books/{book['id']}/file")
+        assert res.status_code == 200
+        assert res.content.startswith(b"%PDF-")
+
     def test_a_format_nobody_can_read_is_still_refused(self, client, library,
                                                        gateway):
-        # PDF is a separate track; listing it would promise a reader
-        # that does not exist yet.
-        (library / "manual.pdf").write_bytes(b"%PDF-1.4\n")
+        # CBR is RAR, which nothing in the stack reads.
+        (library / "comic.cbr").write_bytes(b"Rar!\x1a\x07\x00")
         gateway.reindex()
-        titles = [b["title"] for b in client.get("/api/books").json()["books"]]
-        assert not any("manual" in (t or "").lower() for t in titles)
+        names = [b["name"] for b in client.get("/api/books").json()["books"]]
+        assert "comic.cbr" not in names

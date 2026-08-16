@@ -18,6 +18,7 @@ from pathlib import Path
 
 from epub_metadata import BookMetadata, EpubMetadataReader, MetadataError
 from epub_mobi import MobiMetadataReader
+from epub_pdf import PdfMetadataReader
 from epub_names import fold, title_sort_key
 from epub_search import SearchIndex
 
@@ -127,6 +128,7 @@ class LibraryIndexer:
         self._readers = {".epub": EpubMetadataReader()}
         for suffix in (".mobi", ".azw3", ".azw", ".prc"):
             self._readers[suffix] = MobiMetadataReader()
+        self._readers[".pdf"] = PdfMetadataReader()
         self._search = SearchIndex(database)
         self.hashed = 0  # observable so tests can assert we skip work
 

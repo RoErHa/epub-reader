@@ -47,13 +47,16 @@ static/vendor/foliate-js/            pinned submodule
 
 Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, PWA manifest + service worker, rotating `gateway.log`.
 
-## 2.1 Scope: what the reflow engine reads
+## 2.1 Scope: what the reader can open
 
-**EPUB, MOBI, AZW3 and PRC.** The library also holds PDFs, CBZ and CBR,
-and those stay out: PDF is a different rendering model and foliate's
-adapter is self-described as a proof-of-concept, while CBR is RAR, which
-nothing in the stack reads. Listing a format we cannot render well only
-promises what we do not deliver.
+**EPUB, MOBI, AZW3, PRC and PDF.** CBZ and CBR stay out — CBR is RAR,
+which nothing in the stack reads, and neither has a reader here yet.
+Listing a format we cannot render only promises what we do not deliver.
+
+PDF is a different rendering model: pdf.js rasterises pages onto a
+canvas rather than reflowing text, so the typography controls do not
+apply to it. It is 585 books here, though, and a reader that cannot open
+them is a reader you keep leaving.
 
 `BookLibrary.SUFFIXES` is the single switch, and `resolve()` refuses to
 serve anything outside it.
@@ -548,7 +551,8 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M5 | Enrichment: providers, scoring, BISAC genre map, review queue | done |
 | ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
 | ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
-| M7 | PDF, as its own track; unpacked EPUB directories; book-level dedupe | — |
+| ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
+| M8 | Unpacked EPUB directories (262 of them); book-level dedupe; CBZ | — |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -625,6 +629,58 @@ Older files declare a short header that stops before the locale field;
 reading past its end is what produced the nonsense, so the declared
 length is checked first. A number nobody mapped is left as nothing
 rather than guessed at — the same rule the genre map follows.
+
+### 8.4 M7: PDF
+
+**The CSP needed no change at all.** pdf.js runs its parser in a Web
+Worker, which nothing else here does — and `worker-src` falls back to
+`default-src 'self'`, which already allows a same-origin worker. There
+is a test that watches the console for refusals while a PDF opens, so
+if that ever stops being true it is a failing test rather than a blank
+page.
+
+**The filename leads, and the embedded metadata only gets a say when it
+earns one.** That is the opposite of EPUB and MOBI, and it is what the
+real library says. Of 585 PDFs, 406 carry a `/Title`:
+
+| | |
+| --- | --- |
+| (empty) | 151 |
+| `Local Disk` | 76 |
+| `Book Cover` / `BOOK COVER` | 39 |
+| `Contents` | 5 |
+
+— 129 distinct values across 585 files. Meanwhile the filenames follow
+the same convention the repair passes already understand:
+`Anthony, Piers - Mute.pdf`.
+
+**The worst failure is not a missing title but somebody else's.** These
+files were assembled from others and kept the wrong name inside:
+`Jody Lynn Nye - School Of Light` on a file called
+`Nye, Jody Lynn - Dreamland`; `Also by Neil Gaiman` on `Stardust`. So an
+embedded title must **agree with the filename** to be believed, compared
+against the filename's *last* segment rather than the whole thing —
+sharing an author is not sharing a book. That took accepted titles from
+125 to 40, and the 40 are right. Where the filename says nothing
+(`a.pdf`), anything inside the file is an improvement, so it wins.
+
+A creation date fills `edition_date` and never `first_published`: a 2009
+scan of a 1965 novel is not a 2009 book, and §5 exists because
+conflating those is the commonest metadata error there is.
+
+**No cover is extracted.** Rasterising the first page needs a PDF
+renderer, which is a heavy dependency for a proof-of-concept reader;
+the browse list falls back to a lettered tile as it does for any book
+without one. Only the Info dictionary is read, by scanning the first
+and last 2 MB rather than parsing — reading 633 MB of scanned comic to
+find a title would not be a kindness. A PDF that hides its Info dict in
+an object stream is simply one with no usable metadata, which is where
+161 of them already are.
+
+**Measured: 585 files read in 1.3 s, one failure** — a file with a
+`.pdf` extension that is not a PDF, reported per book, scan unaffected.
+The library is now 2,008 books: 1,352 EPUB, 567 PDF, 52 PRC, 34 MOBI,
+3 AZW3.
 
 ## 9. Decisions — settled
 
@@ -705,6 +761,7 @@ epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
 epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
+epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth having
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results

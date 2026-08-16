@@ -49,11 +49,12 @@ class BookLibrary:
     # the extension — so the reader needed no change at all; only the
     # library did, because their metadata lives in a PalmDB record.
     #
-    # PDF stays out: a different rendering model, and foliate's adapter
-    # is self-described as a proof-of-concept. CBR is RAR, which nothing
-    # here can read. Listing a format we cannot render well would
-    # promise what we do not deliver.
-    SUFFIXES = frozenset({".epub", ".mobi", ".azw3", ".azw", ".prc"})
+    # PDF is a different rendering model — pdf.js rasterises pages
+    # rather than reflowing text — but it is 585 books here, and a
+    # reader that cannot open them is a reader you keep leaving.
+    #
+    # CBR stays out: it is RAR, which nothing in the stack reads.
+    SUFFIXES = frozenset({".epub", ".mobi", ".azw3", ".azw", ".prc", ".pdf"})
 
     def __init__(self, root: Path) -> None:
         self._root = root
