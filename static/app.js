@@ -403,6 +403,9 @@ class BooksApp {
   }
 
   #applySettings () {
+    // The panel sheet sits over the book, so it has to know which
+    // colours it is sitting on.
+    document.body.dataset.readTheme = this.#settings.get('theme')
     this.#reader.setStyles(this.#settings.stylesheet())
     this.#reader.setRendererAttributes(this.#settings.rendererAttributes())
   }

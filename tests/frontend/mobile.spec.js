@@ -330,3 +330,88 @@ test.describe('typography on a Mac', () => {
     await expect(page.locator('#btn-panels')).toBeHidden()
   })
 })
+
+
+/* The sheet sits on top of a page whose colours the reader chose. It
+ * has to be legible against all four of them — which means opposing
+ * the one in use, not picking a side and hoping.
+ */
+test.describe('the panel sheet is readable', () => {
+  test.use(IPAD_PORTRAIT)
+
+  const sheetColours = page => page.locator('#side').evaluate(el => {
+    const style = getComputedStyle(el)
+    return { background: style.backgroundColor, color: style.color }
+  })
+
+  const opaque = colour => {
+    // Only rgba() carries an alpha; rgb() has three numbers and the
+    // last of them is blue, not transparency.
+    const parts = colour.match(/[\d.]+/g) ?? []
+    return parts.length < 4 || parseFloat(parts[3]) === 1
+  }
+
+  test('it has a background of its own', async ({ page }) => {
+    // Without one the book shows straight through it, which is what
+    // happened when the CSS named tokens that do not exist.
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await page.locator('#btn-panels').click()
+    const { background } = await sheetColours(page)
+    expect(background).not.toBe('rgba(0, 0, 0, 0)')
+    expect(opaque(background)).toBe(true)
+  })
+
+  test('it goes light over a dark page', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await page.locator('#btn-panels').click()
+    await page.locator('#tab-display').click()
+    await page.locator('#theme-select').selectOption('black')
+
+    const { background, color } = await sheetColours(page)
+    expect(luminance(background)).toBeGreaterThan(luminance(color))
+    expect(luminance(background)).toBeGreaterThan(0.5)
+  })
+
+  test('it goes dark over a light page', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await page.locator('#btn-panels').click()
+    await page.locator('#tab-display').click()
+    await page.locator('#theme-select').selectOption('light')
+
+    const { background, color } = await sheetColours(page)
+    expect(luminance(background)).toBeLessThan(0.5)
+    expect(luminance(color)).toBeGreaterThan(luminance(background))
+  })
+
+  test('the words stand well clear of the background', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await page.locator('#btn-panels').click()
+    for (const theme of ['light', 'sepia', 'dark', 'black']) {
+      await page.locator('#tab-display').click()
+      await page.locator('#theme-select').selectOption(theme)
+      const { background, color } = await sheetColours(page)
+      // WCAG AA for body text is 4.5:1; this is a reading app.
+      expect(contrast(background, color)).toBeGreaterThan(4.5)
+    }
+  })
+})
+
+const channel = value => {
+  const c = value / 255
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+}
+
+function luminance (colour) {
+  const [r, g, b] = colour.match(/\d+/g).slice(0, 3).map(Number)
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+function contrast (one, two) {
+  const a = luminance(one)
+  const b = luminance(two)
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}

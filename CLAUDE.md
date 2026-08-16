@@ -965,7 +965,9 @@ convention:** an **iPad 9th generation is 810 × 1080 points**, so
 
 **The panels had to come with it, and did not.** Giving the reader the whole screen took away the right-hand column, and with it Contents, Highlights and — the one actually missed — the typography controls. An iPad is read at arm's length and the default size is small, so "make the text bigger" was unreachable on the device that needed it most.
 
-The reader now carries an **Aa** button that brings the *same* panels in over the page, as a sheet from the right. The same panels, not a second copy: two sets of controls for one setting is how they end up disagreeing. Closing is a 44 pt target inside the safe area, and leaving the book takes its panels with it.
+The reader now carries an **Aa** button that brings the *same* panels in over the page, as a sheet from the right. **The sheet opposes the page it covers** — dark over a light or sepia book, light over a dark or black one — because reading on black with a black panel is how a panel disappears, and the point of it is to be found. Four contrast tests hold it above WCAG AA on all four reading themes.
+
+> **Name a token that exists.** The first version of this sheet asked for `var(--panel)` and `var(--line)`, which are not in the palette — the real names are `--surface`, `--border`, `--ink`. An unknown custom property resolves to nothing, so the background silently vanished and the book showed straight through the panel. CSS fails quietly; a test that reads the *computed* background and asserts it is opaque does not. The same panels, not a second copy: two sets of controls for one setting is how they end up disagreeing. Closing is a 44 pt target inside the safe area, and leaving the book takes its panels with it.
 
 > **Rule: the Mac layout does not change.** Every normal Mac window
 > (1280 and up) keeps the three-column layout, and tests pin it at 1280,
