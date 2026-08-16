@@ -497,6 +497,10 @@ A library-wide title run asks Open Library about 400 authors, three requests eac
 
 `PoliteFetcher` spaces requests out and retries what is worth retrying (429, 5xx, connection failures; never a 404, which is an answer). It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and **one instance is shared by the whole service** — four providers each pacing themselves is four unsynchronised streams.
 
+**Retrying is right for a hiccup and wrong for an outage.** Open Library went down twice during this work, and each *new* author then cost four attempts and 48 seconds of backoff before being abandoned — for the ~200 authors the MOBI books brought in, that is close to three hours of achieving nothing. After four whole failures in a row a host is treated as down and calls fail at once, which turned the same run into two and a half minutes.
+
+The judgement is **per host**, so Google Books being down says nothing about Open Library, and an HTTP error does not count: a 404 is an answer, and a host that answers is not a host that is down. One success clears it, and so does five minutes — the service keeps a fetcher for its whole life and has to recover without being restarted. Nothing is lost either way: a failed lookup does not stamp `fetched_at`, so those authors stay queued for the weekly refresh.
+
 The test suite injects a fetcher that refuses immediately, so nothing in it touches the network. One endpoint test had been quietly making real requests all along; it took 48 seconds on the day Open Library was struggling.
 
 ### 6.1 Genre vocabulary — BISAC subset (decision 5)

@@ -384,3 +384,120 @@ class TestBeingPolite:
         with pytest.raises(urllib.error.HTTPError):
             fetcher("https://example.test/1")
         assert slept == sorted(slept) and len(set(slept)) == len(slept)
+
+
+class TestGivingUpOnAHostThatIsDown:
+    """Retrying is right for a hiccup and wrong for an outage.
+
+    A library-wide run asks about hundreds of authors. When Open Library
+    stops answering — which it did, twice — every one of them costs four
+    attempts and forty-five seconds of backoff before being abandoned,
+    so a run that should take minutes takes hours and achieves nothing.
+
+    After a few whole failures in a row the host is treated as down and
+    calls fail at once. One success puts it back, and so does time: the
+    service keeps a fetcher for its whole life and must recover without
+    being restarted.
+    """
+
+    class Down:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, url, headers=None):
+            self.calls += 1
+            raise urllib.error.URLError(OSError("timed out"))
+
+    @staticmethod
+    def fetcher(fetch, clock, **kwargs):
+        from epub_providers import PoliteFetcher
+        settings = dict(interval=0, backoff=0, attempts=2,
+                        sleep=lambda s: None, clock=clock,
+                        jitter=lambda a, b: 0.0)
+        settings.update(kwargs)
+        return PoliteFetcher(fetch, **settings)
+
+    def test_it_stops_trying(self):
+        from epub_providers import ProviderError
+        down, now = self.Down(), [0.0]
+        fetcher = self.fetcher(down, lambda: now[0], give_up_after=3)
+
+        for _ in range(3):
+            with pytest.raises(urllib.error.URLError):
+                fetcher("https://openlibrary.org/a")
+        calls_before = down.calls
+
+        with pytest.raises(ProviderError):
+            fetcher("https://openlibrary.org/b")
+        assert down.calls == calls_before, "it asked a host it had given up on"
+
+    def test_it_says_why(self):
+        from epub_providers import ProviderError
+        down, now = self.Down(), [0.0]
+        fetcher = self.fetcher(down, lambda: now[0], give_up_after=1)
+        with pytest.raises(urllib.error.URLError):
+            fetcher("https://openlibrary.org/a")
+        with pytest.raises(ProviderError, match="not answering"):
+            fetcher("https://openlibrary.org/b")
+
+    def test_one_success_puts_it_back(self):
+        answers = [urllib.error.URLError(OSError("timed out")), {"ok": True}]
+
+        def flaky(url, headers=None):
+            result = answers.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        now = [0.0]
+        fetcher = self.fetcher(flaky, lambda: now[0], give_up_after=2,
+                               attempts=1)
+        with pytest.raises(urllib.error.URLError):
+            fetcher("https://openlibrary.org/a")
+        assert fetcher("https://openlibrary.org/b") == {"ok": True}
+        assert fetcher.failures == 0
+
+    def test_it_tries_again_after_a_while(self):
+        from epub_providers import ProviderError
+        down, now = self.Down(), [0.0]
+        fetcher = self.fetcher(down, lambda: now[0], give_up_after=1,
+                               retry_after=300)
+        with pytest.raises(urllib.error.URLError):
+            fetcher("https://openlibrary.org/a")
+        with pytest.raises(ProviderError):
+            fetcher("https://openlibrary.org/b")
+
+        now[0] = 301
+        calls_before = down.calls
+        with pytest.raises(urllib.error.URLError):
+            fetcher("https://openlibrary.org/c")
+        assert down.calls > calls_before, "it never tried again"
+
+    def test_a_missing_page_is_not_an_outage(self):
+        # A 404 is an answer. A host that answers is not down.
+        def missing(url, headers=None):
+            raise urllib.error.HTTPError(url, 404, "gone", {}, None)
+
+        now = [0.0]
+        fetcher = self.fetcher(missing, lambda: now[0], give_up_after=1)
+        for _ in range(3):
+            with pytest.raises(urllib.error.HTTPError):
+                fetcher("https://openlibrary.org/a")
+        assert fetcher.failures == 0
+
+    def test_each_host_is_judged_on_its_own(self):
+        # Google Books being down says nothing about Open Library.
+        from epub_providers import ProviderError
+
+        def selective(url, headers=None):
+            if "googleapis" in url:
+                raise urllib.error.URLError(OSError("timed out"))
+            return {"ok": True}
+
+        now = [0.0]
+        fetcher = self.fetcher(selective, lambda: now[0], give_up_after=1)
+        with pytest.raises(urllib.error.URLError):
+            fetcher("https://www.googleapis.com/books/v1/volumes?q=x")
+        with pytest.raises(ProviderError):
+            fetcher("https://www.googleapis.com/books/v1/volumes?q=y")
+        assert fetcher("https://openlibrary.org/a") == {"ok": True}

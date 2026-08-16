@@ -54,7 +54,8 @@ class PoliteFetcher:
 
     def __init__(self, fetch=http_json, interval: float | None = None,
                  rps: float | None = None, attempts: int = 4,
-                 backoff: float = 0.5, sleep=time.sleep,
+                 backoff: float = 0.5, give_up_after: int = 4,
+                 retry_after: float = 300, sleep=time.sleep,
                  clock=time.monotonic, jitter=random.uniform) -> None:
         self._fetch = fetch
         if interval is None:
@@ -70,17 +71,59 @@ class PoliteFetcher:
         self._clock = clock
         self._jitter = jitter
         self._last = None
+        # Retrying is right for a hiccup and wrong for an outage. After
+        # this many whole failures in a row a host is treated as down
+        # and calls fail at once, rather than each of several hundred
+        # authors costing four attempts and a minute of backoff.
+        self._give_up_after = give_up_after
+        self._retry_after = retry_after
+        self._down: dict[str, tuple[int, float]] = {}
 
     @property
     def interval(self) -> float:
         """Seconds between requests — the pace, read back."""
         return self._interval
 
+    @property
+    def failures(self) -> int:
+        """Consecutive whole failures against the host most recently
+        asked. Zero once anything answers."""
+        return max((count for count, _ in self._down.values()), default=0)
+
+    @staticmethod
+    def _host(url: str) -> str:
+        """Google Books being down says nothing about Open Library."""
+        return urllib.parse.urlsplit(url).netloc
+
     def __call__(self, url: str, headers: dict | None = None) -> dict:
+        host = self._host(url)
+        count, since = self._down.get(host, (0, 0.0))
+        if count >= self._give_up_after:
+            if self._clock() - since < self._retry_after:
+                raise ProviderError(
+                    f"{host} is not answering; giving it a rest.")
+            # Long enough: let one through and see. The service keeps a
+            # fetcher for its whole life and has to recover on its own.
+            self._down[host] = (0, 0.0)
+
+        try:
+            return self._attempt(url, headers)
+        except urllib.error.HTTPError:
+            # An answer, even an unwelcome one. A host that answers is
+            # not a host that is down.
+            raise
+        except Exception:
+            count, _ = self._down.get(host, (0, 0.0))
+            self._down[host] = (count + 1, self._clock())
+            raise
+
+    def _attempt(self, url: str, headers: dict | None) -> dict:
         for attempt in range(1, self._attempts + 1):
             self._wait()
             try:
-                return self._fetch(url, headers=headers)
+                answer = self._fetch(url, headers=headers)
+                self._down.pop(self._host(url), None)
+                return answer
             except urllib.error.HTTPError as exc:
                 if exc.code not in self.AGAIN or attempt == self._attempts:
                     raise

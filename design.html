@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M6 COMPLETE</span>
-  <div class="hdr-right">723 pytest · 306 playwright (chromium + webkit)</div>
+  <div class="hdr-right">729 pytest · 306 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -818,6 +818,11 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns <code>503</code>, <code>Connection reset by peer</code>, and SSL handshake timeouts — all three, in one run.</p>
 <p><strong>Open Library publishes its limits: 1 request/second anonymously, 3/second for a client that identifies itself</strong> with an application name and contact address — which <code>OPENLIBRARY_CONTACT_EMAIL</code> provides. <code>PROVIDER_MAX_RPS</code> sets the pace, defaults to <strong>2</strong> for headroom, and is capped at their ceiling. Their APIs are explicitly not a bulk backend — for bulk work they ask you to use the monthly data dumps, which is a fair description of a 1,300-book sweep, and the reason every answer is cached.</p>
 <p><code>PoliteFetcher</code> spaces requests out and retries what is worth retrying: 429, 5xx, and connection failures, but never a 404, which is an answer. It wraps the fetcher rather than the providers, so the providers stay ignorant of it, and <strong>one instance is shared by the whole service</strong> — four providers each pacing themselves is four unsynchronised streams.</p>
+<div class="note">
+  <span class="eyebrow">Retrying is right for a hiccup and wrong for an outage</span>
+  <p>Open Library went down twice during this work, and each new author then cost four attempts and 48 seconds of backoff before being abandoned — nearly three hours for the ~200 authors the MOBI books brought in. After four whole failures in a row a host is treated as down and calls fail at once: the same run took two and a half minutes. Judged <strong>per host</strong>, and an HTTP error does not count — a 404 is an answer, and a host that answers is not down. One success clears it, and so does five minutes.</p>
+</div>
+
 <p>The suite now injects a fetcher that refuses immediately, so no test touches the network. One endpoint test had been making real requests all along; it took 48 seconds on the day Open Library was struggling.</p>
 
 <!-- ─────────────────────────────────────────── -->
