@@ -166,3 +166,49 @@ class TestIndexStatus:
         assert status["books"] >= 4
         assert status["authors"] >= 2
         assert "indexed_at" in status
+
+
+class TestTheStatusCountsWhatIsOnTheShelves:
+    """The status line said 590 authors while Browse listed 395. Both
+    numbers were honest — repairs leave author rows behind rather than
+    deleting a row another book might use, and the genre vocabulary is
+    loaded whole from genres.tsv whether a book uses a term or not. But
+    a status line that disagrees with the screen below it is wrong.
+    """
+
+    def counts(self, client):
+        return client.get("/api/status").json()
+
+    def test_an_author_with_no_books_is_not_counted(self, stocked, gateway):
+        gateway.database.connection.execute(
+            "INSERT INTO author (name, sort_name) VALUES ('Nobody At All',"
+            " 'nobody at all')")
+        before = self.counts(stocked)["authors"]
+        assert before == len(stocked.get("/api/authors").json()["authors"])
+
+    def test_a_genre_no_book_uses_is_not_counted(self, stocked, gateway):
+        gateway.database.connection.execute(
+            "INSERT INTO genre (name, sort_name) VALUES ('Nobody Reads This',"
+            " 'nobody reads this')")
+        assert self.counts(stocked)["genres"] == len(
+            stocked.get("/api/genres").json()["genres"])
+
+    def test_a_series_no_book_belongs_to_is_not_counted(self, stocked, gateway):
+        gateway.database.connection.execute(
+            "INSERT INTO series (name, sort_name) VALUES ('Empty Saga',"
+            " 'empty saga')")
+        assert self.counts(stocked)["series"] == len(
+            stocked.get("/api/series").json()["series"])
+
+    def test_a_vanished_book_takes_its_author_with_it(self, stocked, gateway):
+        # The author of a book that is no longer on disk is not on the
+        # shelves either.
+        before = self.counts(stocked)["authors"]
+        gateway.database.connection.execute(
+            "UPDATE book SET missing_since = 1 WHERE id ="
+            " (SELECT MIN(book_id) FROM book_author)")
+        after = self.counts(stocked)
+        assert after["authors"] <= before
+        assert after["authors"] == len(
+            stocked.get("/api/authors").json()["authors"])
+        assert after["missing"] >= 1

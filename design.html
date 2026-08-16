@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
-  <div class="hdr-right">663 pytest · 270 playwright (chromium + webkit)</div>
+  <div class="hdr-right">667 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -772,6 +772,13 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </div>
 
 <p>A routine scan short-circuits on unchanged size and mtime, so this only ever bit when a file was touched, edited, or replaced with a better copy — which is exactly what a growing library does.</p>
+
+<h3>6.8 &nbsp;The status line counts what is on the shelves</h3>
+<p><code>/api/status</code> reported <strong>590 authors</strong> while the Browse tab listed 395, and both numbers were honest: a repair leaves an author row behind rather than deleting one another book might still use, and <code>genres.tsv</code> is loaded whole at startup whether a book uses a term or not. Counting rows counts things nobody can see.</p>
+<div class="note">
+  <span class="eyebrow">Rule</span>
+  <p>The status counts join through to a <strong>present book</strong>, exactly as the browse lists do. A status line that disagrees with the screen below it is wrong, however defensible each number is on its own.</p>
+</div>
 
 <h3>6.6 &nbsp;Running the passes as the library grows</h3>
 <p>New books arrive with the same defects the first 1,300 had, so the passes are a command too:</p>

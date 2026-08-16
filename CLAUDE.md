@@ -447,6 +447,12 @@ Corrections have to survive a rescan, and until this was fixed they did not: `_w
 
 Every pass records provenance for what it changes, or the next scan would undo it.
 
+### 6.8 The status line counts what is on the shelves
+
+`/api/status` reported **590 authors** while the Browse tab listed 395, and both numbers were honest. A repair leaves an author row behind rather than deleting one another book might still use, and `genres.tsv` is loaded whole at startup whether a book uses a term or not — so counting rows counts things nobody can see.
+
+The status counts now join through to a **present** book, exactly as the browse lists do. A status line that disagrees with the screen below it is wrong however defensible each number is on its own.
+
 ### 6.6 Running the passes as the library grows
 
 New books arrive with the same defects the first 1,300 had, so the three passes are also a command:

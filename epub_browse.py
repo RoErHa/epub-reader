@@ -333,8 +333,23 @@ class BrowseQueries:
             "books": one("SELECT COUNT(*) FROM book WHERE missing_since IS NULL"),
             "missing": one("SELECT COUNT(*) FROM book WHERE missing_since IS NOT NULL"),
             "failed": one("SELECT COUNT(*) FROM book WHERE index_error IS NOT NULL"),
-            "authors": one("SELECT COUNT(*) FROM author"),
-            "series": one("SELECT COUNT(*) FROM series"),
-            "genres": one("SELECT COUNT(*) FROM genre"),
+            # What is on the shelves, not how many rows there are. A
+            # repair leaves author rows behind rather than deleting one
+            # another book might use, and the genre vocabulary is loaded
+            # whole from genres.tsv whether a book uses a term or not —
+            # so counting rows said 590 authors while Browse listed 395.
+            "authors": one("""
+                SELECT COUNT(DISTINCT ba.author_id) FROM book_author ba
+                  JOIN book b ON b.id = ba.book_id AND b.missing_since IS NULL
+            """),
+            "series": one("""
+                SELECT COUNT(DISTINCT m.series_id) FROM metadata m
+                  JOIN book b ON b.id = m.book_id AND b.missing_since IS NULL
+                 WHERE m.series_id IS NOT NULL
+            """),
+            "genres": one("""
+                SELECT COUNT(DISTINCT bg.genre_id) FROM book_genre bg
+                  JOIN book b ON b.id = bg.book_id AND b.missing_since IS NULL
+            """),
             "indexed_at": one("SELECT COALESCE(MAX(indexed_at), 0) FROM book"),
         }
