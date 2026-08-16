@@ -580,7 +580,9 @@ Three things the shape of the DOM forced:
 
 > **Rule: an annotation test clears the book's marks first.** Marks are shared server-side like position, but unlike position they accumulate *within* a spec file as well as across it. Position could only be handled by reserving a book nothing else opens (§10.2); marks can be deleted, so `beforeEach` starts each test from a clean book. `annotate-me.epub` is still reserved — nothing else may open it.
 
-The note flow asks for the text **before** making the mark, so a cancelled note leaves no orphan highlight behind.
+The note flow asks for the text **before** making the mark, so a cancelled note leaves no orphan highlight behind. It is a composer, not `window.prompt`: prompt blocks the page, cannot be styled, and on iOS reads as the browser asking rather than the app. Enter saves, Shift+Enter is a new line, Escape gives up, and a selection settling while a note is open does not snatch it away. Notes can also be written or changed afterwards from the panel, where the note is rather than somewhere else on the screen.
+
+> **Emptying a note is not the same as not mentioning one.** `PATCH` applies only the fields the request actually names — `{"note": null}` clears it, `{}` changes nothing. Without that distinction a colour change would quietly erase a note, since both arrive as `None`. The store refuses any field outside `note` and `color` rather than ignoring it.
 
 ## 9. Decisions — settled
 

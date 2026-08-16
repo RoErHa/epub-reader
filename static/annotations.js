@@ -46,6 +46,7 @@ export class Annotations {
   // ── the offer ─────────────────────────────────────────────────────
   /** The reader has finished selecting — or has cleared the selection. */
   offer (selection) {
+    if (this.#writingNote()) return
     if (!selection || !selection.cfi) return this.hideOffer()
     this.#pending = selection
     const menu = this.#dom.selectionMenu
@@ -56,6 +57,11 @@ export class Annotations {
   hideOffer () {
     this.#pending = null
     if (this.#dom.selectionMenu) this.#dom.selectionMenu.hidden = true
+  }
+
+  /** A selection settling must not snatch away a note being written. */
+  #writingNote () {
+    return this.#dom.noteEditor && !this.#dom.noteEditor.hidden
   }
 
   /** Above the selection where there is room, below it where there is
@@ -156,6 +162,13 @@ export class Annotations {
       row.append(note)
     }
 
+    const annotate = document.createElement('button')
+    annotate.className = 'mark-annotate'
+    annotate.type = 'button'
+    annotate.textContent = mark.note ? 'Edit note' : 'Add note'
+    annotate.addEventListener('click', () => this.#editNote(row, mark))
+    row.append(annotate)
+
     const remove = document.createElement('button')
     remove.className = 'mark-remove'
     remove.type = 'button'
@@ -166,26 +179,91 @@ export class Annotations {
     return row
   }
 
+  /** Editing a note in the panel happens where the note is, rather than
+   *  somewhere else on the screen. */
+  #editNote (row, mark) {
+    if (row.querySelector('.mark-editor')) return
+    const editor = document.createElement('div')
+    editor.className = 'mark-editor'
+
+    const field = document.createElement('textarea')
+    field.rows = 3
+    field.value = mark.note ?? ''
+    field.setAttribute('aria-label', 'Note')
+    editor.append(field)
+
+    const save = document.createElement('button')
+    save.className = 'mark-save'
+    save.type = 'button'
+    save.textContent = 'Save'
+    save.addEventListener('click', async () => {
+      // An emptied note is no note; the words stay marked either way.
+      await this.annotate(mark.id, field.value.trim() || null)
+    })
+
+    const cancel = document.createElement('button')
+    cancel.className = 'mark-cancel'
+    cancel.type = 'button'
+    cancel.textContent = 'Cancel'
+    cancel.addEventListener('click', () => editor.remove())
+
+    const actions = document.createElement('div')
+    actions.className = 'mark-editor-actions'
+    actions.append(cancel, save)
+    editor.append(actions)
+
+    row.append(editor)
+    field.focus()
+  }
+
   // ── wiring ────────────────────────────────────────────────────────
   #wire () {
     const dom = this.#dom
     dom.selectionHighlight?.addEventListener('click', () => this.highlight())
     dom.selectionNote?.addEventListener('click', () => this.#withNote())
     dom.selectionCopy?.addEventListener('click', () => this.#copy())
+    dom.noteCancel?.addEventListener('click', () => {
+      this.#closeNote()
+      this.hideOffer()
+    })
+    dom.noteSave?.addEventListener('click', async () => {
+      const note = dom.noteText.value.trim()
+      this.#closeNote()
+      await this.highlight('yellow', note || null)
+    })
+    dom.noteText?.addEventListener('keydown', event => {
+      // Enter saves, Shift+Enter is a new line, Escape gives up.
+      if (event.key === 'Escape') {
+        this.#closeNote()
+        this.hideOffer()
+      } else if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        dom.noteSave.click()
+      }
+    })
     for (const swatch of dom.selectionColours ?? []) {
       swatch.addEventListener('click',
         () => this.highlight(swatch.dataset.color))
     }
   }
 
-  async #withNote () {
-    const selection = this.#pending
-    if (!selection) return
-    // Asked for before the mark is made, so a cancelled note leaves no
-    // orphan highlight behind.
-    const note = window.prompt('Note', '')
-    if (note === null) return this.hideOffer()
-    await this.highlight('yellow', note)
+  /* The note is asked for before the mark is made, so cancelling leaves
+   * no orphan highlight behind. A composer rather than window.prompt:
+   * prompt blocks the page, cannot be styled, and on iOS reads as the
+   * browser asking rather than the app. */
+  #withNote () {
+    if (!this.#pending) return
+    const { noteEditor, noteText } = this.#dom
+    if (!noteEditor) return
+    this.#dom.selectionMenu.hidden = true
+    noteText.value = ''
+    noteEditor.hidden = false
+    this.#place(noteEditor, this.#pending.rect)
+    noteText.focus()
+  }
+
+  #closeNote () {
+    if (this.#dom.noteEditor) this.#dom.noteEditor.hidden = true
   }
 
   async #copy () {

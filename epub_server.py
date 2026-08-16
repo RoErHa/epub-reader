@@ -622,9 +622,13 @@ class EpubGateway:
         @app.patch("/api/annotations/{annotation_id}")
         def patch_annotation(annotation_id: int,
                              body: AnnotationEdit) -> JSONResponse:
+            # Only what the request actually mentioned: emptying a note
+            # is not the same as not mentioning one.
+            changes = {field: getattr(body, field)
+                       for field in body.model_fields_set}
             try:
-                return JSONResponse(self._annotations.update(
-                    annotation_id, note=body.note, color=body.color))
+                return JSONResponse(
+                    self._annotations.update(annotation_id, **changes))
             except LookupError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from None
             except AnnotationError as exc:

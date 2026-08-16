@@ -123,6 +123,107 @@ test.describe('highlighting', () => {
   })
 })
 
+test.describe('writing a note', () => {
+  test('opens a composer rather than a browser prompt', async ({ page }) => {
+    // window.prompt blocks the page, cannot be styled, and on iOS looks
+    // like the browser asking rather than the app.
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-note').click()
+    await expect(page.locator('#note-editor')).toBeVisible()
+    await expect(page.locator('#note-text')).toBeFocused()
+  })
+
+  test('saves the note with the highlight', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-note').click()
+    await page.locator('#note-text').fill('Orwell opens on a clock.')
+    await page.locator('#note-save').click()
+
+    await expect.poll(async () => (await marksOn(page, BOOK))[0]?.note,
+      { timeout: 10000 }).toBe('Orwell opens on a clock.')
+  })
+
+  test('the note is shown under the words it belongs to', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-note').click()
+    await page.locator('#note-text').fill('Worth coming back to.')
+    await page.locator('#note-save').click()
+
+    await page.locator('#tab-marks').click()
+    await expect(page.locator('.mark-note')).toHaveText('Worth coming back to.')
+  })
+
+  test('cancelling leaves no highlight behind', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-note').click()
+    await page.locator('#note-text').fill('Never mind.')
+    await page.locator('#note-cancel').click()
+
+    await expect(page.locator('#note-editor')).toBeHidden()
+    expect(await marksOn(page, BOOK)).toHaveLength(0)
+  })
+
+  test('a note can be written afterwards, from the panel', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-highlight').click()
+    await page.locator('#tab-marks').click()
+    await expect(page.locator('.mark-item')).toHaveCount(1, { timeout: 10000 })
+
+    await page.locator('.mark-annotate').click()
+    await page.locator('.mark-editor textarea').fill('Second thoughts.')
+    await page.locator('.mark-editor .mark-save').click()
+
+    await expect(page.locator('.mark-note')).toHaveText('Second thoughts.')
+    await expect.poll(async () => (await marksOn(page, BOOK))[0]?.note).toBe(
+      'Second thoughts.')
+  })
+
+  test('an existing note can be changed', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-note').click()
+    await page.locator('#note-text').fill('First thought.')
+    await page.locator('#note-save').click()
+    await page.locator('#tab-marks').click()
+    await expect(page.locator('.mark-note')).toHaveText('First thought.')
+
+    await page.locator('.mark-annotate').click()
+    await expect(page.locator('.mark-editor textarea')).toHaveValue('First thought.')
+    await page.locator('.mark-editor textarea').fill('Better thought.')
+    await page.locator('.mark-editor .mark-save').click()
+    await expect(page.locator('.mark-note')).toHaveText('Better thought.')
+  })
+
+  test('emptying a note keeps the highlight', async ({ page }) => {
+    // The words are still marked; you have only stopped saying why.
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await selectParagraph(page)
+    await page.locator('#selection-note').click()
+    await page.locator('#note-text').fill('Delete me.')
+    await page.locator('#note-save').click()
+    await page.locator('#tab-marks').click()
+
+    await page.locator('.mark-annotate').click()
+    await page.locator('.mark-editor textarea').fill('')
+    await page.locator('.mark-editor .mark-save').click()
+
+    await expect(page.locator('.mark-note')).toHaveCount(0)
+    await expect(page.locator('.mark-item')).toHaveCount(1)
+  })
+})
+
 test.describe('the highlights panel', () => {
   test('says so when there is nothing in it', async ({ page }) => {
     await page.goto('/')

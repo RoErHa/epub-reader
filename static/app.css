@@ -660,3 +660,78 @@ foliate-view{display:block;width:100%;height:100%}
   cursor: pointer;
 }
 .mark-remove:hover { color: var(--text, #E8EDF7); }
+
+/* The note composer: the same anchoring as the offer it replaces, so a
+ * note is written where the words are. */
+#note-editor {
+  position: fixed;
+  z-index: 61;
+  width: min(320px, calc(100vw - 24px));
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--panel, #12203A);
+  border: 1px solid var(--line, #24365A);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+#note-editor[hidden] { display: none !important; }
+
+#note-editor textarea,
+.mark-editor textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line, #24365A);
+  border-radius: 7px;
+  background: var(--bg, #0A1526);
+  color: var(--text, #E8EDF7);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+}
+#note-editor textarea:focus,
+.mark-editor textarea:focus {
+  outline: 2px solid var(--amber, #FFC24A);
+  outline-offset: 1px;
+}
+
+.note-actions,
+.mark-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+.note-actions button,
+.mark-editor-actions button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #24365A);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text, #E8EDF7);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.note-actions .primary,
+.mark-editor-actions .mark-save {
+  background: var(--amber, #FFC24A);
+  border-color: var(--amber, #FFC24A);
+  color: #0A1526;
+}
+
+.mark-editor { margin: 8px 0 0 13px; }
+
+.mark-annotate {
+  margin: 8px 10px 0 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim, #93A4C3);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mark-annotate:hover { color: var(--amber, #FFC24A); }

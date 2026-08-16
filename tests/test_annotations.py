@@ -116,6 +116,28 @@ class TestChangingOne:
         assert kept["text"] == "It was a bright cold day in April."
         assert kept["cfi"] == "epubcfi(/6/4!/4/2,/1:0,/1:24)"
 
+    def test_a_note_can_be_taken_back(self, client, book):
+        # Emptying a note is not the same as not mentioning it. The
+        # words stay marked either way — you have only stopped saying
+        # why.
+        mark = make(client, book, note="On reflection, no.").json()["id"]
+        client.patch(f"/api/annotations/{mark}", json={"note": None})
+        kept = listing(client, book)[0]
+        assert kept["note"] is None
+        assert kept["text"] == "It was a bright cold day in April."
+
+    def test_mentioning_nothing_changes_nothing(self, client, book):
+        mark = make(client, book, note="Keep me", color="green").json()["id"]
+        client.patch(f"/api/annotations/{mark}", json={})
+        kept = listing(client, book)[0]
+        assert kept["note"] == "Keep me"
+        assert kept["color"] == "green"
+
+    def test_a_colour_can_be_taken_back_too(self, client, book):
+        mark = make(client, book, color="blue").json()["id"]
+        client.patch(f"/api/annotations/{mark}", json={"color": None})
+        assert listing(client, book)[0]["color"] is None
+
     def test_changing_one_that_is_gone_is_a_404(self, client, book):
         assert client.patch("/api/annotations/999999",
                             json={"note": "x"}).status_code == 404

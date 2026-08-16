@@ -71,20 +71,33 @@ class AnnotationStore:
         )
         return self.get(cursor.lastrowid)
 
-    def update(self, annotation_id: int, note: str | None = None,
-               color: str | None = None) -> dict:
+    def update(self, annotation_id: int, **changes) -> dict:
         """A note and a colour are second thoughts, and may change. The
         words and the place are what the highlight *is*: changing those
-        would make it a different highlight wearing the same id."""
+        would make it a different highlight wearing the same id.
+
+        Only fields actually named are touched, because **emptying a
+        note is not the same as not mentioning one** — passing None for
+        a field nobody asked about would quietly erase it.
+        """
         current = self.get(annotation_id)
         if current is None:
             raise LookupError(f"No annotation with id {annotation_id}.")
+
+        allowed = {"note", "color"}
+        unknown = set(changes) - allowed
+        if unknown:
+            raise AnnotationError(
+                f"A highlight's {', '.join(sorted(unknown))} cannot be changed."
+                " The words and the place are what it is.")
+
+        note = changes.get("note", current["note"])
+        color = (self._colour(changes["color"]) if "color" in changes
+                 else current["color"])
         self._db.connection.execute(
             "UPDATE annotation SET note = ?, color = ?, updated_at = ?"
             " WHERE id = ?",
-            (current["note"] if note is None else note,
-             current["color"] if color is None else self._colour(color),
-             int(time.time()), annotation_id),
+            (note, color, int(time.time()), annotation_id),
         )
         return self.get(annotation_id)
 
