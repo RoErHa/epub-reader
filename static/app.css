@@ -560,3 +560,103 @@ foliate-view{display:block;width:100%;height:100%}
   header{padding:7px 12px;gap:8px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ── Highlights ─────────────────────────────────────────────────────
+ *
+ * The offer that appears over a selection, and the panel that lists
+ * what has been marked. The offer belongs to the page rather than the
+ * book's frame: a document cannot draw outside itself, and this has to
+ * sit above the reader.
+ */
+#selection-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--panel, #12203A);
+  border: 1px solid var(--line, #24365A);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+#selection-menu[hidden] { display: none !important; }
+
+#selection-menu button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text, #E8EDF7);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#selection-menu button:hover { background: var(--hover, #1B2C4A); }
+
+.selection-inks {
+  display: flex;
+  gap: 4px;
+  padding-left: 6px;
+  margin-left: 2px;
+  border-left: 1px solid var(--line, #24365A);
+}
+#selection-menu .ink {
+  width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 25%);
+}
+#selection-menu .ink[data-color="yellow"] { background: #FFC24A; }
+#selection-menu .ink[data-color="green"]  { background: #7BD88F; }
+#selection-menu .ink[data-color="blue"]   { background: #7AB8FF; }
+#selection-menu .ink[data-color="pink"]   { background: #FF9BC2; }
+
+.mark-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line, #24365A);
+}
+
+/* The quoted words are the control: clicking them takes you there. */
+.mark-text {
+  display: block;
+  width: 100%;
+  padding: 0 0 0 10px;
+  border: 0;
+  border-left: 3px solid var(--amber, #FFC24A);
+  background: transparent;
+  color: var(--text, #E8EDF7);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+.mark-text[data-color="green"]     { border-left-color: #7BD88F; }
+.mark-text[data-color="blue"]      { border-left-color: #7AB8FF; }
+.mark-text[data-color="pink"]      { border-left-color: #FF9BC2; }
+.mark-text[data-color="underline"] { border-left-style: dashed; }
+.mark-text:hover { color: var(--amber, #FFC24A); }
+
+.mark-note {
+  margin: 6px 0 0 13px;
+  color: var(--dim, #93A4C3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.mark-remove {
+  margin: 8px 0 0 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim, #93A4C3);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mark-remove:hover { color: var(--text, #E8EDF7); }

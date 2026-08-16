@@ -5,6 +5,19 @@
  * churn lands here and nowhere else.
  */
 import '/static/vendor/foliate-js/view.js'
+import { Overlayer } from '/static/vendor/foliate-js/overlayer.js'
+
+/* How a highlight is drawn. foliate hands us the rectangles and asks
+ * what to paint; these are the only colours a mark can be, and the set
+ * matches the one the server will accept. */
+const INK = {
+  yellow: { draw: Overlayer.highlight, options: { color: '#FFC24A' } },
+  green: { draw: Overlayer.highlight, options: { color: '#7BD88F' } },
+  blue: { draw: Overlayer.highlight, options: { color: '#7AB8FF' } },
+  pink: { draw: Overlayer.highlight, options: { color: '#FF9BC2' } },
+  underline: { draw: Overlayer.underline, options: { color: '#FFC24A' } }
+}
+const DEFAULT_INK = 'yellow'
 
 export class ReaderEngine {
   #view = null
@@ -12,7 +25,8 @@ export class ReaderEngine {
   #styles = ''
   #requested = {}        // what the display settings asked for
   #forcedScrolled = false
-  #listeners = { relocate: [], load: [] }
+  #listeners = { relocate: [], load: [], selection: [] }
+  #marks = new Map()     // cfi → colour, everything drawn on this book
 
   constructor (host) {
     this.#host = host
@@ -111,7 +125,18 @@ export class ReaderEngine {
       // Layout attributes could not be applied before a section existed
       // (see #applyAttributes) — the first load is the earliest safe point.
       this.#applyAttributes()
+      this.#watchSelection(e.detail.doc)
+      // A section gets a fresh overlay when it loads, so whatever was
+      // drawn on it has to be drawn again.
+      this.#redraw()
       this.#emit('load', { index: e.detail.index })
+    })
+
+    // foliate asks what a mark should look like rather than deciding.
+    view.addEventListener('draw-annotation', e => {
+      const { draw, annotation } = e.detail
+      const ink = INK[annotation.color] ?? INK[DEFAULT_INK]
+      draw(ink.draw, ink.options)
     })
 
     await view.open(url)
@@ -137,7 +162,106 @@ export class ReaderEngine {
     return this.metadata
   }
 
+  // ── marks ─────────────────────────────────────────────────────────
+  /** Draw a highlight, or move it to another colour. */
+  async mark (cfi, color = DEFAULT_INK) {
+    if (!this.#view || !cfi) return false
+    this.#marks.set(cfi, color)
+    try {
+      await this.#view.addAnnotation({ value: cfi, color })
+      return true
+    } catch {
+      // A CFI that no longer resolves — the book was replaced. The
+      // words are still in the database, which is the whole reason
+      // they are stored there.
+      return false
+    }
+  }
+
+  /** Take a highlight off the page. */
+  async unmark (cfi) {
+    if (!this.#view || !cfi) return
+    this.#marks.delete(cfi)
+    try {
+      await this.#view.deleteAnnotation({ value: cfi })
+    } catch { /* already gone with its section */ }
+  }
+
+  /** Draw a whole set at once, replacing anything drawn before. */
+  async drawAll (marks) {
+    this.#marks.clear()
+    for (const mark of marks ?? []) this.#marks.set(mark.cfi, mark.color)
+    await this.#redraw()
+  }
+
+  async goToMark (cfi) {
+    if (!this.#view || !cfi) return false
+    try {
+      await this.#view.showAnnotation({ value: cfi })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async #redraw () {
+    for (const [cfi, color] of this.#marks) {
+      try {
+        await this.#view?.addAnnotation({ value: cfi, color })
+      } catch { /* belongs to a section that is not loaded */ }
+    }
+  }
+
+  // ── selection ─────────────────────────────────────────────────────
+  /** Watch one section's document for the reader letting go of a
+   *  selection. Sections are replaced as you move, so every load gets
+   *  its own listeners. */
+  #watchSelection (doc) {
+    if (!doc) return
+    const settled = () => this.#emit('selection', this.selection())
+    doc.addEventListener('pointerup', settled)
+    doc.addEventListener('keyup', settled)
+  }
+
+  /** What is selected right now: the words, where they are, and where
+   *  on screen to put an offer about them. Null when nothing is. */
+  selection () {
+    const contents = this.#view?.renderer?.getContents?.() ?? []
+    for (const { doc, index } of contents) {
+      const sel = doc?.getSelection?.()
+      if (!sel || !sel.rangeCount || sel.isCollapsed) continue
+      const text = sel.toString().trim()
+      if (!text) continue
+      const range = sel.getRangeAt(0)
+      let cfi = null
+      try {
+        cfi = this.#view.getCFI(index, range)
+      } catch {
+        return null
+      }
+      return { cfi, text, rect: this.#screenRect(doc, range) }
+    }
+    return null
+  }
+
+  /** The selection's rectangle in *page* coordinates, not the book
+   *  frame's — the offer is drawn by the app, outside the frame. */
+  #screenRect (doc, range) {
+    const inner = range.getBoundingClientRect()
+    const frame = doc.defaultView?.frameElement?.getBoundingClientRect()
+    if (!frame) return { top: inner.top, left: inner.left, bottom: inner.bottom,
+      width: inner.width, height: inner.height }
+    return {
+      top: inner.top + frame.top,
+      left: inner.left + frame.left,
+      bottom: inner.bottom + frame.top,
+      width: inner.width,
+      height: inner.height
+    }
+  }
+
   close () {
+    this.#marks.clear()
     this.#forcedScrolled = false
     if (!this.#view) return
     this.#view.remove()

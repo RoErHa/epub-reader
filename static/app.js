@@ -7,6 +7,7 @@ import { Browser } from '/static/browse.js'
 import { LoadingIndicator, fetchWithProgress } from '/static/loading.js'
 import { ReaderEngine } from '/static/reader.js'
 import { ReaderSettings } from '/static/settings.js'
+import { Annotations } from '/static/annotations.js'
 import { TableOfContents } from '/static/toc.js'
 
 class PositionStore {
@@ -159,6 +160,7 @@ class BooksApp {
   #list = null
   #browserDom = null
   #toc = null
+  #marks = null
   #settings = null
   #positions = null
   #loading = null
@@ -216,6 +218,14 @@ class BooksApp {
       next: root.getElementById('btn-next'),
       toc: root.getElementById('toc-list'),
       tabToc: root.getElementById('tab-toc'),
+      tabMarks: root.getElementById('tab-marks'),
+      panelMarks: root.getElementById('panel-marks'),
+      marksList: root.getElementById('marks-list'),
+      selectionMenu: root.getElementById('selection-menu'),
+      selectionHighlight: root.getElementById('selection-highlight'),
+      selectionNote: root.getElementById('selection-note'),
+      selectionCopy: root.getElementById('selection-copy'),
+      selectionColours: [...root.querySelectorAll('#selection-menu .ink')],
       tabDisplay: root.getElementById('tab-display'),
       panelToc: root.getElementById('panel-toc'),
       panelDisplay: root.getElementById('panel-display'),
@@ -246,6 +256,10 @@ class BooksApp {
       item => this.#showReview(item)
     )
     this.#toc = new TableOfContents(this.dom.toc, item => this.#reader.goTo(item.href))
+    this.#marks = new Annotations(this.dom, this.#reader)
+    // The reader reports a selection settling; what to offer about it
+    // is not the engine's business.
+    this.#reader.on('selection', selection => this.#marks.offer(selection))
     this.#sheet = new ShelfSheet(this.dom)
     // Choosing a book shows it; reading starts when you ask for it.
     this.#detail = new BookDetail(this.dom, {
@@ -352,15 +366,20 @@ class BooksApp {
   }
 
   #bindPanels () {
-    const show = which => {
-      const isToc = which === 'toc'
-      this.dom.tabToc.classList.toggle('active', isToc)
-      this.dom.tabDisplay.classList.toggle('active', !isToc)
-      this.dom.panelToc.hidden = !isToc
-      this.dom.panelDisplay.hidden = isToc
+    const panels = {
+      toc: [this.dom.tabToc, this.dom.panelToc],
+      marks: [this.dom.tabMarks, this.dom.panelMarks],
+      display: [this.dom.tabDisplay, this.dom.panelDisplay]
     }
-    this.dom.tabToc.addEventListener('click', () => show('toc'))
-    this.dom.tabDisplay.addEventListener('click', () => show('display'))
+    const show = which => {
+      for (const [name, [tab, panel]] of Object.entries(panels)) {
+        tab.classList.toggle('active', name === which)
+        panel.hidden = name !== which
+      }
+    }
+    for (const [name, [tab]] of Object.entries(panels)) {
+      tab.addEventListener('click', () => show(name))
+    }
     show('toc')
   }
 
@@ -418,6 +437,8 @@ class BooksApp {
       this.dom.title.textContent = book.title ?? meta?.title ?? book.name
       this.dom.author.textContent = meta?.author ?? ''
       this.#toc.render(this.#reader.toc)
+      // Drawn after the book is laid out, or there is nothing to draw on.
+      await this.#marks.load(book.id)
       this.#loading.hide()
       this.dom.stage.dataset.state = 'open'
       this.#status(this.#reader.forcedScrolled
@@ -427,6 +448,7 @@ class BooksApp {
       this.#loading.hide()
       this.dom.stage.dataset.state = 'error'
       this.#toc.clear()
+      this.#marks.clear()
       this.#status(`Could not open that book: ${err.message}`)
     }
   }

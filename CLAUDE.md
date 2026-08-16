@@ -566,6 +566,22 @@ Three rules the tests pin down:
 
 A colour outside the drawable set is a 422: a value nothing can render is not a colour. And annotations outlive a missing file — a book whose file has vanished keeps its row, so `GET` uses a laxer lookup than the one guarding `/file`.
 
+### 8.2 M6 part 2: highlighting in the reader
+
+Selecting text offers **Highlight, Note, Copy** and a row of colours; the right panel gains a **Highlights** tab beside Contents and Display. A mark is drawn immediately, listed in the panel, and still there when the book is opened again on another device.
+
+**`static/reader.js` remains the only importer of foliate-js.** It gained `mark` / `unmark` / `drawAll` / `goToMark` / `selection`, and it answers foliate's `draw-annotation` event by saying what a mark should look like — the engine asks rather than decides, so the palette lives in one place and matches the set the server accepts.
+
+Three things the shape of the DOM forced:
+
+- **The offer belongs to the page, not the book.** A document cannot draw outside itself, and the popover has to sit above the reader — so `selection()` converts the range's rectangle from frame coordinates to page ones, and the menu is positioned above the words unless there is no room, in which case below. A menu covering the words you just chose is no use.
+- **Selection has to be watched per section.** foliate replaces the document when you move between sections, so every `load` attaches its own listeners.
+- **A section gets a fresh overlay when it loads**, so everything drawn on it must be drawn again — `#redraw()` runs on every load, and marks belonging to other sections fail quietly.
+
+> **Rule: an annotation test clears the book's marks first.** Marks are shared server-side like position, but unlike position they accumulate *within* a spec file as well as across it. Position could only be handled by reserving a book nothing else opens (§10.2); marks can be deleted, so `beforeEach` starts each test from a clean book. `annotate-me.epub` is still reserved — nothing else may open it.
+
+The note flow asks for the text **before** making the mark, so a cancelled note leaves no orphan highlight behind.
+
 ## 9. Decisions — settled
 
 | # | Decision | Consequence |
@@ -662,6 +678,8 @@ static/detail.js    BookDetail — the book-detail screen
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
+static/annotations.js Annotations — the selection offer and the marks panel
+epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
 run.sh              start / stop / restart / status / scan / repair / refresh
 com.roha.epub-reader.refresh.plist   the weekly author refresh

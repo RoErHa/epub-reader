@@ -129,6 +129,16 @@ class TestLibrary:
             chapters=2,
         ).build(self.library / "untouched.epub")
 
+        # Reserved for the annotation tests. Highlights are server-side
+        # and shared (decision 7), so a book another test marks up would
+        # carry those marks into this one. Nothing else may open it.
+        EpubBuilder(
+            title="Annotate Me",
+            author="A Reader",
+            chapters=3,
+            paragraphs_per_chapter=4,
+        ).build(self.library / "annotate-me.epub")
+
         EpubBuilder(
             title="Hostile Book",
             author="Test Author",

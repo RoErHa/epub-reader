@@ -130,14 +130,31 @@
     </div>
   </div>
 
+  <div id="selection-menu" hidden>
+    <button type="button" id="selection-highlight">Highlight</button>
+    <button type="button" id="selection-note">Note</button>
+    <button type="button" id="selection-copy">Copy</button>
+    <span class="selection-inks">
+      <button type="button" class="ink" data-color="yellow" aria-label="Yellow"></button>
+      <button type="button" class="ink" data-color="green" aria-label="Green"></button>
+      <button type="button" class="ink" data-color="blue" aria-label="Blue"></button>
+      <button type="button" class="ink" data-color="pink" aria-label="Pink"></button>
+    </span>
+  </div>
+
   <div id="side">
     <div class="tab-bar">
       <button class="tab active" id="tab-toc">Contents</button>
+      <button class="tab" id="tab-marks">Highlights</button>
       <button class="tab" id="tab-display">Display</button>
     </div>
 
     <div id="panel-toc" class="panel">
       <div id="toc-list"></div>
+    </div>
+
+    <div id="panel-marks" class="panel" hidden>
+      <div id="marks-list"></div>
     </div>
 
     <div id="panel-display" class="panel" hidden>
