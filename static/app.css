@@ -535,8 +535,46 @@ foliate-view{display:block;width:100%;height:100%}
    be covered too, and an iPhone 15 is 393 x 852. 1180 clears both while
    leaving every normal Mac window (1280 and up) exactly as it is — the
    desktop layout is not to change. */
+/* The panels live in a right-hand column the Mac has room for. A touch
+   layout does not, which left the typography controls unreachable on
+   the devices that need them most — an iPad is read at arm's length and
+   the default size is small. The button brings the SAME panels in over
+   the page: two sets of controls for one setting is how they end up
+   disagreeing. */
+#btn-panels{display:none}
+#panels-close{display:none}
+
 @media (max-width:1180px){
   #side{display:none}
+  body[data-view="read"] #btn-panels{display:inline-flex}
+
+  body[data-panels="open"] #side{
+    display:flex;
+    position:fixed;
+    z-index:70;
+    top:0;right:0;bottom:0;
+    width:min(360px,86vw);
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+    background:var(--panel);
+    border-left:1px solid var(--line);
+    box-shadow:-12px 0 32px rgb(0 0 0 / 45%);
+    overflow-y:auto;
+  }
+  body[data-panels="open"] #panels-close{
+    display:block;
+    position:absolute;
+    top:calc(6px + env(safe-area-inset-top));
+    right:8px;
+    z-index:1;
+    width:44px;height:44px;      /* a real tap target */
+    border:0;
+    background:transparent;
+    color:var(--dim);
+    font-size:18px;
+    cursor:pointer;
+  }
+  body[data-panels="open"] .tab-bar{padding-right:48px}
   #browser{width:100%}
   #reader{width:100%}
   #reader-back{display:flex}

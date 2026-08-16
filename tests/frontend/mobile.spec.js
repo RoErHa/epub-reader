@@ -215,3 +215,118 @@ test.describe('the Mac layout is untouched', () => {
     })
   }
 })
+
+
+/* The panels — Contents, Highlights, Display — live in a right-hand
+ * column that a touch layout does not have room for. That made the
+ * typography controls unreachable on the devices where they are needed
+ * most: an iPad reads at arm's length, and the default size is small.
+ *
+ * So the reader carries a button that brings the same panels in over
+ * the page. The same panels, not a second copy of them: two sets of
+ * controls for one setting is how they end up disagreeing.
+ */
+for (const [name, device] of [['a phone', IPHONE],
+                              ['an iPad', IPAD_PORTRAIT]]) {
+  test.describe(`typography on ${name}`, () => {
+    test.use(device)
+
+    test('there is a way to reach the display controls', async ({ page }) => {
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await expect(page.locator('#btn-panels')).toBeVisible()
+    })
+
+    test('the button opens the panels over the page', async ({ page }) => {
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await expect(page.locator('#side')).toBeHidden()
+      await page.locator('#btn-panels').click()
+      await expect(page.locator('#side')).toBeVisible()
+    })
+
+    test('font size and line spacing are both there', async ({ page }) => {
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await page.locator('#btn-panels').click()
+      await page.locator('#tab-display').click()
+      await expect(page.locator('#font-bigger')).toBeVisible()
+      await expect(page.locator('#line-height')).toBeVisible()
+    })
+
+    test('making the text bigger makes the book bigger', async ({ page }) => {
+      const size = async () => {
+        const frame = page.frames().find(f => f.url().startsWith('blob:'))
+        if (!frame) return null
+        return frame
+          .evaluate(() => parseFloat(getComputedStyle(document.body).fontSize))
+          .catch(() => null)
+      }
+      await page.goto('/')
+      await openBook(page, BOOK)
+      const before = await size()
+
+      await page.locator('#btn-panels').click()
+      await page.locator('#tab-display').click()
+      await page.locator('#font-bigger').click()
+      await page.locator('#font-bigger').click()
+
+      await expect(page.locator('#font-size-value')).not.toHaveText('100%')
+      await expect.poll(size, { timeout: 10000 }).toBeGreaterThan(before)
+    })
+
+    test('line spacing reaches the book too', async ({ page }) => {
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await page.locator('#btn-panels').click()
+      await page.locator('#tab-display').click()
+      await page.locator('#line-height').fill('2.2')
+      await page.locator('#line-height').dispatchEvent('input')
+
+      await expect.poll(async () => {
+        const frame = page.frames().find(f => f.url().startsWith('blob:'))
+        if (!frame) return null
+        return frame.evaluate(
+          () => getComputedStyle(document.body).lineHeight).catch(() => null)
+      }, { timeout: 10000 }).not.toBe('normal')
+    })
+
+    test('contents and highlights come with it', async ({ page }) => {
+      // They were unreachable on touch too, for the same reason.
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await page.locator('#btn-panels').click()
+      await expect(page.locator('#tab-toc')).toBeVisible()
+      await expect(page.locator('#tab-marks')).toBeVisible()
+    })
+
+    test('it closes again', async ({ page }) => {
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await page.locator('#btn-panels').click()
+      await expect(page.locator('#side')).toBeVisible()
+      await page.locator('#panels-close').click()
+      await expect(page.locator('#side')).toBeHidden()
+    })
+
+    test('going back to the library closes it', async ({ page }) => {
+      await page.goto('/')
+      await openBook(page, BOOK)
+      await page.locator('#btn-panels').click()
+      await page.locator('#reader-back').click()
+      await expect(page.locator('#side')).toBeHidden()
+    })
+  })
+}
+
+test.describe('typography on a Mac', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('the panels are simply there, with no button needed', async ({ page }) => {
+    // The Mac layout does not change. That rule predates this.
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await expect(page.locator('#side')).toBeVisible()
+    await expect(page.locator('#btn-panels')).toBeHidden()
+  })
+})

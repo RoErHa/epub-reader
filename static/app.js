@@ -217,6 +217,8 @@ class BooksApp {
       prev: root.getElementById('btn-prev'),
       next: root.getElementById('btn-next'),
       toc: root.getElementById('toc-list'),
+      btnPanels: root.getElementById('btn-panels'),
+      panelsClose: root.getElementById('panels-close'),
       tabToc: root.getElementById('tab-toc'),
       tabMarks: root.getElementById('tab-marks'),
       panelMarks: root.getElementById('panel-marks'),
@@ -385,6 +387,19 @@ class BooksApp {
       tab.addEventListener('click', () => show(name))
     }
     show('toc')
+
+    // On a touch layout the column is not on screen; this brings it in
+    // over the page rather than duplicating what is in it.
+    const panelsOpen = open => {
+      if (open) document.body.dataset.panels = 'open'
+      else delete document.body.dataset.panels
+    }
+    this.dom.btnPanels?.addEventListener('click', () => {
+      panelsOpen(document.body.dataset.panels !== 'open')
+    })
+    this.dom.panelsClose?.addEventListener('click', () => panelsOpen(false))
+    // Leaving the book takes its panels with it.
+    this.dom.readerBack?.addEventListener('click', () => panelsOpen(false))
   }
 
   #applySettings () {
