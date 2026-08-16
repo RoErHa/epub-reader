@@ -543,9 +543,28 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M4 | Book detail: synopsis, About the author, Also published | done |
 | ✅ M5 | Enrichment: providers, scoring, BISAC genre map, review queue | done |
 | ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
-| M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | — |
+| 🔄 M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | in progress |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
+
+### 8.1 M6 part 1: annotations, server side
+
+Highlights and notes are **server-side and shared**, exactly like reading position (decision 7): a passage marked on the iPad is marked on the Mac. What stays per device is how the page looks, not what is on it.
+
+```
+GET    /api/books/{id}/annotations
+POST   /api/books/{id}/annotations     {cfi, text, note?, color?, fraction}
+PATCH  /api/annotations/{id}           {note?, color?}
+DELETE /api/annotations/{id}
+```
+
+Three rules the tests pin down:
+
+- **The quoted words are required**, not optional decoration. `annotation.text` duplicates what the CFI points at on purpose (§5), so a highlight survives a book being replaced by a better scan. Refusing an empty one is what makes that guarantee real.
+- **A note and a colour may change; the words and the place may not.** They are what the highlight *is*, and editing them would make it a different highlight wearing the same id. `PATCH` accepts only `note` and `color`.
+- **A fraction is stored beside the CFI**, because CFIs do not sort as strings and the highlights panel lists them in reading order. It is clamped rather than refused — an odd number should not cost somebody their highlight.
+
+A colour outside the drawable set is a 422: a value nothing can render is not a colour. And annotations outlive a missing file — a book whose file has vanished keeps its row, so `GET` uses a laxer lookup than the one guarding `/file`.
 
 ## 9. Decisions — settled
 

@@ -8,11 +8,12 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from epub_annotations import AnnotationError, AnnotationStore
 from epub_browse import BrowseError, BrowseQueries
 from epub_config import Config
 from epub_db import Database
@@ -122,6 +123,24 @@ class AuthorMerge(BaseModel):
     name: str | None = None
 
 
+class NewAnnotation(BaseModel):
+    """A highlight: where it is, and what it says there."""
+
+    cfi: str
+    text: str
+    note: str | None = None
+    color: str | None = None
+    fraction: float = 0.0
+
+
+class AnnotationEdit(BaseModel):
+    """Second thoughts. The words and the place are not editable —
+    changing those would make it a different highlight."""
+
+    note: str | None = None
+    color: str | None = None
+
+
 class ShelfName(BaseModel):
     name: str
 
@@ -170,6 +189,7 @@ class EpubGateway:
         self._browse = BrowseQueries(self._database)
         self._search = SearchQueries(self._database, self._browse)
         self._shelves = ShelfStore(self._database)
+        self._annotations = AnnotationStore(self._database)
         # One fetcher for every provider, so the pacing is the whole
         # service's rather than each caller's: four separate streams is
         # how a library-wide run earns 503s.
@@ -269,14 +289,25 @@ class EpubGateway:
             # The index already knows every book's content hash, so this
             # never touches the filesystem.
             states = reading.get_many(b["content_hash"] for b in books)
+            marks = self._annotations.counts(b["id"] for b in books)
             for book in books:
                 state = states.get(book["content_hash"])
                 book["percent"] = state.percent if state else 0
                 book["status"] = state.status if state else "unread"
+                book["annotations"] = marks.get(book["id"], 0)
             return books
 
         def book_or_404(book_id: int):
             row = browse.book_row(book_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="No such book.")
+            return row
+
+        def known_book_or_404(book_id: int):
+            """Any book the library knows, including one whose file has
+            gone missing — its annotations outlive the file."""
+            row = self._database.connection.execute(
+                "SELECT id FROM book WHERE id = ?", (book_id,)).fetchone()
             if row is None:
                 raise HTTPException(status_code=404, detail="No such book.")
             return row
@@ -568,6 +599,43 @@ class EpubGateway:
             row = book_or_404(book_id)
             state = reading.set_status(row["content_hash"], update.validated())
             return JSONResponse({"position": state.as_dict()})
+
+        @app.get("/api/books/{book_id}/annotations")
+        def get_annotations(book_id: int) -> JSONResponse:
+            # Not book_or_404: a book whose file has vanished still has
+            # a row, and what you wrote on it is still yours.
+            known_book_or_404(book_id)
+            return JSONResponse(
+                {"annotations": self._annotations.for_book(book_id)})
+
+        @app.post("/api/books/{book_id}/annotations", status_code=201)
+        def post_annotation(book_id: int, body: NewAnnotation) -> JSONResponse:
+            known_book_or_404(book_id)
+            try:
+                mark = self._annotations.add(
+                    book_id, cfi=body.cfi, text=body.text, note=body.note,
+                    color=body.color, fraction=body.fraction)
+            except AnnotationError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            return JSONResponse(mark, status_code=201)
+
+        @app.patch("/api/annotations/{annotation_id}")
+        def patch_annotation(annotation_id: int,
+                             body: AnnotationEdit) -> JSONResponse:
+            try:
+                return JSONResponse(self._annotations.update(
+                    annotation_id, note=body.note, color=body.color))
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            except AnnotationError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+
+        @app.delete("/api/annotations/{annotation_id}", status_code=204)
+        def delete_annotation(annotation_id: int) -> Response:
+            if not self._annotations.remove(annotation_id):
+                raise HTTPException(status_code=404,
+                                    detail="No such annotation.")
+            return Response(status_code=204)
 
         @app.get("/api/books/{book_id}/file")
         def get_book(book_id: int) -> FileResponse:

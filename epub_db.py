@@ -261,6 +261,37 @@ class MigrationRunner:
             ALTER TABLE metadata ADD COLUMN file_title TEXT;
             """,
         ),
+        Migration(
+            8,
+            "annotations",
+            """
+            -- Highlights and notes. Server-side and shared across every
+            -- device, like reading position: a passage marked on the
+            -- iPad is marked on the Mac.
+            --
+            -- `text` deliberately duplicates what the CFI points at. A
+            -- CFI can stop resolving — a book replaced by a better scan
+            -- — and a highlight whose words survive is recoverable,
+            -- while a dangling pointer is not.
+            --
+            -- `fraction` is how far into the book it sits, because CFIs
+            -- do not sort as strings and the highlights panel has to
+            -- list them in reading order.
+            CREATE TABLE IF NOT EXISTS annotation (
+              id         INTEGER PRIMARY KEY,
+              book_id    INTEGER NOT NULL REFERENCES book(id) ON DELETE CASCADE,
+              cfi        TEXT    NOT NULL,
+              text       TEXT    NOT NULL,
+              note       TEXT,
+              color      TEXT,
+              fraction   REAL    NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS annotation_book
+              ON annotation(book_id, fraction);
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version
