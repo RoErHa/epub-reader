@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M5 · LIBRARY REPAIRED</span>
-  <div class="hdr-right">656 pytest · 270 playwright (chromium + webkit)</div>
+  <div class="hdr-right">663 pytest · 270 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -752,10 +752,16 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <ul>
 <li>Open Library caps a bibliography at 200 works, so Asimov's list holds <code>Foundation</code> but not <code>Foundation and Empire</code>. A contained work must account for most of the title, or the one quietly becomes the other.</li>
 <li>But a work that <strong>ends</strong> the title should win, because a filename puts the shelf first and the book last — without that, five different Snicket books became <code>A Series of Unfortunate Events</code>, the series being a work too, and a longer one. What settles the two rules is <strong>what the leftover words are</strong>: another work, a number and an article is scaffolding; <code>forward</code> in <code>Forward the Foundation</code> is part of the title. Scaffolding must carry a number, or <code>Storm Warning Storm Rising</code> resolves to the second of the two books it names.</li>
+<li><strong>A colon after a number separates the shelf from the book.</strong> Cleaning drops what follows a colon as a subtitle — right for <code>On Writing Well: An Informal Guide</code>, catastrophic for <code>The Belgariad 1: Pawn of Prophecy</code>, which leaves <code>belgariad 1</code> and matches the series omnibus. On the real library that turned five Eddings novels into <code>The Belgariad</code>, four Shiloh Walkers into <code>The Hunters</code> and three Anne Rices into <code>Vampire Chronicles</code>.</li>
 <li>A provider's title is not always a title. <code>Kiss the Girls: A gripping detective thriller in the Sunday Times bestselling series (Alex Cross 2)</code> is a blurb with a book's name in front of it, so a trailing bracket goes, and a correction may tidy a title but <strong>never invent a subtitle the file did not have</strong>. Editions and translations list one work several times; those collapse to one, keeping the article — <code>A Falcon Flies</code> and <code>Falcon Flies</code> are one book.</li>
 <li>A leading series number comes off without asking anybody — <code>01 Lord Foul's Bane</code>, <code>11.Scion of Cyador</code> — <strong>except when the number is the title</strong>. <code>10 is Better Than 01</code> and <code>50 Philosophy Ideas You Really Need to Know</code> are real books; zero-padding is what tells them apart.</li>
 </ul>
-<p>The title the file gave is kept in <code>metadata.file_title</code>, so every rename is reversible.</p>
+<p>The title the file gave is kept in <code>metadata.file_title</code>, so every rename is reversible — which is how twelve bad ones were undone rather than argued about. Two that no rule can reach, because the filename hides the book in the middle (<code>Anne Rice - Memnoch The Devil - Vampire Chronicles #5</code>), are set by hand and <strong>locked</strong>: <code>origin = 'user'</code> means no pass touches them again.</p>
+
+<div class="note">
+  <span class="eyebrow">Reviewing the result matters as much as the rules</span>
+  <p>Sampling thirty of 251 changes found the marketing subtitles. The collapses only surfaced by asking a different question — <em>which corrected titles have become identical to a sibling's?</em> Sixteen groups now share a title, and all of the remaining ones are genuine: they are duplicate copies of a book, which is a useful thing to have learned about the library.</p>
+</div>
 
 <h3>6.4 &nbsp;The file is the first word, not the last</h3>
 <p>Corrections have to survive a rescan, and until this was found they did not: <code>_write_metadata</code> overwrote every column and ran <code>DELETE FROM book_author</code> unconditionally, so replacing a book file put its wrong author straight back.</p>

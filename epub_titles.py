@@ -42,8 +42,9 @@ MARGIN = 0.04
 # caps a bibliography at 200 works, so Asimov's list holds "Foundation"
 # but not "Foundation and Empire" — and without this the one becomes
 # the other. Series designations are not counted: "Catteni 3" is the
-# shelf talking, not the book.
-COVERAGE = 0.5
+# shelf talking, not the book. Above half rather than at it, because
+# "Hunter's Pride" is half "The Hunters" and is not that book.
+COVERAGE = 0.6
 
 
 # Words that stay lower case inside a title, unless they open or close
@@ -187,7 +188,7 @@ class TitleFromWorks:
         titles = self._works(book["author_id"])
         if not titles:
             return None
-        ours = search_title(book["title"]) or normalise_title(book["title"])
+        ours = self._query(book["title"])
         if not ours:
             return None
 
@@ -205,6 +206,28 @@ class TitleFromWorks:
                 return None
             return best[1]
         return self._contained_in(ours, titles, book["title"])
+
+    # "The Belgariad 1: Pawn of Prophecy" — a colon straight after a
+    # number separates the shelf from the book, and is not the start of
+    # a subtitle.
+    SERIES_COLON = re.compile(r"(\d)\s*:\s*")
+    BRACKETED = re.compile(r"\([^()]*\)")
+
+    @classmethod
+    def _query(cls, title: str) -> str:
+        """The title as something to match with.
+
+        Cleaning treats what follows a colon as a subtitle and drops it,
+        which is right for "On Writing Well: An Informal Guide" and
+        catastrophic for "The Belgariad 1: Pawn of Prophecy" — that
+        leaves "belgariad 1", which matches the series omnibus, and five
+        different novels become one.
+        """
+        title = cls.SERIES_COLON.sub(r"\1 - ", title)
+        # "(With Nye, J.L.)" is who else worked on it, not what the book
+        # is called.
+        title = cls.BRACKETED.sub(" ", title).strip() or title
+        return search_title(title) or normalise_title(title)
 
     @staticmethod
     def _contained_in(ours: str, titles: list[str], original: str) -> str | None:

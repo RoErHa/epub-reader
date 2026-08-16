@@ -241,6 +241,24 @@ class TestBeingCareful:
         assert title_of(gateway, book_named(gateway, "Freedom")) == \
             "Freedom's Challenge"
 
+    def test_half_a_title_is_not_enough(self, client, library, gateway):
+        # "Hunter's Pride" is not "The Hunters", though half its words
+        # are. At exactly half, this used to be accepted.
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Hunter's Pride", author="Shiloh Walker").build(
+            library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Shiloh Walker", ["The Hunters", "Hunting the Hunter"])
+        assert titler(gateway).run(apply=True)["corrected"] == 0
+
+    def test_a_credit_in_brackets_is_not_part_of_the_title(self):
+        # It is who else worked on it, not what the book is called.
+        from epub_titles import TitleFromWorks
+        assert TitleFromWorks._query(
+            "McCaffrey, Anne - The Death of Sleep (With Nye, J.L.)"
+        ) == "death of sleep"
+
     def test_a_credit_after_the_title_does_not_count_against_it(self, client,
                                                                 library, gateway):
         for existing in library.glob("*.epub"):
@@ -413,6 +431,64 @@ class TestANumberInFront:
         titler(gateway).run(apply=True)
         assert title_of(gateway, book_named(gateway, "Illearth")) == \
             "The Illearth War"
+
+
+class TestAColonAfterANumber:
+    """"The Belgariad 1: Pawn of Prophecy" is a series, a number and a
+    book — not a title and a subtitle. Read the other way the book is
+    thrown away, leaving "belgariad 1", which then matches the series
+    omnibus: five Eddings novels all became "The Belgariad", four of
+    Shiloh Walker's became "The Hunters", three Anne Rices became
+    "Vampire Chronicles".
+    """
+
+    @staticmethod
+    def resolved(gateway, library, title, catalogue, author="David Eddings"):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title=title, author=author).build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, author, catalogue)
+        titler(gateway).run(apply=True)
+        return gateway.database.connection.execute(
+            """SELECT m.title FROM metadata m
+                 JOIN book_author ba ON ba.book_id = m.book_id
+                 JOIN author a ON a.id = ba.author_id
+                WHERE a.name = ?""", (author,)).fetchone()["title"]
+
+    def test_the_book_after_the_colon_is_the_book(self, client, library,
+                                                  gateway):
+        assert self.resolved(
+            gateway, library, "The Belgariad 1: Pawn of Prophecy",
+            ["The Belgariad", "Pawn of Prophecy", "Queen of Sorcery"]
+        ) == "Pawn of Prophecy"
+
+    def test_the_series_is_not_the_answer_when_the_book_is_missing(
+        self, client, library, gateway
+    ):
+        # A bibliography is capped at 200 works, so the novel may simply
+        # not be there. The series is still not what this book is.
+        assert self.resolved(
+            gateway, library, "The Belgariad 2: Queen of Sorcery",
+            ["The Belgariad"]) == "The Belgariad 2: Queen of Sorcery"
+
+    def test_it_holds_for_the_other_shapes_too(self, client, library, gateway):
+        assert self.resolved(
+            gateway, library, "Vampire Chronicles 2: The vampire Lestat",
+            ["Vampire Chronicles", "The Vampire Lestat"], author="Anne Rice"
+        ) == "The Vampire Lestat"
+
+    def test_a_real_subtitle_is_still_dropped(self):
+        # No number in front of the colon, so it is a subtitle and the
+        # cleaning may have it.
+        from epub_titles import TitleFromWorks
+        assert TitleFromWorks._query(
+            "On Writing Well: An Informal Guide") == "on writing well"
+
+    def test_the_book_survives_the_cleaning(self):
+        from epub_titles import TitleFromWorks
+        assert "pawn of prophecy" in TitleFromWorks._query(
+            "The Belgariad 1: Pawn of Prophecy")
 
 
 class TestWhereTheTitleSits:
