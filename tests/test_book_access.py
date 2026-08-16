@@ -124,7 +124,10 @@ class TestOtherFormatsAreServed:
 
     def test_a_pdf_can_be_fetched_too(self, client, library, gateway):
         from tests.pdf_fixtures import PdfBuilder
-        PdfBuilder(title="Fetch This PDF").build(library / "fetch-me.pdf")
+        # Named as the real ones are: the filename is the title, and the
+        # embedded one only agrees with it.
+        PdfBuilder(title="Fetch This PDF").build(
+            library / "Fetch This PDF.pdf")
         gateway.reindex()
         book = next(b for b in client.get("/api/books").json()["books"]
                     if b["title"] == "Fetch This PDF")
