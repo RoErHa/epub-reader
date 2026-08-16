@@ -51,6 +51,10 @@ COVERAGE = 0.5
 SMALL = frozenset("a an the and but or nor of in on at to for from by with"
                   " as is".split())
 
+# Articles that a normalised work title drops, so they turn up as
+# leftovers in front of a match and mean nothing.
+ARTICLES = frozenset({"the", "a", "an"})
+
 
 class TitlePolish:
     """Open Library's capitalisation is whatever the cataloguer typed:
@@ -65,15 +69,31 @@ class TitlePolish:
     SERIES_NUMBER = re.compile(
         r"^(?:\d{1,3}\s*[-–—._)]+\s*|0\d{0,2}\s+)(?=[^\W\d])", re.UNICODE)
 
-    SERIES_TAG = re.compile(r"\s*\((?:[^()]*#[\d.]+|[^()]*\bbook\s+[\d.]+)\)\s*$",
-                            re.IGNORECASE)
+    # A trailing bracket on a provider title is the shelf talking, not
+    # the book: "(Alex Cross 1)", "(Garrett Files)", "(Pern #8.5)".
+    SERIES_TAG = re.compile(r"\s*\([^()]*\)\s*$")
 
     @classmethod
-    def apply(cls, title: str) -> str:
+    def apply(cls, title: str, subtitles: bool = True) -> str:
         title = cls.SERIES_TAG.sub("", title).strip() or title
+        if not subtitles:
+            title = cls.without_subtitle(title)
         if not cls._needs_help(title):
             return title
         return cls._title_case(title)
+
+    @staticmethod
+    def without_subtitle(title: str) -> str:
+        """The title without what follows the colon.
+
+        Publishers sell books there — "Kiss the Girls: A gripping
+        detective thriller in the Sunday Times bestselling series" — and
+        a library of fiction reads badly with sales copy in it. Only
+        used when the file itself had no subtitle, so nothing the reader
+        already knew about is lost.
+        """
+        head = title.split(":")[0].strip()
+        return head or title
 
     @classmethod
     def without_series_number(cls, title: str) -> str:
@@ -146,6 +166,10 @@ class TitleFromWorks:
 
     def _proposal(self, book: dict) -> dict | None:
         best = self._best_work(book)
+        if best is not None and ":" not in book["title"]:
+            # A correction may tidy a title; it may not invent a
+            # subtitle the book never had.
+            best = TitlePolish.apply(best, subtitles=False)
         if best is None:
             # No bibliography to go on, but a number in front of the
             # title can still come off without asking anybody.
@@ -186,39 +210,97 @@ class TitleFromWorks:
     def _contained_in(ours: str, titles: list[str], original: str) -> str | None:
         """The work whose title is written out inside this one.
 
-        Series tokens survive the cleaning — "Tower03 Damia's Children",
-        "Tsw 2 The Ship Who Searched" — and drag the ratio down while
-        the real title sits there intact. The longest work that appears
-        word for word wins, so "Dune" does not beat "Dune Messiah"; a
-        tie identifies neither.
+        Series scaffolding survives the cleaning — "Tower03 Damia's
+        Children", "A Series of Unfortunate Events 1 - The Bad
+        Beginning" — and drags the ratio down while the real title sits
+        there intact.
+
+        Two rules keep it honest, and they pull in opposite directions:
+
+        * A work that **ends** the title wins when what comes before it
+          is scaffolding — another work, a series number, an article.
+          Without this, five different Snicket books became the name of
+          the series they are in, the series being a work too, and a
+          longer one. Scaffolding has to carry a number, or "Storm
+          Warning Storm Rising" would resolve to the second of the two
+          books it names.
+        * A work that leaves most of the title unaccounted for is a
+          different book that happens to be named inside it. Open
+          Library caps a bibliography at 200 works, so Asimov's list has
+          "Foundation" but not "Foundation and Empire", and without this
+          the one quietly becomes the other.
+
+        What settles them is *what the leftover words are*. In "A Series
+        of Unfortunate Events 1 - The Bad Beginning" everything before
+        the book is another work, a number and an article — scaffolding.
+        In "Forward the Foundation" it is "forward", which is part of
+        the title, so that one is refused.
         """
         words = ours.split()
-        # A token carrying a digit is a series number, not part of the
-        # title, so it neither helps nor hinders.
-        spoken = sum(1 for w in words if not any(c.isdigit() for c in w))
-        found = []
+        matches = []
         for title in titles:
             piece = normalise_title(title).split()
             if not piece or len(piece) > len(words):
                 continue
-            if not any(words[i:i + len(piece)] == piece
-                       for i in range(len(words) - len(piece) + 1)):
-                continue
+            at = [i for i in range(len(words) - len(piece) + 1)
+                  if words[i:i + len(piece)] == piece]
+            if at:
+                # The last occurrence: "Dune 02 - Dune Messiah" names
+                # the book after the series, not before it.
+                start = max(at)
+                matches.append((start, start + len(piece), title))
+        if not matches:
+            return None
+
+        occupied = {i for start, end, _ in matches for i in range(start, end)}
+        ends = [m for m in matches if m[1] == len(words)]
+        # Scaffolding carries a number: "Series 03 - Title". Without
+        # one, a work in front is just another book — "Storm Warning
+        # Storm Rising" names two of them and identifies neither.
+        scaffolded = [
+            m for m in ends
+            if not TitleFromWorks._strays(words, m, occupied)
+            and any(c.isdigit() for w in words[:m[0]] for c in w)
+        ]
+        if scaffolded:
+            return TitleFromWorks._longest(scaffolded, original)
+
+        # Nothing ends the title, so fall back to how much of it each
+        # work accounts for. A series number is the shelf talking and
+        # counts for neither side.
+        spoken = sum(1 for w in words if not any(c.isdigit() for c in w))
+        enough = []
+        for match in matches:
+            piece = words[match[0]:match[1]]
             real = sum(1 for w in piece if not any(c.isdigit() for c in w))
             if spoken and real / spoken < COVERAGE:
-                # Most of the title is still unaccounted for, so this is
-                # a different book that happens to be named inside it.
-                LOG.info("%r is only part of %r", title, original)
+                LOG.info("%r is only part of %r", match[2], original)
                 continue
-            found.append((len(piece), title))
-        if not found:
+            enough.append(match)
+        return TitleFromWorks._longest(enough, original) if enough else None
+
+    @staticmethod
+    def _strays(words: list[str], match: tuple, occupied: set) -> list[str]:
+        """Words in front of a match that belong to no work, are not a
+        series number, and are not a stray article."""
+        start = match[0]
+        mine = set(range(start, match[1]))
+        return [words[i] for i in range(start)
+                if i not in (occupied - mine)
+                and not any(c.isdigit() for c in words[i])
+                and words[i] not in ARTICLES]
+
+    @staticmethod
+    def _longest(matches: list[tuple], original: str) -> str | None:
+        """The longest of several, unless two tie — a title that fits
+        two works equally identifies neither."""
+        ranked = sorted(matches, key=lambda m: m[1] - m[0], reverse=True)
+        if len(ranked) > 1 and (ranked[0][1] - ranked[0][0]) == (
+                ranked[1][1] - ranked[1][0]):
+            LOG.info("%r contains both %r and %r", original, ranked[0][2],
+                     ranked[1][2])
             return None
-        found.sort(reverse=True)
-        if len(found) > 1 and found[0][0] == found[1][0]:
-            LOG.info("%r contains both %r and %r", original, found[0][1],
-                     found[1][1])
-            return None
-        return found[0][1]
+        return ranked[0][2]
 
     def _works(self, author_id: int) -> list[str]:
         rows = self._db.connection.execute(
@@ -227,7 +309,7 @@ class TitleFromWorks:
         if rows or author_id in self._asked or self._already_asked(author_id):
             # Polished before matching, so a series tag on the work does
             # not stop it matching the book it belongs to.
-            return [TitlePolish.apply(r["title"]) for r in rows]
+            return self._distinct(TitlePolish.apply(r["title"]) for r in rows)
 
         # No bibliography yet: fetch it once, then never ask again — not
         # this run, and not on the next restart either. An author with
@@ -235,10 +317,43 @@ class TitleFromWorks:
         # service comes up.
         self._asked.add(author_id)
         self._enricher.enrich(author_id)
-        return [TitlePolish.apply(r["title"])
-                for r in self._db.connection.execute(
-                    "SELECT title FROM author_work WHERE author_id = ?",
-                    (author_id,))]
+        return self._distinct(
+            TitlePolish.apply(r["title"])
+            for r in self._db.connection.execute(
+                "SELECT title FROM author_work WHERE author_id = ?",
+                (author_id,)))
+
+    @staticmethod
+    def _distinct(titles) -> list[str]:
+        """One entry per work. Open Library lists editions and
+        translations under the same author, so a bibliography holds the
+        same title several times over — 22 duplicates in Le Guin's 200 —
+        and two identical titles are not an ambiguity to refuse over.
+        """
+        best: dict[str, str] = {}
+        for title in titles:
+            key = normalise_title(title)
+            kept = best.get(key)
+            if kept is None or TitleFromWorks._fuller(title, kept):
+                best[key] = title
+        return list(best.values())
+
+    @staticmethod
+    def _fuller(candidate: str, kept: str) -> bool:
+        """Whether one spelling of a work is more complete than another.
+
+        Open Library lists "A Falcon Flies" beside "Falcon Flies" and
+        "The Bad Beginning" beside "Bad Beginning". They are one work
+        written two ways, and the article belongs to the book.
+        """
+        opens = candidate.split(" ")[0].lower() in ARTICLES
+        kept_opens = kept.split(" ")[0].lower() in ARTICLES
+        if opens != kept_opens:
+            return opens
+        if len(candidate.split()) != len(kept.split()):
+            return len(candidate.split()) > len(kept.split())
+        # Same words: "Dune." is not a fuller "Dune".
+        return candidate.rstrip(".,;:").strip() == candidate != kept
 
     def _already_asked(self, author_id: int) -> bool:
         """Whether this author has been looked up before and had nothing

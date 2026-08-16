@@ -174,17 +174,18 @@ class TestBeingCareful:
         works(gateway, "Clive Cussler", ["Something Else Entirely"])
         assert titler(gateway).run(apply=True)["corrected"] == 0
 
-    def test_two_works_that_match_equally_well_are_refused(self, client,
-                                                           library, gateway):
-        # "Damia" against "Damia" and "Damia's Children" is decidable;
-        # a title matching two works equally is not.
-        for existing in library.glob("*.epub"):
+    def test_a_work_listed_twice_is_one_work(self, client, library, gateway):
+        # "Dune" and "Dune." are the same book listed twice, which is
+        # what a bibliography full of editions looks like. Refusing over
+        # it would be refusing over punctuation.
+        for existing in library.rglob("*.epub"):
             existing.unlink()
-        EpubBuilder(title="Herbert, Frank - Dune", author="Frank Herbert").build(
-            library / "a.epub")
+        EpubBuilder(title="Herbert, Frank - 01 - Dune",
+                    author="Frank Herbert").build(library / "a.epub")
         gateway.reindex()
         works(gateway, "Frank Herbert", ["Dune", "Dune."])
-        assert titler(gateway).run(apply=True)["corrected"] == 0
+        titler(gateway).run(apply=True)
+        assert title_of(gateway, book_named(gateway, "Dune")) == "Dune"
 
     def test_a_near_twin_is_still_told_apart(self, client, library, gateway):
         for existing in library.glob("*.epub"):
@@ -412,6 +413,186 @@ class TestANumberInFront:
         titler(gateway).run(apply=True)
         assert title_of(gateway, book_named(gateway, "Illearth")) == \
             "The Illearth War"
+
+
+class TestWhereTheTitleSits:
+    """A filename puts the scaffolding first and the book last:
+
+        A Series of Unfortunate Events 1- The Bad Beginning
+
+    Both "A Series of Unfortunate Events" and "The Bad Beginning" are
+    works in Lemony Snicket's bibliography, and the series is the longer
+    of the two — so "longest wins" turned five different books into the
+    name of the series they belong to.
+    """
+
+    @staticmethod
+    def resolved(gateway, library, title, catalogue):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title=title, author="Lemony Snicket").build(
+            library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Lemony Snicket", catalogue)
+        titler(gateway).run(apply=True)
+        return gateway.database.connection.execute(
+            """SELECT m.title FROM metadata m
+                 JOIN book_author ba ON ba.book_id = m.book_id
+                 JOIN author a ON a.id = ba.author_id
+                WHERE a.name = 'Lemony Snicket'""").fetchone()["title"]
+
+    def test_the_book_wins_over_the_series_it_is_in(self, client, library,
+                                                    gateway):
+        assert self.resolved(
+            gateway, library,
+            "A Series of Unfortunate Events 1- The Bad Beginning",
+            ["A Series of Unfortunate Events", "The Bad Beginning",
+             "The Reptile Room"]) == "The Bad Beginning"
+
+    def test_it_holds_when_the_series_is_abbreviated(self, client, library,
+                                                     gateway):
+        assert self.resolved(
+            gateway, library, "Snicket, Lemony - ASOUE 05 - The Austere Academy",
+            ["A Series of Unfortunate Events", "The Austere Academy"]
+        ) == "The Austere Academy"
+
+    def test_a_credit_after_the_title_does_not_lose_it(self, client, library,
+                                                       gateway):
+        # Nothing ends the title here, so the only candidate still wins.
+        assert self.resolved(
+            gateway, library, "Snicket, Lemony - The Bad Beginning (With Helquist)",
+            ["The Bad Beginning"]) == "The Bad Beginning"
+
+    def test_the_series_alone_is_still_matched(self, client, library, gateway):
+        # An actual omnibus, filed under the series name.
+        assert self.resolved(
+            gateway, library, "Snicket, Lemony - A Series of Unfortunate Events",
+            ["A Series of Unfortunate Events", "The Bad Beginning"]
+        ) == "A Series of Unfortunate Events"
+
+
+class TestWhatAProviderCallsATitle:
+    """Open Library's titles carry the publisher's marketing:
+
+        Kiss the Girls: A gripping detective thriller in the Sunday
+        Times bestselling series (Alex Cross 2)
+
+    That is a blurb with a title in front of it. A library reads badly
+    when every third book is shouting its own sales copy, and the file
+    never had a subtitle to begin with.
+    """
+
+    @staticmethod
+    def as_written(gateway, library, work, plain):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title=f"Alex Cross 1 - {plain}",
+                    author="James Patterson").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "James Patterson", [work])
+        titler(gateway).run(apply=True)
+        return title_of(gateway, book_named(gateway, plain))
+
+    def test_a_marketing_subtitle_is_dropped(self, client, library, gateway):
+        assert self.as_written(
+            gateway, library,
+            "Kiss the Girls: A gripping detective thriller in the Sunday"
+            " Times bestselling series (Alex Cross 2)",
+            "Kiss the Girls") == "Kiss the Girls"
+
+    def test_a_series_in_brackets_is_dropped(self, client, library, gateway):
+        assert self.as_written(gateway, library,
+                               "Cold Copper Tears (Garrett Files)",
+                               "Cold Copper Tears") == "Cold Copper Tears"
+
+    def test_a_series_as_a_subtitle_is_dropped(self, client, library, gateway):
+        assert self.as_written(gateway, library,
+                               "Roses Are Red: Alex Cross, Book 6",
+                               "Roses Are Red") == "Roses Are Red"
+
+    def test_a_subtitle_the_file_already_had_is_kept(self, client, library,
+                                                     gateway):
+        # The file says there is a subtitle, so it is part of the book.
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Zinsser - On Writing Well: An Informal Guide",
+                    author="William Zinsser").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "William Zinsser",
+              ["On Writing Well: The Classic Guide to Writing Nonfiction"])
+        titler(gateway).run(apply=True)
+        assert ":" in title_of(gateway, book_named(gateway, "On Writing Well"))
+
+    def test_a_title_that_is_only_a_subtitle_is_left_whole(self, client,
+                                                           library, gateway):
+        # Cutting at the colon must never leave nothing behind.
+        assert self.as_written(gateway, library, ": Just a Colon",
+                               "Just a Colon") == ": Just a Colon"
+
+
+class TestAProviderThatRepeatsItself:
+    """Open Library lists editions and translations under one author, so
+    a works list holds the same title several times over — 22 duplicates
+    in Le Guin's 200. Two identical titles are not an ambiguity."""
+
+    def test_the_same_title_twice_still_matches(self, client, library, gateway):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Cook, Rick - 01 - Wizards Bane",
+                    author="Rick Cook").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Rick Cook", ["Wizard's Bane", "Wizard's Bane"])
+        titler(gateway).run(apply=True)
+        assert title_of(gateway, book_named(gateway, "Wizard")) == "Wizard's Bane"
+
+    def test_an_article_apart_is_not_an_ambiguity(self, client, library,
+                                                  gateway):
+        # "The Angels Weep" and "Angels Weep" are one book.
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Wilbur Smith - B3 The Angels Weep",
+                    author="Wilbur Smith").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Wilbur Smith", ["The Angels Weep", "Angels Weep"])
+        titler(gateway).run(apply=True)
+        assert title_of(gateway, book_named(gateway, "Angels Weep")) in (
+            "The Angels Weep", "Angels Weep")
+
+    def test_the_variant_with_its_article_is_the_one_kept(self, client,
+                                                          library, gateway):
+        # Open Library lists "A Falcon Flies" and "Falcon Flies", and
+        # "The Bad Beginning" beside "Bad Beginning". They are one work
+        # written two ways, and the article belongs to the book.
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Snicket, Lemony - ASOUE 01 - Bad Beginning",
+                    author="Lemony Snicket").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Lemony Snicket", ["Bad Beginning", "The Bad Beginning"])
+        titler(gateway).run(apply=True)
+        assert title_of(gateway, book_named(gateway, "Beginning")) == \
+            "The Bad Beginning"
+
+    def test_it_holds_whichever_order_they_arrive_in(self, client, library,
+                                                     gateway):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Smith, Wilbur - Ballantyne 01 - Falcon Flies",
+                    author="Wilbur Smith").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Wilbur Smith", ["A Falcon Flies", "Falcon Flies"])
+        titler(gateway).run(apply=True)
+        assert title_of(gateway, book_named(gateway, "Falcon")) == "A Falcon Flies"
+
+    def test_two_genuinely_different_books_still_stop_it(self, client, library,
+                                                         gateway):
+        for existing in library.rglob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Lackey - Storm Warning Storm Rising",
+                    author="Mercedes Lackey").build(library / "a.epub")
+        gateway.reindex()
+        works(gateway, "Mercedes Lackey", ["Storm Warning", "Storm Rising"])
+        assert titler(gateway).run(apply=True)["corrected"] == 0
 
 
 class TestNothingTouchesTheFiles:
