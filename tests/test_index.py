@@ -371,3 +371,68 @@ class TestRescanningDoesNotUndoCorrections:
         add(library, "a.epub", title="Dune", author="Frank Herbert")
         indexer.run()
         assert self.author_of(db, self.book_id(db)) == "Frank Herbert"
+
+
+class TestOtherFormats:
+    """MOBI, AZW3 and PRC. The reader gets these free — foliate sniffs
+    the container — but the library has to read their metadata out of a
+    PalmDB record rather than an OPF.
+
+    The real library holds 89 of them beside 1,353 EPUBs.
+    """
+
+    def test_a_mobi_is_indexed(self, indexer, library, db):
+        from tests.mobi_fixtures import MobiBuilder
+        MobiBuilder(title="Dune", authors=["Frank Herbert"]).build(
+            library / "dune.mobi")
+        assert indexer.run().added == 1
+        row = db.connection.execute(
+            "SELECT m.title, b.format FROM metadata m"
+            " JOIN book b ON b.id = m.book_id").fetchone()
+        assert row["title"] == "Dune"
+        assert row["format"] == "mobi"
+
+    def test_its_author_is_read_too(self, indexer, library, db):
+        from tests.mobi_fixtures import MobiBuilder
+        MobiBuilder(title="Dune", authors=["Herbert, Frank"]).build(
+            library / "dune.mobi")
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT name FROM author").fetchone()["name"] == "Frank Herbert"
+
+    def test_an_azw3_is_indexed(self, indexer, library, db):
+        from tests.mobi_fixtures import MobiBuilder
+        MobiBuilder(title="Modern", kf8=True).build(library / "modern.azw3")
+        assert indexer.run().added == 1
+        assert db.connection.execute(
+            "SELECT format FROM book").fetchone()["format"] == "azw3"
+
+    def test_a_prc_is_indexed(self, indexer, library, db):
+        from tests.mobi_fixtures import MobiBuilder
+        MobiBuilder(title="Older").build(library / "older.prc")
+        assert indexer.run().added == 1
+
+    def test_epub_and_mobi_live_side_by_side(self, indexer, library, db):
+        from tests.mobi_fixtures import MobiBuilder
+        add(library, "a.epub", title="An EPUB", author="Someone")
+        MobiBuilder(title="A MOBI", authors=["Someone"]).build(library / "b.mobi")
+        assert indexer.run().added == 2
+        titles = {r["title"] for r in
+                  db.connection.execute("SELECT title FROM metadata")}
+        assert titles == {"An EPUB", "A MOBI"}
+
+    def test_a_broken_mobi_does_not_stop_the_scan(self, indexer, library, db):
+        # One bad file among 1,300 must never end a run.
+        (library / "broken.mobi").write_bytes(b"not a palm database at all")
+        add(library, "good.epub", title="Fine", author="Someone")
+        report = indexer.run()
+        assert report.failed == 1
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM metadata").fetchone()["n"] == 1
+
+    def test_a_mobi_cover_is_extracted(self, indexer, library, db, tmp_path):
+        from tests.mobi_fixtures import MobiBuilder, jpeg
+        MobiBuilder(title="Covered", cover=jpeg()).build(library / "covered.mobi")
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT cover_path FROM metadata").fetchone()["cover_path"]

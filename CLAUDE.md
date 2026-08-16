@@ -47,13 +47,13 @@ static/vendor/foliate-js/            pinned submodule
 
 Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, PWA manifest + service worker, rotating `gateway.log`.
 
-## 2.1 Scope: EPUB only, for now
+## 2.1 Scope: what the reflow engine reads
 
-The library also holds PDFs, CBZ and CBR, but **only `.epub` is listed or
-served** until the reader is finished. PDF is a different rendering model
-and foliate's adapter is self-described as a proof-of-concept; CBR is RAR,
-which nothing in the stack reads. Listing a format we cannot render well
-only promises what we do not deliver. MOBI/AZW3 come next — same engine.
+**EPUB, MOBI, AZW3 and PRC.** The library also holds PDFs, CBZ and CBR,
+and those stay out: PDF is a different rendering model and foliate's
+adapter is self-described as a proof-of-concept, while CBR is RAR, which
+nothing in the stack reads. Listing a format we cannot render well only
+promises what we do not deliver.
 
 `BookLibrary.SUFFIXES` is the single switch, and `resolve()` refuses to
 serve anything outside it.
@@ -543,7 +543,8 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M4 | Book detail: synopsis, About the author, Also published | done |
 | ✅ M5 | Enrichment: providers, scoring, BISAC genre map, review queue | done |
 | ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
-| 🔄 M6 | Annotations; then MOBI/AZW3 (largely free); PDF as a separate track | in progress |
+| ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
+| M7 | PDF, as its own track; unpacked EPUB directories; book-level dedupe | — |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -583,6 +584,43 @@ Three things the shape of the DOM forced:
 The note flow asks for the text **before** making the mark, so a cancelled note leaves no orphan highlight behind. It is a composer, not `window.prompt`: prompt blocks the page, cannot be styled, and on iOS reads as the browser asking rather than the app. Enter saves, Shift+Enter is a new line, Escape gives up, and a selection settling while a note is open does not snatch it away. Notes can also be written or changed afterwards from the panel, where the note is rather than somewhere else on the screen.
 
 > **Emptying a note is not the same as not mentioning one.** `PATCH` applies only the fields the request actually names — `{"note": null}` clears it, `{}` changes nothing. Without that distinction a colour change would quietly erase a note, since both arrive as `None`. The store refuses any field outside `note` and `color` rather than ignoring it.
+
+### 8.3 M6 part 3: MOBI, AZW3 and PRC
+
+**The reader half really was free.** foliate-js sniffs the container
+rather than trusting the extension, so nothing in `static/` changed at
+all — one line in `BookLibrary.SUFFIXES` made 89 books openable.
+
+The library half was not. Their metadata lives in a PalmDB record, not
+an OPF, so `epub_mobi.py` reads it: a 78-byte database header, a table
+of record offsets, then record 0 carrying a PalmDOC header, a MOBI
+header and an **EXTH** block of typed entries — author, description,
+subjects, ISBN, published date, cover.
+
+**Measured on the real library: 89 files (52 `.prc`, 34 `.mobi`, 3
+`.azw3`), all 89 read, none failed.** 89 with a title, 72 with a cover,
+75 with a language, 63 with an author — the missing authors are the
+same filing problem §6.3 fixes for EPUBs.
+
+Two things the format itself forced:
+
+- **Every offset in the MOBI documentation is counted from the start of
+  record 0, not from the `MOBI` magic 16 bytes into it.** Reading them
+  the other way still produced correct titles — because most files
+  repeat the title in the EXTH block, which masked it — but every
+  locale came back as nonsense: 209 and 206 are not languages. Reading
+  them where foliate reads them took languages from 6 to **75**, and
+  three books that claim Thai really are the Pali canon printed in
+  Bangkok.
+- **Text records come before resources.** A reader takes records
+  1..`numTextRecords` as the book, so a cover filed in front of the text
+  *is* the book as far as it knows — which is exactly what foliate
+  rendered when the test fixture had them the wrong way round.
+
+Older files declare a short header that stops before the locale field;
+reading past its end is what produced the nonsense, so the declared
+length is checked first. A number nobody mapped is left as nothing
+rather than guessed at — the same rule the genre map follows.
 
 ## 9. Decisions — settled
 
@@ -662,6 +700,7 @@ epub_server.py      EpubGateway, BookLibrary — routes and read-only library
 epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
 epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
+epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results

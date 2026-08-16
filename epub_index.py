@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from epub_metadata import BookMetadata, EpubMetadataReader, MetadataError
+from epub_mobi import MobiMetadataReader
 from epub_names import fold, title_sort_key
 from epub_search import SearchIndex
 
@@ -121,7 +122,11 @@ class LibraryIndexer:
         self._db = database
         self._library = library
         self._covers = CoverStore(cover_root)
-        self._reader = EpubMetadataReader()
+        # One reader per container. The suffix chooses it, and a file
+        # that turns out to be something else fails as that book alone.
+        self._readers = {".epub": EpubMetadataReader()}
+        for suffix in (".mobi", ".azw3", ".azw", ".prc"):
+            self._readers[suffix] = MobiMetadataReader()
         self._search = SearchIndex(database)
         self.hashed = 0  # observable so tests can assert we skip work
 
@@ -243,7 +248,7 @@ class LibraryIndexer:
             report.added_names.append(rel)
 
         try:
-            meta = self._reader.read(path)
+            meta = self._reader_for(path).read(path)
         except MetadataError as exc:
             # Keep whatever metadata we already had — a book that starts
             # failing should not lose its title.
@@ -365,6 +370,12 @@ class LibraryIndexer:
                 " WHERE book_id = ?", (book_id,))
             if row["locked"] or row["origin"] in ("user", "provider")
         }
+
+    def _reader_for(self, path: Path):
+        reader = self._readers.get(path.suffix.lower())
+        if reader is None:
+            raise MetadataError(f"{path.name} is not a format this reads.")
+        return reader
 
     def _upsert(self, table: str, name: str, sort_name: str) -> int:
         cursor = self._db.connection

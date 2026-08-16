@@ -106,3 +106,27 @@ class TestListingCarriesWhatTheReaderNeeds:
         monkeypatch.setattr(BookLibrary, "content_hash", explode)
         books = nested.get("/api/books").json()["books"]
         assert books and all("percent" in b for b in books)
+
+
+class TestOtherFormatsAreServed:
+    """A format the library lists is a format it must hand over."""
+
+    def test_a_mobi_can_be_fetched(self, client, library, gateway):
+        from tests.mobi_fixtures import MobiBuilder
+        MobiBuilder(title="Fetch Me", authors=["A Reader"]).build(
+            library / "fetch-me.mobi")
+        gateway.reindex()
+        book = next(b for b in client.get("/api/books").json()["books"]
+                    if b["title"] == "Fetch Me")
+        res = client.get(f"/api/books/{book['id']}/file")
+        assert res.status_code == 200
+        assert res.content[60:68] == b"BOOKMOBI"
+
+    def test_a_format_nobody_can_read_is_still_refused(self, client, library,
+                                                       gateway):
+        # PDF is a separate track; listing it would promise a reader
+        # that does not exist yet.
+        (library / "manual.pdf").write_bytes(b"%PDF-1.4\n")
+        gateway.reindex()
+        titles = [b["title"] for b in client.get("/api/books").json()["books"]]
+        assert not any("manual" in (t or "").lower() for t in titles)

@@ -44,12 +44,16 @@ class BookLibrary:
     operation this class offers is none.
     """
 
-    # EPUB only, deliberately, until the reader is finished. PDF is a
-    # separate rendering model and foliate's adapter is self-described as
-    # a proof-of-concept; CBR is RAR, which nothing here can read. Listing
-    # formats we cannot render well would promise what we do not deliver.
-    # MOBI/AZW3 come next — they use the same reflow engine.
-    SUFFIXES = frozenset({".epub"})
+    # Everything the reflow engine actually reads. MOBI, AZW3 and PRC
+    # share one container, and foliate sniffs it rather than trusting
+    # the extension — so the reader needed no change at all; only the
+    # library did, because their metadata lives in a PalmDB record.
+    #
+    # PDF stays out: a different rendering model, and foliate's adapter
+    # is self-described as a proof-of-concept. CBR is RAR, which nothing
+    # here can read. Listing a format we cannot render well would
+    # promise what we do not deliver.
+    SUFFIXES = frozenset({".epub", ".mobi", ".azw3", ".azw", ".prc"})
 
     def __init__(self, root: Path) -> None:
         self._root = root
