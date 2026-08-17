@@ -512,3 +512,48 @@ class TestBooksThatWereNeverZipped:
         assert report.failed == 1
         assert db.connection.execute(
             "SELECT COUNT(*) n FROM metadata").fetchone()["n"] == 1
+
+
+class TestComics:
+    """309 comic archives. A CBZ is a zip of images; foliate draws it,
+    and the library reads the filename, the page count and the first
+    page."""
+
+    def test_a_comic_is_indexed(self, indexer, library, db):
+        from tests.cbz_fixtures import CbzBuilder
+        CbzBuilder(pages=5).build(library / "Zootopia 001 (2025) (digital).cbz")
+        assert indexer.run().added == 1
+        row = db.connection.execute(
+            "SELECT m.title, m.page_count, b.format FROM metadata m"
+            " JOIN book b ON b.id = m.book_id").fetchone()
+        assert row["title"] == "Zootopia 001"
+        assert row["page_count"] == 5
+        assert row["format"] == "cbz"
+
+    def test_its_first_page_becomes_the_cover(self, indexer, library, db):
+        from tests.cbz_fixtures import CbzBuilder
+        CbzBuilder(pages=3).build(library / "Covered 001.cbz")
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT cover_path FROM metadata").fetchone()["cover_path"]
+
+    def test_the_issue_number_gives_it_a_series(self, indexer, library, db):
+        from tests.cbz_fixtures import CbzBuilder
+        CbzBuilder().build(library / "Shadowman 004 (2025).cbz")
+        indexer.run()
+        row = db.connection.execute(
+            "SELECT s.name, m.series_index FROM metadata m"
+            " JOIN series s ON s.id = m.series_id").fetchone()
+        assert row["name"] == "Shadowman"
+        assert row["series_index"] == 4
+
+    def test_a_cbr_is_still_left_alone(self, indexer, library, db):
+        # RAR, which nothing in the stack reads.
+        (library / "comic.cbr").write_bytes(b"Rar!\x1a\x07\x00")
+        assert indexer.run().added == 0
+
+    def test_a_broken_comic_does_not_stop_the_scan(self, indexer, library, db):
+        (library / "broken.cbz").write_bytes(b"not a zip")
+        add(library, "good.epub", title="Fine")
+        report = indexer.run()
+        assert report.failed == 1

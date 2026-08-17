@@ -18,6 +18,7 @@ from pathlib import Path
 
 from epub_metadata import BookMetadata, EpubMetadataReader, MetadataError
 from epub_mobi import MobiMetadataReader
+from epub_cbz import CbzMetadataReader
 from epub_pdf import PdfMetadataReader
 from epub_names import fold, title_sort_key
 from epub_search import SearchIndex
@@ -129,6 +130,7 @@ class LibraryIndexer:
         for suffix in (".mobi", ".azw3", ".azw", ".prc"):
             self._readers[suffix] = MobiMetadataReader()
         self._readers[".pdf"] = PdfMetadataReader()
+        self._readers[".cbz"] = CbzMetadataReader()
         self._search = SearchIndex(database)
         self.hashed = 0  # observable so tests can assert we skip work
 
@@ -352,7 +354,8 @@ class LibraryIndexer:
             "first_published": meta.first_published,
             "edition_date": meta.edition_date, "publisher": meta.publisher,
             "language": meta.language, "isbn13": meta.isbn13,
-            "spine_length": meta.spine_length, "cover_path": cover_path,
+            "spine_length": meta.spine_length, "page_count": meta.page_count,
+            "cover_path": cover_path,
             "series_id": series_id, "series_index": meta.series_index,
         }
         keep = [column for column in values if self._field(column) in spoken_for]

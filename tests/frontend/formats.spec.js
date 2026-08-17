@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { openBook, expectBookText } from './helpers.js'
+import { openBook, expectBookText, waitForBookFrame } from './helpers.js'
 
 /* MOBI and AZW3.
  *
@@ -42,6 +42,45 @@ test.describe('a kindle book', () => {
   })
 })
 
+
+/* A comic.
+ *
+ * A CBZ is a zip of images and foliate draws it page by page — a third
+ * rendering model beside reflowed text and rasterised PDF pages. The
+ * filename is the only metadata most of them have, and it is full of
+ * the scanner's notes.
+ */
+const COMIC = 'Zootopia 001 (2025) (digital) (Salem-Empire).cbz'
+
+test.describe('a comic', () => {
+  test('is listed without the scanner\'s notes', async ({ page }) => {
+    await page.goto('/')
+    const row = page.locator(`.book-row[data-name="${COMIC}"]`)
+    await expect(row).toBeVisible()
+    await expect(row).toContainText('Zootopia 001')
+    await expect(row).not.toContainText('Salem-Empire')
+  })
+
+  test('opens and draws a page', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, COMIC)
+    const frame = await waitForBookFrame(page)
+    await expect.poll(
+      () => frame.evaluate(() => document.querySelectorAll('img, canvas').length)
+        .catch(() => 0),
+      { timeout: 20000 }
+    ).toBeGreaterThan(0)
+  })
+
+  test('turns its pages', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, COMIC)
+    await page.locator('#btn-next').click()
+    await page.locator('#btn-prev').click()
+    await expect(page.locator('#reader-stage')).toHaveAttribute(
+      'data-state', 'open')
+  })
+})
 
 /* A book that was never zipped.
  *

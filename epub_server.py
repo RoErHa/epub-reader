@@ -56,8 +56,10 @@ class BookLibrary:
     # rather than reflowing text — but it is 585 books here, and a
     # reader that cannot open them is a reader you keep leaving.
     #
-    # CBR stays out: it is RAR, which nothing in the stack reads.
-    SUFFIXES = frozenset({".epub", ".mobi", ".azw3", ".azw", ".prc", ".pdf"})
+    # CBR stays out, and only CBR: it is RAR, which nothing in the
+    # stack reads. CBZ is a zip of images, which foliate draws.
+    SUFFIXES = frozenset({".epub", ".mobi", ".azw3", ".azw", ".prc", ".pdf",
+                          ".cbz"})
 
     def __init__(self, root: Path) -> None:
         self._root = root

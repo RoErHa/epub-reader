@@ -76,7 +76,7 @@ test.describe('letter bar', () => {
     await ready(page)
     const letters = await page.locator('.letter').allTextContents()
     expect(letters).toContain('L')          // Left Hand of Darkness
-    expect(letters).not.toContain('Z')
+    expect(letters).not.toContain('Q')   // nothing starts with Q
   })
 
   test('filters the list', async ({ page }) => {

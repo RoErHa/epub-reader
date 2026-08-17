@@ -42,6 +42,9 @@ class BookMetadata:
     series: str | None = None
     series_index: float | None = None
     spine_length: int = 0
+    # Pages, where a format counts them: PDFs and comics do, EPUBs do
+    # not — a reflowable book has as many pages as your screen decides.
+    page_count: int = 0
     cover_data: bytes | None = None
     cover_suffix: str | None = None
 

@@ -49,9 +49,10 @@ Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain
 
 ## 2.1 Scope: what the reader can open
 
-**EPUB, MOBI, AZW3, PRC and PDF.** CBZ and CBR stay out — CBR is RAR,
-which nothing in the stack reads, and neither has a reader here yet.
-Listing a format we cannot render only promises what we do not deliver.
+**EPUB, MOBI, AZW3, PRC, PDF and CBZ.** Only CBR stays out: it is RAR,
+which nothing in the stack reads. Two files named `.cbz` turned out to
+be RAR inside, and the error says so rather than "not a comic archive" —
+the reader can act on the first and not on the second.
 
 PDF is a different rendering model: pdf.js rasterises pages onto a
 canvas rather than reflowing text, so the typography controls do not
@@ -553,7 +554,8 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
 | ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
-| 🔄 M8 | Unpacked EPUB directories ✅; book-level dedupe ✅; CBZ | in progress |
+| ✅ M8 | Unpacked EPUB directories; book-level dedupe; CBZ | done |
+| M9 | Series, which the library barely has: 135 books of 2,323 | — |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
