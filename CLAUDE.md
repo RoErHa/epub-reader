@@ -4,11 +4,11 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0–M8 complete, M9 in progress. Running against the real library: 2,268 books in six formats, 289 duplicate copies folded away, 154 series.** All seven decisions settled (§9).
+**Status: M0–M8 and M10 complete, M9 half done. Running against the real library: 2,179 books in six formats, 278 duplicate copies folded away, 155 series, 50 excluded as shop-locked.** All seven decisions settled (§9).
 
-The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads EPUB, MOBI, AZW3, PRC, PDF and CBZ, including EPUBs stored as directories. Five maintenance passes tidy what thirty years of other people's filing left behind, all dry-run by default and none of them touching a file.
+The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads EPUB, MOBI, AZW3, PRC, PDF and CBZ, including EPUBs stored as directories. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. Five maintenance passes tidy what thirty years of other people's filing left behind, all dry-run by default and none of them touching a file.
 
-**Next:** series for books whose filenames do not name one — Frank Herbert's own Dune novels among them (§8.8).
+**Next: cover art for the quarter of the library that has none** — §12 lists everything open, in the order it is worth doing.
 
 ---
 
@@ -1283,3 +1283,91 @@ authors, 34 series, 258 genres.
 - `Intl.Collator` / `Intl.Segmenter` over hand-rolled string logic — the library is multilingual
 - Never modify the user's book files — read-only, always
 - Every user-facing string is written from the reader's point of view, not the system's
+
+## 12. Open actions
+
+Measured against the real library on 2026-08-17, in the order they are
+worth doing. Everything here is either not built or a decision waiting
+to be taken — what is *done* is §8.
+
+### 1. Cover art — the quarter of the library with none
+
+**555 of 2,179 books show a lettered tile instead of a cover**, and a
+browse list is mostly covers:
+
+| Format | Books | Without a cover |
+| --- | --- | --- |
+| PDF | 514 | **514** |
+| EPUB | 1,326 | 26 |
+| PRC | 46 | 15 |
+| MOBI · AZW3 · CBZ | 293 | 0 |
+
+M7 skipped PDF covers deliberately — "rasterising the first page needs a
+PDF renderer, which is a heavy dependency for a proof-of-concept reader"
+(§8.4). That reasoning has expired: PDF is 514 books, they are all
+blank, and pdf.js is already vendored for the reader.
+
+Two routes, and they are not exclusive:
+
+- **Render page one at scan time.** Server-side needs a rasteriser
+  (`pypdfium2` or `pymupdf` — check the licence: MuPDF is AGPL, pdfium
+  is BSD). 514 pages of a scanned comic is real work, so it belongs in
+  the indexer beside cover extraction, not in a request.
+- **Ask a provider.** Open Library returns cover URLs for a matched
+  work, which is the only hope for the 26 EPUBs and 15 PRCs whose files
+  carry no image at all. It also costs a request per book and gives the
+  *edition's* cover, which may not be the copy you own.
+
+Whatever is fetched goes through `CoverStore` and lands on disk keyed by
+hash, like every other cover — not in SQLite.
+
+### 2. Fetch each matched work's own record
+
+§10.13 recorded this and left it undone. Open Library's *search* results
+carry title, author, year, ISBN, language and a cover but **no synopsis
+and no publisher**, so auto-apply writes almost nothing:
+
+| | |
+| --- | --- |
+| no synopsis | 1,912 of 2,179 |
+| no genre | 1,873 |
+| no first-published year | 1,585 |
+
+One extra request per book fixes all three, and it is the same call that
+would answer §3 below — so they are one piece of work, not two.
+
+### 3. M9's other half: series from a provider
+
+**1,558 books have no series.** Filenames gave 297 of them one and hand
+-filing reached the rest that could be proved (§8.10); most of what is
+left either genuinely stands alone or needs the works data from §2.
+Until then, `PUT /api/books/{id}/series` is the answer for any book you
+care about.
+
+### 4. Decisions waiting on a person
+
+- **278 hidden duplicate copies.** Audited twice, and both audits found
+  real faults (§8.6, §8.10). No file was ever deleted;
+  `POST /api/books/restore-duplicates` shows them all again.
+- **`GOOGLE_BOOKS_API_KEY` is unset**, so Google Books answers 429 to
+  everything and contributes nothing. It has the best synopses and
+  categories of the free providers, which is exactly what §2 is short of.
+- **17 authors have never been asked about, and 375 were asked and are
+  unknown to Open Library** — mostly series names and scanner handles.
+  The Sunday job walks ten a week and needs no help.
+
+### 5. Known gaps, deliberately
+
+- **Hand-editing is authors and series only** (§8.10). Title, synopsis
+  and genres are provider-or-file; `title` is outside even the
+  enrichment writable set.
+- **57% genre-map coverage.** The rest is junk like `Rand al'Thor
+  (Fictitious character)` — logged, never guessed (decision 5).
+- **CBR stays out.** It is RAR, and nothing in the stack reads RAR.
+- **foliate-js has been pinned at `78914ae` since M0** and never
+  updated, while upstream declares itself unstable. Updating is a
+  deliberate act with the whole UI suite behind it (§3).
+- **The test database accumulates.** `.test-library/books.db` survives
+  between runs, so uniquely-named shelves pile up — 454 of them by the
+  time it was noticed. Harmless until a test counts globally, which one
+  did.
