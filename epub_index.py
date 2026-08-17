@@ -170,17 +170,54 @@ class LibraryIndexer:
 
     # ── walking ───────────────────────────────────────────────────────
     def _walk(self, root: Path):
+        """Every book under the root, of any container.
+
+        A directory named *.epub is a book — 265 of the real library are
+        stored that way — so the walk stops there rather than descending
+        into it and finding a hundred documents.
+        """
         suffixes = self._library.SUFFIXES
-        for path in sorted(root.rglob("*")):
-            # Unpacked EPUB directories (262 of them in the real library)
-            # are not handled yet — they need a directory-serving route.
-            if path.is_file() and path.suffix.lower() in suffixes:
+        for path in sorted(root.iterdir()):
+            if path.is_dir():
+                if self._is_unpacked_book(path):
+                    yield path
+                else:
+                    yield from self._walk(path)
+            elif path.suffix.lower() in suffixes:
                 yield path
+
+    @staticmethod
+    def _stamp(path: Path) -> tuple[int, int]:
+        """What a book looks like without opening it: total size and
+        most recent change.
+
+        A directory's own mtime does not move when a file inside it is
+        edited, so an unpacked book is measured by its contents — or
+        every scan would call an edited book unchanged.
+        """
+        if not path.is_dir():
+            stat = path.stat()
+            return stat.st_size, int(stat.st_mtime)
+        size = mtime = 0
+        for inner in path.rglob("*"):
+            if inner.is_file():
+                stat = inner.stat()
+                size += stat.st_size
+                mtime = max(mtime, int(stat.st_mtime))
+        return size, mtime
+
+    @staticmethod
+    def _is_unpacked_book(path: Path) -> bool:
+        """A directory that is a book rather than a shelf. The name and
+        a container are both asked for: "Drive.epub" holding nothing but
+        a readme is somebody's notes."""
+        return (path.suffix.lower() == ".epub"
+                and (path / "META-INF" / "container.xml").is_file())
 
     # ── per book ──────────────────────────────────────────────────────
     def _index_one(self, path: Path, report: IndexReport) -> int | None:
         rel = str(path.relative_to(self._library.root))
-        stat = path.stat()
+        size, mtime = self._stamp(path)
         cursor = self._db.connection
 
         row = cursor.execute(
@@ -188,9 +225,7 @@ class LibraryIndexer:
             "FROM book WHERE path = ?", (rel,)
         ).fetchone()
 
-        if row and row["size_bytes"] == stat.st_size and row["mtime"] == int(
-            stat.st_mtime
-        ):
+        if row and row["size_bytes"] == size and row["mtime"] == mtime:
             if row["missing_since"] is not None:
                 cursor.execute(
                     "UPDATE book SET missing_since = NULL WHERE id = ?", (row["id"],)
@@ -213,7 +248,7 @@ class LibraryIndexer:
             cursor.execute(
                 "UPDATE book SET content_hash = ?, size_bytes = ?, mtime = ?, "
                 "missing_since = NULL WHERE id = ?",
-                (content_hash, stat.st_size, int(stat.st_mtime), row["id"]),
+                (content_hash, size, mtime, row["id"]),
             )
             book_id = row["id"]
             report.updated += 1
@@ -229,7 +264,7 @@ class LibraryIndexer:
             cursor.execute(
                 "UPDATE book SET path = ?, size_bytes = ?, mtime = ?, "
                 "missing_since = NULL WHERE id = ?",
-                (rel, stat.st_size, int(stat.st_mtime), existing["id"]),
+                (rel, size, mtime, existing["id"]),
             )
             book_id = existing["id"]
             if moved:
@@ -241,7 +276,7 @@ class LibraryIndexer:
                 "INSERT INTO book (content_hash, path, format, size_bytes, mtime,"
                 " added_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (content_hash, rel, path.suffix.lstrip(".").lower(),
-                 stat.st_size, int(stat.st_mtime), now),
+                 size, mtime, now),
             )
             book_id = cursor.execute(
                 "SELECT id FROM book WHERE content_hash = ?", (content_hash,)
@@ -271,11 +306,24 @@ class LibraryIndexer:
 
     def _hash(self, path: Path) -> str:
         digest = hashlib.sha256()
+        if path.is_dir():
+            # The contents, in a fixed order, each named before it is
+            # read — so that moving a file within the book changes the
+            # hash, as editing one does.
+            for inner in sorted(p for p in path.rglob("*") if p.is_file()):
+                digest.update(str(inner.relative_to(path).as_posix()).encode())
+                digest.update(b"\0")
+                self._feed(digest, inner)
+        else:
+            self._feed(digest, path)
+        self.hashed += 1
+        return digest.hexdigest()
+
+    @staticmethod
+    def _feed(digest, path: Path) -> None:
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
-        self.hashed += 1
-        return digest.hexdigest()
 
     # ── writing ───────────────────────────────────────────────────────
     def _store(self, book_id: int, content_hash: str, meta: BookMetadata,

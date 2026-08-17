@@ -46,12 +46,51 @@ class BookMetadata:
     cover_suffix: str | None = None
 
 
+class ZipContents:
+    """The files inside a zipped EPUB."""
+
+    def __init__(self, archive: zipfile.ZipFile) -> None:
+        self._archive = archive
+
+    def names(self) -> list[str]:
+        return self._archive.namelist()
+
+    def read(self, name: str) -> bytes:
+        return self._archive.read(name)
+
+
+class FolderContents:
+    """The files inside an EPUB that was never zipped.
+
+    265 books in the real library are directories — iTunes exports, and
+    anything somebody unzipped and never put back. The name still ends
+    in .epub and the layout is identical, so the parser only needs to
+    be told where to read from.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self._root = Path(root)
+
+    def names(self) -> list[str]:
+        return [str(p.relative_to(self._root).as_posix())
+                for p in self._root.rglob("*") if p.is_file()]
+
+    def read(self, name: str) -> bytes:
+        target = (self._root / name).resolve()
+        # A book must not be able to name a file outside itself.
+        if not str(target).startswith(str(self._root.resolve())):
+            raise MetadataError(f"{name} is outside the book.")
+        return target.read_bytes()
+
+
 class EpubMetadataReader:
     def read(self, path: Path) -> BookMetadata:
         path = Path(path)
+        if path.is_dir():
+            return self._read_book(FolderContents(path), path)
         try:
             with zipfile.ZipFile(path) as zf:
-                return self._read_archive(zf, path)
+                return self._read_book(ZipContents(zf), path)
         except zipfile.BadZipFile as exc:
             raise MetadataError(f"{path.name} is not a valid EPUB archive.") from exc
         except FileNotFoundError as exc:
@@ -62,8 +101,9 @@ class EpubMetadataReader:
             raise MetadataError(f"{path.name}: {type(exc).__name__}: {exc}") from exc
 
     # ── internals ─────────────────────────────────────────────────────
-    def _read_archive(self, zf: zipfile.ZipFile, path: Path) -> BookMetadata:
-        names = zf.namelist()
+    def _read_book(self, contents, path: Path) -> BookMetadata:
+        zf = contents            # a zip or a folder; both answer the same way
+        names = contents.names()
         container = next((n for n in names if n.endswith(CONTAINER)), None)
         if container is None:
             raise MetadataError(f"{path.name} has no META-INF/container.xml.")
@@ -180,7 +220,7 @@ class EpubMetadataReader:
         from urllib.parse import unquote
         target = unquote(href)
         candidates = [f"{base}/{target}" if base else target, target]
-        names = set(zf.namelist())
+        names = set(zf.names())
         found = next((c for c in candidates if c in names), None)
         if found is None:
             # Some books percent-encode inconsistently; fall back to a

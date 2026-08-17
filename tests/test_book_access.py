@@ -142,3 +142,56 @@ class TestOtherFormatsAreServed:
         gateway.reindex()
         names = [b["name"] for b in client.get("/api/books").json()["books"]]
         assert "comic.cbr" not in names
+
+
+class TestServingABookThatWasNeverZipped:
+    """foliate reads a zip. A book stored as a directory is zipped on
+    the way out, so everything downstream — the reader, CFI positions,
+    highlights — carries on knowing nothing about it."""
+
+    def make(self, library, gateway, title="Drive"):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title=title, author="James Sallis").build_unpacked(
+            library / f"{title}.epub")
+        gateway.reindex()
+
+    def book(self, client, title="Drive"):
+        return next(b for b in client.get("/api/books").json()["books"]
+                    if b["title"] == title)
+
+    def test_what_comes_back_is_a_zip(self, client, library, gateway):
+        import io
+        import zipfile
+        self.make(library, gateway)
+        res = client.get(f"/api/books/{self.book(client)['id']}/file")
+        assert res.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(res.content)) as archive:
+            assert "META-INF/container.xml" in archive.namelist()
+
+    def test_the_mimetype_comes_first_and_uncompressed(self, client, library,
+                                                       gateway):
+        # The EPUB container spec asks for exactly this, and some
+        # readers check it.
+        import io
+        import zipfile
+        self.make(library, gateway)
+        res = client.get(f"/api/books/{self.book(client)['id']}/file")
+        with zipfile.ZipFile(io.BytesIO(res.content)) as archive:
+            first = archive.infolist()[0]
+            assert first.filename == "mimetype"
+            assert first.compress_type == zipfile.ZIP_STORED
+            assert archive.read("mimetype") == b"application/epub+zip"
+
+    def test_it_is_offered_as_an_epub(self, client, library, gateway):
+        self.make(library, gateway)
+        res = client.get(f"/api/books/{self.book(client)['id']}/file")
+        assert res.headers["content-type"].startswith("application/epub+zip")
+
+    def test_the_book_inside_still_reads(self, client, library, gateway):
+        import io
+        import zipfile
+        self.make(library, gateway, title="Readable")
+        res = client.get(f"/api/books/{self.book(client, 'Readable')['id']}/file")
+        with zipfile.ZipFile(io.BytesIO(res.content)) as archive:
+            opf = next(n for n in archive.namelist() if n.endswith(".opf"))
+            assert b"Readable" in archive.read(opf)

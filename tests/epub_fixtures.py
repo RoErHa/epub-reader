@@ -192,6 +192,21 @@ class EpubBuilder:
             "</package>\n"
         )
 
+    def build_unpacked(self, dest: Path) -> Path:
+        """The same book, stored as a directory rather than a zip.
+
+        265 of the real library look like this — iTunes exports, and
+        anything somebody unzipped and never zipped again. The name
+        still ends in .epub; only the container is different.
+        """
+        packed = dest.parent / (dest.name + ".packing")
+        self.build(packed)
+        dest.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(packed) as archive:
+            archive.extractall(dest)
+        packed.unlink()
+        return dest
+
     def build(self, dest: Path) -> Path:
         dest.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:

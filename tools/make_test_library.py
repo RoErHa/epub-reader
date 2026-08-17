@@ -8,6 +8,7 @@ regenerated, never committed.
 from __future__ import annotations
 
 import sys
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,8 @@ class TestLibrary:
         for old in self.library.glob("*"):
             if old.is_file():
                 old.unlink()
+            else:
+                shutil.rmtree(old)      # an unpacked book is a directory
 
         EpubBuilder(
             title="The Left Hand of Darkness",
@@ -160,6 +163,15 @@ class TestLibrary:
                 " that pagination has real work to do.</p>"
                 for i in range(40)) + "</body></html>",
         ).build(self.library / "kindle-book.mobi")
+
+        # A book that was never zipped: 265 of the real library are
+        # directories, and they were invisible until M8.
+        EpubBuilder(
+            title="Never Zipped",
+            author="A Reader",
+            chapters=3,
+            paragraphs_per_chapter=4,
+        ).build_unpacked(self.library / "Never Zipped.epub")
 
         # PDF: a different rendering model — pdf.js rasterises pages
         # rather than reflowing text, and runs its parser in a worker,

@@ -6,6 +6,8 @@ read-only, and put the security headers on everything.
 from __future__ import annotations
 
 import hashlib
+import io
+import zipfile
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
@@ -317,6 +319,26 @@ class EpubGateway:
                 raise HTTPException(status_code=404, detail="No such book.")
             return row
 
+        def zip_unpacked(root: Path) -> bytes:
+            """An unpacked book, packed. The mimetype goes first and
+            uncompressed, as the EPUB container spec asks and as some
+            readers check."""
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+                mimetype = root / "mimetype"
+                archive.writestr(
+                    zipfile.ZipInfo("mimetype"),
+                    mimetype.read_bytes() if mimetype.is_file()
+                    else b"application/epub+zip",
+                    compress_type=zipfile.ZIP_STORED,
+                )
+                for inner in sorted(p for p in root.rglob("*") if p.is_file()):
+                    name = inner.relative_to(root).as_posix()
+                    if name == "mimetype":
+                        continue
+                    archive.write(inner, name)
+            return buffer.getvalue()
+
         def book_file(row):
             path = (library.root / row["path"]).resolve()
             try:
@@ -325,7 +347,9 @@ class EpubGateway:
                 raise HTTPException(
                     status_code=404, detail="No such book."
                 ) from None
-            if not path.is_file():
+            # A book may be a directory: 265 of the real library were
+            # never zipped. Both are books; only the container differs.
+            if not path.is_file() and not path.is_dir():
                 raise HTTPException(status_code=404, detail="No such book.")
             return path
 
@@ -652,6 +676,17 @@ class EpubGateway:
             # subfolders, and a relative path with slashes cannot be a
             # single path segment.
             path = book_file(book_or_404(book_id))
+            if path.is_dir():
+                # foliate reads a zip, so a book that was never zipped
+                # is zipped on the way out. Everything downstream — the
+                # reader, CFI positions, highlights — carries on
+                # knowing nothing about it.
+                return Response(
+                    content=zip_unpacked(path),
+                    media_type="application/epub+zip",
+                    headers={"Content-Disposition":
+                             f'inline; filename="{path.name}"'},
+                )
             media = self.MEDIA_TYPES.get(
                 path.suffix.lower(), "application/octet-stream"
             )

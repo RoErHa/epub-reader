@@ -99,7 +99,7 @@ Validated against `~/Books`: 34 GB, 1,327 EPUB files, 585 PDFs, 309 CBZ,
 
 | Finding | Count | Consequence |
 | --- | --- | --- |
-| Unpacked EPUBs stored as **directories** (`Drive.epub/`, iTunes exports with `iTunesMetadata.plist`) | 262 | Invisible today — `BookLibrary` lists files only. foliate-js *can* read unpacked directories. |
+| Unpacked EPUBs stored as **directories** (`Drive.epub/`, iTunes exports with `iTunesMetadata.plist`) | 265 | Fixed in M8 — indexed in place and zipped on the way out. |
 | Books in **subfolders** (series and collection folders) | 1,131 | Invisible today — the scan is not recursive. That is 44% of the library. |
 
 **Metadata quality** (260-book sample) — better than feared, except names:
@@ -552,7 +552,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
 | ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
-| M8 | Unpacked EPUB directories (262 of them); book-level dedupe; CBZ | — |
+| 🔄 M8 | Unpacked EPUB directories ✅; book-level dedupe; CBZ | in progress |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -682,7 +682,20 @@ an object stream is simply one with no usable metadata, which is where
 The library is now 2,008 books: 1,352 EPUB, 567 PDF, 52 PRC, 34 MOBI,
 3 AZW3.
 
-## 9. Decisions — settled
+### 8.5 M8: books that were never zipped
+
+265 books in the library are directories rather than files — iTunes exports, and anything somebody unzipped and never put back. They had been invisible since M2, because the scan listed files only. That is 265 books you own and cannot see.
+
+**Zipped on demand.** foliate reads a zip, so a book stored loose is packed on the way out, mimetype first and uncompressed as the container spec asks. Everything downstream — the reader, CFI positions, highlights, the loading bar — carries on knowing nothing about it. A 500 kB book takes a few milliseconds to pack, and the alternative, serving the tree file by file for foliate's directory loader, would have put a second book-fetching path through the CSP and the position code for no gain.
+
+Four things the container change touched:
+
+- **The walk stops at a book.** A directory named `*.epub` holding a `META-INF/container.xml` is a book, so the scan yields it and does not descend; without both tests, `Drive.epub/` becomes a hundred documents, and someone's `Notes.epub/` folder becomes a book.
+- **A directory has no size or mtime of its own that means anything.** Editing a file inside one does not move the directory's timestamp, so an unpacked book is stamped by the total size and the most recent change *of its contents* — otherwise every scan would call an edited book unchanged.
+- **The hash covers names as well as bytes**, in a fixed order, so moving a file within a book changes its identity as editing one does.
+- **The parser reads a loader, not a zip.** `ZipContents` and `FolderContents` answer `names()` and `read()`; everything above them is unchanged, and a book cannot name a file outside itself.
+
+**Measured: 264 new books in 4.9 s, no failures.** The library is now 2,271 books.
 
 | # | Decision | Consequence |
 | --- | --- | --- |

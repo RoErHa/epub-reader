@@ -436,3 +436,79 @@ class TestOtherFormats:
         indexer.run()
         assert db.connection.execute(
             "SELECT cover_path FROM metadata").fetchone()["cover_path"]
+
+
+class TestBooksThatWereNeverZipped:
+    """265 books in the real library are directories: iTunes exports,
+    and anything somebody unzipped and never put back. They were
+    invisible — the scan listed files only — which is 265 books you own
+    and cannot see."""
+
+    def test_a_directory_is_indexed_as_one_book(self, indexer, library, db):
+        EpubBuilder(title="Drive", author="James Sallis").build_unpacked(
+            library / "Drive.epub")
+        assert indexer.run().added == 1
+        row = db.connection.execute(
+            "SELECT m.title, b.format FROM metadata m"
+            " JOIN book b ON b.id = m.book_id").fetchone()
+        assert row["title"] == "Drive"
+        assert row["format"] == "epub"
+
+    def test_the_files_inside_it_are_not_books(self, indexer, library, db):
+        # A book is the directory, not the hundred documents in it.
+        EpubBuilder(title="Drive", chapters=4).build_unpacked(
+            library / "Drive.epub")
+        assert indexer.run().added == 1
+
+    def test_it_sits_beside_zipped_books(self, indexer, library, db):
+        add(library, "packed.epub", title="Packed", author="Someone")
+        EpubBuilder(title="Loose", author="Someone").build_unpacked(
+            library / "Loose.epub")
+        assert indexer.run().added == 2
+
+    def test_nothing_changes_on_a_second_scan(self, indexer, library, db):
+        EpubBuilder(title="Drive").build_unpacked(library / "Drive.epub")
+        indexer.run()
+        report = indexer.run()
+        assert report.added == 0
+        assert report.updated == 0
+        assert report.unchanged == 1
+
+    def test_editing_a_file_inside_it_is_noticed(self, indexer, library, db):
+        EpubBuilder(title="Drive").build_unpacked(library / "Drive.epub")
+        indexer.run()
+        page = next((library / "Drive.epub").rglob("*.xhtml"))
+        page.write_text(page.read_text() + "<!-- changed -->")
+
+        report = indexer.run()
+        assert report.updated == 1
+
+    def test_the_same_book_zipped_and_loose_is_one_book(self, indexer, library,
+                                                        db):
+        # Same contents, two containers. Identity is the content hash,
+        # and these hash differently — a zip is not its own contents —
+        # so this is two books, and the book-level dedupe is what will
+        # have an opinion about that later.
+        # Not the same name in two cases: macOS would call those one
+        # path and the second would fail to be created at all.
+        builder = EpubBuilder(title="Twice", author="Someone")
+        builder.build(library / "twice-zipped.epub")
+        builder.build_unpacked(library / "twice-loose.epub")
+        assert indexer.run().added == 2
+
+    def test_a_directory_that_is_not_a_book_is_skipped(self, indexer, library,
+                                                       db):
+        (library / "Notes.epub").mkdir()
+        (library / "Notes.epub" / "readme.txt").write_text("not a book")
+        report = indexer.run()
+        assert report.added == 0
+
+    def test_a_broken_one_does_not_stop_the_scan(self, indexer, library, db):
+        broken = library / "Broken.epub"
+        (broken / "META-INF").mkdir(parents=True)
+        (broken / "META-INF" / "container.xml").write_text("<container/>")
+        add(library, "good.epub", title="Fine")
+        report = indexer.run()
+        assert report.failed == 1
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM metadata").fetchone()["n"] == 1

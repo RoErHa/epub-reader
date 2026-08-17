@@ -146,3 +146,58 @@ class TestBrokenBooks:
     def test_an_empty_spine_is_reported(self, tmp_path, read):
         path = EpubBuilder(chapters=0).build(tmp_path / "b.epub")
         assert read(path).spine_length == 0
+
+
+class TestAnUnpackedBook:
+    """265 books in the real library are directories rather than zips —
+    iTunes exports, and anything somebody unzipped and never zipped
+    again. The name still ends in .epub; only the container differs, so
+    the same parser should read both."""
+
+    def test_it_reads_like_any_other(self, tmp_path):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="Drive", author="James Sallis",
+                    subjects=["Crime"]).build_unpacked(tmp_path / "Drive.epub")
+        meta = EpubMetadataReader().read(tmp_path / "Drive.epub")
+        assert meta.title == "Drive"
+        assert [a.display for a in meta.authors] == ["James Sallis"]
+        assert meta.subjects == ["Crime"]
+
+    def test_it_agrees_with_the_zipped_version(self, tmp_path):
+        from tests.epub_fixtures import EpubBuilder
+        builder = EpubBuilder(title="The Dispossessed", author="Le Guin, Ursula",
+                              series="Hainish", series_index=6, cover=True)
+        builder.build(tmp_path / "packed.epub")
+        builder.build_unpacked(tmp_path / "Unpacked.epub")
+
+        reader = EpubMetadataReader()
+        packed = reader.read(tmp_path / "packed.epub")
+        loose = reader.read(tmp_path / "Unpacked.epub")
+        assert packed.title == loose.title
+        assert packed.title_sort == loose.title_sort
+        assert [a.sort for a in packed.authors] == [a.sort for a in loose.authors]
+        assert packed.series == loose.series
+        assert packed.cover_data == loose.cover_data
+
+    def test_its_cover_is_found(self, tmp_path):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="Covered", cover=True).build_unpacked(
+            tmp_path / "Covered.epub")
+        meta = EpubMetadataReader().read(tmp_path / "Covered.epub")
+        assert meta.cover_data
+        assert meta.cover_suffix == ".png"
+
+    def test_a_directory_with_no_container_is_reported(self, tmp_path):
+        empty = tmp_path / "Nothing.epub"
+        (empty / "OEBPS").mkdir(parents=True)
+        with pytest.raises(MetadataError):
+            EpubMetadataReader().read(empty)
+
+    def test_an_opf_the_container_promises_but_lacks(self, tmp_path):
+        broken = tmp_path / "Broken.epub"
+        (broken / "META-INF").mkdir(parents=True)
+        (broken / "META-INF" / "container.xml").write_text(
+            '<container><rootfiles><rootfile full-path="OEBPS/gone.opf"/>'
+            '</rootfiles></container>')
+        with pytest.raises(MetadataError):
+            EpubMetadataReader().read(broken)
