@@ -34,6 +34,12 @@ NOISE = re.compile(
 )
 
 
+# The article a library moves to the end when filing. Only at the very
+# end, and only these words: "Dune, Messiah of" keeps its comma.
+TRAILING_ARTICLE = re.compile(
+    r",\s*(the|a|an|de|het|een|le|la|les|der|die|das)\s*$", re.IGNORECASE)
+
+
 def normalise_title(title: str | None) -> str:
     """Reduce a title to the part worth comparing."""
     if not title:
@@ -45,6 +51,9 @@ def normalise_title(title: str | None) -> str:
     # a title that is *only* a subtitle would then match anything.
     head = text.split(":", 1)[0]
     text = head if head.strip() else text.replace(":", " ")
+    # Libraries file "The Left Hand of Darkness" as "Left Hand of
+    # Darkness, The", and both spellings turn up in one collection.
+    text = TRAILING_ARTICLE.sub("", text)
     text = NOISE.sub(" ", text)
     # A hyphen joins two words; deleting it welds them into a token
     # nothing will match ("Gilden-Fire" → "gildenfire"), so it becomes a

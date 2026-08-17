@@ -421,6 +421,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Books filed under their own title | `POST /api/books/repair-authors` | `epub_repair.py` |
 | Titles that are really filenames | `POST /api/books/repair-titles` | `epub_titles.py` |
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
+| One row per work | `./run.sh dedupe [--apply]` | `epub_duplicates.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 
@@ -552,7 +553,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M5.1 | Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety | done |
 | ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
-| 🔄 M8 | Unpacked EPUB directories ✅; book-level dedupe; CBZ | in progress |
+| 🔄 M8 | Unpacked EPUB directories ✅; book-level dedupe ✅; CBZ | in progress |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -785,6 +786,7 @@ epub_match.py       MatchScorer, Candidate, normalise_title, search_title
 epub_book_enrich.py BookEnricher — apply, queue, accept, reject
 epub_genres.py      GenreVocabulary — the BISAC subset and the map
 epub_maintenance.py LibraryRepair — the three passes, in dependency order
+epub_duplicates.py  DuplicateFinder — one row per work, nothing deleted
 epub_refresh.py     AuthorRefresh — the weekly round-robin, oldest first
 data/genres.tsv     ~40 BISAC terms; data/genre_map.tsv translates providers
 static/review.js    ReviewPanel — why it scored that, and what would change

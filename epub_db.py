@@ -292,6 +292,17 @@ class MigrationRunner:
               ON annotation(book_id, fraction);
             """,
         ),
+        Migration(
+            9,
+            "duplicates",
+            """
+            -- The same work held more than once. The spare copies keep
+            -- their rows and their paths and are simply not shown, so
+            -- this is reversible and no file is ever touched.
+            ALTER TABLE book ADD COLUMN duplicate_of INTEGER REFERENCES book(id);
+            CREATE INDEX IF NOT EXISTS book_duplicate ON book(duplicate_of);
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

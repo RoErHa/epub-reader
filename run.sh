@@ -26,6 +26,8 @@
 #   ./run.sh repair --apply     # ...and fix what it can prove
 #   ./run.sh refresh            # re-ask about the oldest author data
 #   ./run.sh refresh --max 25   # ...more of it at once
+#   ./run.sh dedupe             # find works held more than once
+#   ./run.sh dedupe --apply     # ...and show only one copy of each
 #   ./run.sh --env .env.test start
 # =============================================================================
 set -euo pipefail
@@ -48,7 +50,7 @@ while [ $# -gt 0 ]; do
     --foreground|-f) FOREGROUND=1; shift ;;
     --apply)      APPLY=1; shift ;;
     --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -62,7 +64,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,31p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -118,6 +120,18 @@ do_repair() {
   else
     echo "▶  Checking authors and titles (nothing will be changed)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --repair
+  fi
+}
+
+do_dedupe() {
+  # Looking is the default. Nothing is ever deleted: a spare copy keeps
+  # its row and its path and is simply not shown.
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Looking for works held more than once, and hiding the spares…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --dedupe --apply
+  else
+    echo "▶  Looking for works held more than once (nothing will change)…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --dedupe
   fi
 }
 
@@ -207,6 +221,7 @@ case "${COMMAND}" in
   scan)    do_scan ;;
   repair)  do_repair ;;
   refresh) do_refresh ;;
+  dedupe)  do_dedupe ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
   stop)    do_stop ;;

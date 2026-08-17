@@ -205,3 +205,26 @@ class TestSearchQuery:
         # "gildenfire" is a token no provider will match; "gilden fire"
         # is a query.
         assert search_title("Gilden-Fire") == "gilden fire"
+
+
+class TestTheArticleAtTheEnd:
+    """Libraries file "The Left Hand of Darkness" as "Left Hand of
+    Darkness, The", and both spellings turn up in one collection. They
+    are the same title by any reading."""
+
+    def test_a_trailing_article_matches_a_leading_one(self):
+        assert normalise_title("Left Hand of Darkness, The") == \
+            normalise_title("The Left Hand of Darkness")
+
+    def test_it_works_for_a_and_an(self):
+        assert normalise_title("Wizard of Earthsea, A") == \
+            normalise_title("A Wizard of Earthsea")
+        assert normalise_title("Fire Upon the Deep, An") == \
+            normalise_title("An Fire Upon the Deep")
+
+    def test_a_real_comma_is_not_an_article(self):
+        # "Cussler, Clive" is a name, not a filing convention.
+        assert normalise_title("Dune, Messiah of") != normalise_title("Dune")
+
+    def test_a_title_that_is_only_an_article_survives(self):
+        assert normalise_title("The") == "the"

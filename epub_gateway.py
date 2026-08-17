@@ -116,6 +116,26 @@ class RefreshCommand:
         return 0
 
 
+class DedupeCommand:
+    """`--dedupe`: one row per work, and say what that took.
+
+    No file is deleted — the spare copies keep their rows and their
+    paths, and the restore endpoint brings them back.
+    """
+
+    def __init__(self, config: Config, apply: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.dedupe_books(apply=self._apply))
+        finally:
+            gateway.close()
+        return 0
+
+
 class GatewayRunner:
     """Owns the server lifecycle."""
 
@@ -179,6 +199,11 @@ class GatewayCLI:
             help="Check authors and titles, report, then exit without serving.",
         )
         parser.add_argument(
+            "--dedupe",
+            action="store_true",
+            help="Report works held more than once, then exit without serving.",
+        )
+        parser.add_argument(
             "--refresh",
             action="store_true",
             help="Re-ask about the oldest author data, then exit without serving.",
@@ -205,6 +230,8 @@ class GatewayCLI:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
         LoggingSetup(config).apply()
+        if args.dedupe:
+            return DedupeCommand(config, apply=args.apply).run()
         if args.refresh:
             return RefreshCommand(config, limit=args.max).run()
         if args.repair:

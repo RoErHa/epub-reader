@@ -60,7 +60,9 @@ class BrowseQueries:
           JOIN metadata m ON m.book_id = b.id
           LEFT JOIN series s ON s.id = m.series_id
           LEFT JOIN reading_state r ON r.content_hash = b.content_hash
-         WHERE b.missing_since IS NULL
+         -- A work held twice is one book on screen. The spare copy
+         -- keeps its row and its path; it is simply not shown.
+         WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
     """
 
     def __init__(self, database) -> None:
@@ -159,6 +161,7 @@ class BrowseQueries:
                   FROM series s
                   JOIN metadata m ON m.series_id = s.id
                   JOIN book b ON b.id = m.book_id AND b.missing_since IS NULL
+                   AND b.duplicate_of IS NULL
                  GROUP BY s.id ORDER BY s.sort_name
             """)
         ]
@@ -171,6 +174,7 @@ class BrowseQueries:
                   FROM genre g
                   JOIN book_genre bg ON bg.genre_id = g.id
                   JOIN book b ON b.id = bg.book_id AND b.missing_since IS NULL
+                       AND b.duplicate_of IS NULL
                  GROUP BY g.id ORDER BY n DESC, g.sort_name
             """)
         ]
@@ -330,7 +334,10 @@ class BrowseQueries:
     def status(self) -> dict:
         one = lambda sql: self._db.connection.execute(sql).fetchone()[0]  # noqa: E731
         return {
-            "books": one("SELECT COUNT(*) FROM book WHERE missing_since IS NULL"),
+            "books": one("SELECT COUNT(*) FROM book WHERE missing_since IS NULL"
+                         " AND duplicate_of IS NULL"),
+            "duplicates": one("SELECT COUNT(*) FROM book"
+                              " WHERE duplicate_of IS NOT NULL"),
             "missing": one("SELECT COUNT(*) FROM book WHERE missing_since IS NOT NULL"),
             "failed": one("SELECT COUNT(*) FROM book WHERE index_error IS NOT NULL"),
             # What is on the shelves, not how many rows there are. A
@@ -341,6 +348,7 @@ class BrowseQueries:
             "authors": one("""
                 SELECT COUNT(DISTINCT ba.author_id) FROM book_author ba
                   JOIN book b ON b.id = ba.book_id AND b.missing_since IS NULL
+                   AND b.duplicate_of IS NULL
             """),
             "series": one("""
                 SELECT COUNT(DISTINCT m.series_id) FROM metadata m

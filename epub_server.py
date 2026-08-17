@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from epub_annotations import AnnotationError, AnnotationStore
 from epub_browse import BrowseError, BrowseQueries
+from epub_duplicates import DuplicateFinder
 from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
@@ -197,6 +198,7 @@ class EpubGateway:
         self._search = SearchQueries(self._database, self._browse)
         self._shelves = ShelfStore(self._database)
         self._annotations = AnnotationStore(self._database)
+        self._duplicates = DuplicateFinder(self._database)
         # One fetcher for every provider, so the pacing is the whole
         # service's rather than each caller's: four separate streams is
         # how a library-wide run earns 503s.
@@ -252,6 +254,10 @@ class EpubGateway:
         """Bring the oldest author data up to date, and say what
         happened in one line."""
         return AuthorRefresh.summary(self._refresher.run(limit=limit))
+
+    def dedupe_books(self, apply: bool = False) -> str:
+        """One row per work, and one line about it."""
+        return DuplicateFinder.summary(self._duplicates.run(apply=apply))
 
     def repair(self, apply: bool = False) -> str:
         """Check authors and titles, and say what happened in one line."""
@@ -573,6 +579,22 @@ class EpubGateway:
         @app.post("/api/books/repair-authors")
         def repair_authors(apply: bool = False) -> JSONResponse:
             return JSONResponse(self._repairer.run(apply=apply))
+
+        @app.post("/api/books/dedupe")
+        def dedupe_books(apply: bool = False) -> JSONResponse:
+            """One row per work. No file is deleted — the spare copies
+            keep their rows and can be restored."""
+            report = self._duplicates.run(apply=apply)
+            return JSONResponse({k: v for k, v in report.items()
+                                 if k != "plan"} | {"plan": [
+                {"title": g["title"], "keep": g["keep"]["path"],
+                 "reason": g["reason"],
+                 "spares": [c["path"] for c in g["spares"]]}
+                for g in report["plan"]]})
+
+        @app.post("/api/books/restore-duplicates")
+        def restore_duplicates() -> JSONResponse:
+            return JSONResponse({"restored": self._duplicates.restore()})
 
         @app.post("/api/books/repair-titles")
         def repair_titles(apply: bool = False) -> JSONResponse:
