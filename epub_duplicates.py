@@ -25,6 +25,18 @@ import re
 from pathlib import Path
 
 from epub_match import normalise_title
+
+
+def cls_title(title: str | None) -> str:
+    """A title for telling two books apart.
+
+    `normalise_title` drops whatever follows a colon, which is right for
+    matching a provider — "Kiss the Girls: A gripping detective thriller"
+    is that book — and wrong here: it made "Dune: House Harkonnen" into
+    "Dune" and hid Frank Herbert's novel behind Brian Herbert's. A
+    subtitle is part of what distinguishes one book from another.
+    """
+    return normalise_title(str(title or "").replace(":", " "))
 from epub_names import fold
 
 LOG = logging.getLogger("epub-reader.duplicates")
@@ -55,7 +67,7 @@ class DuplicateFinder:
             if row["series_id"] and row["series_index"] is not None:
                 key = ("series", row["series_id"], row["series_index"], author)
             else:
-                key = (normalise_title(row["title"]), author)
+                key = (cls_title(row["title"]), author)
                 if not key[0]:
                     continue
             groups.setdefault(key, []).append(dict(row))

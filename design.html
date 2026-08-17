@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M9 · SERIES</span>
-  <div class="hdr-right">759 pytest · 306 playwright (chromium + webkit)</div>
+  <div class="hdr-right">918 pytest · 390 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -226,7 +226,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M5 complete — matching, the BISAC genre map and the review queue all work against the real 1,326-book library. Next action is M6. Search, sorting and shelves work over the real 1,326-book library, served over TLS.</div>
+<div class="status">Status: M0–M10 complete. Six formats, ~2,200 books, in daily use over TLS. Series are read from filenames and, where no rule can reach them, filed by hand — the Dune Chronicles and the Licanius Trilogy among them.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -914,6 +914,22 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p><strong>Then series found duplicates that titles could not.</strong> Filing revealed 46 positions claimed by two books — <code>Enders Game 4 - Children of the Mind.epub</code> beside the same file with the author appended, their stored titles differing just enough to look like two works. One author cannot have two fourth books in one series.</p>
 <p>What it cannot reach: <code>Chapterhouse Dune</code> and <code>Children Of Dune</code> carry no marker, so Frank Herbert's own novels are still loose. Brian Herbert's are filed — <em>Dune Chronicles</em>, <em>Prelude to Dune</em>, <em>Great Schools of Dune</em>, <em>Heroes of Dune</em> — because those files were named by someone who cared.</p>
 
+<h3>6.11a &nbsp;Saying it yourself</h3>
+<p>Three books stayed wrong after every automatic pass, each in a way no rule could reach: <strong>The Light of All That Falls</strong> is book three of the Licanius Trilogy, its file says nothing, and its filename carries no number. So <code>PUT /api/books/{id}/series</code> joins <code>PUT /api/books/{id}/authors</code> — and, like it, what you say is <code>origin = 'user'</code>, locked, and never touched again by a scan or by any pass.</p>
+<p>That is the whole of hand-editing today: <strong>who wrote it, and where it sits in a series</strong>. Title, synopsis and genres remain provider-or-file only; <code>title</code> is deliberately outside even the enrichment writable set, because the file's title is what you see in your own folders.</p>
+
+<div class="rule">
+  <span class="eyebrow">A subtitle is part of the title when you are telling two books apart</span>
+  <p><code>normalise_title</code> strips everything after a colon — right for <em>asking</em> a provider, catastrophic for <em>comparing</em>: it made <code>Dune: House Harkonnen</code> into <code>Dune</code>, and since both authors are "Herbert", <strong>Frank Herbert's novel was hidden behind Brian Herbert's</strong>. Dedupe now compares on a title that keeps its subtitle, and auditing all 289 hidden copies afterwards found <strong>16 wrongly hidden books</strong> of the same shape and restored them.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A wrong position hides a book as surely as a wrong title</span>
+  <p>With that fixed, dedupe still wanted to hide <em>Interview with the Vampire</em> behind <em>The Vampire Lestat</em>. It was right that two books cannot both be Vampire Chronicles #1 — the <em>file</em> was wrong: Lestat's own OPF carries <code>calibre:series_index = 1</code>. The rule found a real fault and blamed the wrong book, which is exactly what hand-filing is for.</p>
+</div>
+
+<p>Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.</p>
+
 <h3>6.12 &nbsp;Comics</h3>
 <p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
 <pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>
@@ -972,7 +988,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M7</td><td>PDF: metadata from the filename first, pdf.js under the existing CSP</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M8</td><td>Books that were never zipped; one row per work; comics</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M10</td><td>Shelving from the browse list, without opening the book</td><td class="num win">done</td></tr>
-<tr><td class="num">🔄 M9</td><td>Series from filenames ✅; Frank Herbert's own Dune still needs a provider</td><td class="num">—</td></tr>
+<tr><td class="num">🔄 M9</td><td>Series from filenames ✅; what no filename can reach is filed by hand ✅; series from a provider still open</td><td class="num">—</td></tr>
 </tbody>
 </table>
 </div>

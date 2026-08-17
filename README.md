@@ -70,10 +70,12 @@ your place in it survives an unplugged drive. `forget` is the deliberate
 step, and it refuses when most of the library is missing — that is a
 disk that is not mounted, not a library you emptied.
 
-Where nothing automatic can help, you can say so yourself:
+Where nothing automatic can help, you can say so yourself.
 `PUT /api/books/{id}/authors` fixes a file that is confidently wrong
-about its own author, and what you say is locked against every future
-scan.
+about its own author, and `PUT /api/books/{id}/series` files a book no
+rule could place — *The Light of All That Falls* is book three of the
+Licanius Trilogy, and neither its file nor its name says so. What you
+say is locked against every future scan.
 
 What that found here: 607 authors became 576 (misspellings and spacing);
 193 books filed under their own title got a real author; 386 titles that

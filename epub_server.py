@@ -160,6 +160,14 @@ class BookAuthors(BaseModel):
     authors: list[str]
 
 
+class BookSeries(BaseModel):
+    """Which series a book belongs to, and where in it. No series takes
+    it out of one."""
+
+    series: str | None = None
+    index: float | None = None
+
+
 class ShelfName(BaseModel):
     name: str
 
@@ -697,6 +705,18 @@ class EpubGateway:
             try:
                 return JSONResponse(
                     {"authors": self._credits.set(book_id, body.authors)})
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+
+        @app.put("/api/books/{book_id}/series")
+        def put_series(book_id: int, body: BookSeries) -> JSONResponse:
+            """File a book under a series by hand — for the ones whose
+            filenames carry no number and whose files say nothing."""
+            try:
+                return JSONResponse(
+                    self._credits.set_series(book_id, body.series, body.index))
             except LookupError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from None
             except ValueError as exc:

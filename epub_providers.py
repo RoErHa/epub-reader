@@ -39,6 +39,19 @@ def http_json(url: str, headers: dict | None = None) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+# Open Library speaks MARC; the library speaks BCP 47.
+MARC_TO_BCP47 = {
+    "eng": "en", "ger": "de", "deu": "de", "fre": "fr", "fra": "fr",
+    "dut": "nl", "nld": "nl", "spa": "es", "ita": "it", "por": "pt",
+    "rus": "ru", "swe": "sv", "nor": "no", "dan": "da", "fin": "fi",
+    "pol": "pl", "cze": "cs", "ces": "cs", "gre": "el", "ell": "el",
+    "heb": "he", "hun": "hu", "rum": "ro", "ron": "ro", "tur": "tr",
+    "ara": "ar", "chi": "zh", "zho": "zh", "jpn": "ja", "kor": "ko",
+    "hin": "hi", "vie": "vi", "tha": "th", "ice": "is", "isl": "is",
+    "lat": "la", "gle": "ga", "wel": "cy", "cym": "cy", "cat": "ca",
+}
+
+
 class PoliteFetcher:
     """Spaces requests out and retries the failures worth retrying.
 
@@ -300,12 +313,23 @@ class OpenLibraryProvider:
 
     @staticmethod
     def _language(values) -> str | None:
-        """Open Library uses MARC codes; the library speaks BCP 47."""
-        if not values:
+        """The language of the book, when the answer is unambiguous.
+
+        Open Library answers with every language a *work* has appeared
+        in — "The Camel Club" comes back as ['vie', 'spa', 'eng', 'fre']
+        — and taking the first of those made Baldacci Vietnamese and
+        Sanderson Polish. A list of translations says nothing about the
+        file on your disk, so several answers means no answer, and
+        whatever the file itself said stands.
+        """
+        codes = {str(v).lower() for v in (values or []) if v}
+        if len(codes) != 1:
             return None
-        code = str(values[0]).lower()
-        return {"eng": "en", "ger": "de", "deu": "de", "fre": "fr", "fra": "fr",
-                "dut": "nl", "nld": "nl", "spa": "es", "ita": "it"}.get(code, code[:2])
+        code = codes.pop()
+        # Truncating a MARC code to two letters is not a translation:
+        # "swe" would become Swahili and "chi" Chamorro. An unmapped
+        # code is passed through as it came, which is at least true.
+        return MARC_TO_BCP47.get(code, code)
 
     @staticmethod
     def _year(value) -> int | None:

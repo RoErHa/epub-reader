@@ -446,6 +446,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
 | One row per work | `./run.sh dedupe [--apply]` | `epub_duplicates.py` |
 | Say who wrote a book | `PUT /api/books/{id}/authors` | `epub_credits.py` |
+| Say where it sits in a series | `PUT /api/books/{id}/series` | `epub_credits.py` |
 | Remove books whose files are gone | `./run.sh forget [--apply]` | `epub_forget.py` |
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
@@ -754,7 +755,7 @@ A library assembled over thirty years holds the same work more than once: a bett
 
 Which copy to keep, and what decided this library: **the copy you have been reading** (12 works — your place and highlights hang off one copy); **the format that reads best**, `epub > azw3 > mobi > prc > pdf` (30); **the copy with a cover** (155); then fuller metadata, then size.
 
-> **Apply, then audit.** The rule looked right on a dry run, and the one fault in 235 appeared only by asking a different question afterwards: *which hidden copies have filenames that disagree?* Two different Roman histories had been shown as one book, because a scanner wrote the same list of works into both. Two PDFs now need their filenames to agree as well — and agreement is not similarity: `Dune.pdf` and `Dune (retail).pdf` score barely higher than those two did. What tells a duplicate apart is that one name is **the other plus extras**.
+> **Apply, then audit.** The rule looked right on a dry run, and the one fault in 235 appeared only by asking a different question afterwards: *which hidden copies have filenames that disagree?* Two different Roman histories had been shown as one book, because a scanner wrote the same list of works into both. Two PDFs now need their filenames to agree as well — and agreement is not similarity: `Dune.pdf` and `Dune (retail).pdf` score barely higher than those two did. What tells a duplicate apart is that one name is **the other plus extras**. Auditing again months later found the second fault, which was in the title key itself rather than in the rule — see §8.10.
 
 ### 8.7 M8: comics
 
@@ -774,7 +775,21 @@ Two files named `.cbz` are RAR inside, and the error says which rather than "not
 
 **Then series found duplicates that titles could not.** Filing revealed 46 positions claimed by two books — `Enders Game 4 - Children of the Mind.epub` beside the same file with the author appended. One author cannot have two fourth books in one series.
 
-What it cannot reach: `Chapterhouse Dune` carries no marker, so Frank Herbert's own novels are still loose, while Brian Herbert's are filed — those files were named by someone who cared.
+What it cannot reach: `Chapterhouse Dune` carries no marker, so Frank Herbert's own novels are still loose, while Brian Herbert's are filed — those files were named by someone who cared. That is what §8.10 is for, and the Dune Chronicles are now filed 1–8 by hand.
+
+### 8.10 M9, continued: saying it yourself
+
+Three books stayed wrong after every automatic pass, and each was wrong in a way no rule could reach: **The Light of All That Falls** is book three of the Licanius Trilogy, its file says nothing, and its filename carries no number. So `PUT /api/books/{id}/series` joins `PUT /api/books/{id}/authors` — and, like it, what you say is `origin = 'user'`, locked, and never touched again by a scan or a pass.
+
+That is the whole of hand-editing today: **who wrote it, and where it sits in a series**. Title, synopsis and genres are still provider-or-file only; `title` is deliberately outside even the enrichment writable set (§10.13), because the file's title is what you see in your own folders.
+
+**Using it found two real faults, both of which had been silently wrong for a while:**
+
+> **A subtitle is part of the title when you are telling two books apart.** `normalise_title` strips everything after a colon — right for *asking* a provider, catastrophic for *comparing*: it made `Dune: House Harkonnen` into `Dune`, and since both authors are "Herbert", **Frank Herbert's novel was hidden behind Brian Herbert's**. Dedupe now compares on a title that keeps its subtitle. Auditing all 289 hidden copies afterwards found **16 wrongly hidden books**, all of the same shape, and restored them.
+
+> **A wrong position is as good as a wrong title for hiding a book.** With that fixed, dedupe still wanted to hide *Interview with the Vampire* behind *The Vampire Lestat*. It was right that two books cannot both be Vampire Chronicles #1 — the *file* was wrong: Lestat's own OPF carries `calibre:series_index = 1`. The rule found a real fault and blamed the wrong book, which is exactly the case hand-filing exists for.
+
+Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.
 
 ### 8.9 M10: shelving without opening
 
@@ -870,7 +885,8 @@ epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
 epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth having
 epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
 epub_series.py      SeriesFromNames — series read from filenames
-epub_credits.py     BookCredits — who wrote it, when the file is wrong
+epub_credits.py     BookCredits — who wrote it and where in a series,
+                    when neither the file nor its name says
 epub_forget.py      ForgetMissing — removing books whose files are gone
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
@@ -958,6 +974,13 @@ Two things that measurement exposed:
   little. Fetching each matched work's own record would fix it at the
   cost of a second request per book; that is the obvious next
   improvement, and it is recorded here rather than left looking finished.
+- **A work's language is not the edition's.** Accepting six reviewed
+  candidates made David Baldacci Vietnamese and Brandon Sanderson Polish.
+  Open Library lists *every* language a work was ever published in, and
+  the code took the first. It is now believed only when the work exists
+  in exactly one language — and the codes are mapped rather than
+  truncated, since MARC's `swe` is `sv`, not `sw` (which is Swahili).
+  `und`, `mul` and `zxx` are not languages at all.
 
 **Genre coverage** on the real library: the map reaches **57% of
 book-genre rows** (up from 45% once hyphenated paths like

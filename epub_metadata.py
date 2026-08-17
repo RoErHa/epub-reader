@@ -54,6 +54,9 @@ class BookMetadata:
 # including the Earthsea novels.
 FONT_TYPES = (".otf", ".ttf", ".woff", ".woff2", ".eot")
 
+# What a file says when it does not know what language it is in.
+NOT_A_LANGUAGE = {"", "und", "unknown", "xx", "zxx", "mul", "n/a", "none"}
+
 
 class DrmError(MetadataError):
     """The book is encrypted, and the key is not in the file.
@@ -212,7 +215,9 @@ class EpubMetadataReader:
             elif name == "creator":
                 creators.append(text)
             elif name == "language" and not meta.language:
-                meta.language = text
+                # "UND" is the OPF shrugging, not a language. Showing it
+                # as one is worse than showing none.
+                meta.language = text if text.strip().lower() not in NOT_A_LANGUAGE else None
             elif name == "publisher" and not meta.publisher:
                 meta.publisher = text
             elif name == "description" and not meta.description:

@@ -194,6 +194,47 @@ class TestTwoPdfsAreNotEnough:
         assert len(finder.plan()) == 1
 
 
+class TestASubtitleIsPartOfTheTitle:
+    """A real failure, and it hid a book: "Dune" by Frank Herbert was
+    folded into "Dune: House Harkonnen" by Brian Herbert.
+
+    `normalise_title` drops whatever follows a colon, which is right for
+    matching against a provider — "Kiss the Girls: A gripping detective
+    thriller" is that book — and wrong here, where it turns a different
+    novel into the same one. Two Herberts share a surname, and the
+    library lost the founding book of the series.
+    """
+
+    def test_a_subtitled_book_is_not_the_bare_one(self, client, library,
+                                                  gateway, finder):
+        clear(library)
+        EpubBuilder(title="Dune", author="Frank Herbert").build(
+            library / "dune.epub")
+        EpubBuilder(title="Dune: House Harkonnen", author="Brian Herbert",
+                    chapters=2).build(library / "harkonnen.epub")
+        gateway.reindex()
+        assert finder.plan() == []
+
+    def test_it_holds_even_for_one_author(self, client, library, gateway,
+                                          finder):
+        clear(library)
+        EpubBuilder(title="Dune", author="Frank Herbert").build(
+            library / "dune.epub")
+        EpubBuilder(title="Dune: The Butlerian Jihad", author="Frank Herbert",
+                    chapters=2).build(library / "jihad.epub")
+        gateway.reindex()
+        assert finder.plan() == []
+
+    def test_two_copies_of_the_same_book_still_pair(self, client, library,
+                                                    gateway, finder):
+        clear(library)
+        for i, name in enumerate(("a.epub", "b.epub")):
+            EpubBuilder(title="Dune: House Harkonnen", author="Brian Herbert",
+                        chapters=2 + i).build(library / name)
+        gateway.reindex()
+        assert len(finder.plan()) == 1
+
+
 class TestWhichCopyToKeep:
     def test_the_reflowable_one_beats_the_scan(self, client, library, gateway,
                                                finder):

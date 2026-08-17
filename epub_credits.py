@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import time
 
-from epub_names import PersonName
+from epub_names import PersonName, title_sort_key
 
 LOG = logging.getLogger("epub-reader.credits")
 
@@ -55,19 +55,61 @@ class BookCredits:
                 " position) VALUES (?, ?, 'author', ?)",
                 (book_id, author_id, position))
 
-        # Locked, not merely recorded: a scan would otherwise take the
-        # file's word for it again the moment the file is touched.
+        shown = [p.display for p in people]
+        self._record(book_id, "authors")
+        LOG.info("book %s credited to %s", book_id, ", ".join(shown))
+        return shown
+
+    def set_series(self, book_id: int, series: str | None,
+                   index: float | None = None) -> dict:
+        """Say which series a book belongs to, and where in it.
+
+        M9 reads series from filenames and refuses to invent one from a
+        single book — "The Light of All That Falls" is book three of the
+        Licanius Trilogy, its file says nothing, and its name carries no
+        number, so nothing automatic will ever file it.
+
+        Passing no series takes the book out of one.
+        """
+        row = self._db.connection.execute(
+            "SELECT id FROM book WHERE id = ?", (book_id,)).fetchone()
+        if row is None:
+            raise LookupError(f"No book with id {book_id}.")
+
+        cursor = self._db.connection
+        if series is not None and not str(series).strip():
+            raise ValueError("A series needs a name.")
+
+        series_id = None
+        name = None
+        if series is not None:
+            name = str(series).strip()
+            cursor.execute(
+                "INSERT OR IGNORE INTO series (name, sort_name) VALUES (?, ?)",
+                (name, title_sort_key(name)))
+            series_id = cursor.execute(
+                "SELECT id FROM series WHERE name = ?", (name,)).fetchone()["id"]
+
+        # REAL, because novellas are book 2.5.
+        position = float(index) if index is not None and series_id else None
         cursor.execute(
+            "UPDATE metadata SET series_id = ?, series_index = ? WHERE book_id = ?",
+            (series_id, position, book_id))
+        self._record(book_id, "series")
+        LOG.info("book %s filed under %s %s", book_id, name, position or "")
+        return {"series": name, "index": position}
+
+    def _record(self, book_id: int, field: str) -> None:
+        """Kept as the reader's, and locked: a scan would otherwise take
+        the file's word for it again the moment the file is touched."""
+        self._db.connection.execute(
             """
             INSERT INTO field_provenance (book_id, field, origin, source,
                                           locked, updated_at)
-            VALUES (?, 'authors', 'user', 'hand', 1, ?)
+            VALUES (?, ?, 'user', 'hand', 1, ?)
             ON CONFLICT(book_id, field) DO UPDATE SET
                 origin = 'user', source = 'hand', locked = 1,
                 updated_at = excluded.updated_at
             """,
-            (book_id, int(time.time())),
+            (book_id, field, int(time.time())),
         )
-        shown = [p.display for p in people]
-        LOG.info("book %s credited to %s", book_id, ", ".join(shown))
-        return shown

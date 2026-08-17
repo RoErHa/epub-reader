@@ -501,3 +501,40 @@ class TestGivingUpOnAHostThatIsDown:
         with pytest.raises(ProviderError):
             fetcher("https://www.googleapis.com/books/v1/volumes?q=y")
         assert fetcher("https://openlibrary.org/a") == {"ok": True}
+
+
+class TestTheLanguageOfAWork:
+    """Open Library answers with every language a work has appeared in:
+
+        The Camel Club → ['vie', 'spa', 'eng', 'fre']
+
+    Taking the first of those made David Baldacci Vietnamese and
+    Brandon Sanderson Polish. A list of translations says nothing about
+    which one is sitting on your disk.
+    """
+
+    @staticmethod
+    def language(values):
+        from epub_providers import OpenLibraryProvider
+        return OpenLibraryProvider._language(values)
+
+    def test_one_language_is_an_answer(self):
+        assert self.language(["eng"]) == "en"
+
+    def test_several_languages_are_not(self):
+        assert self.language(["vie", "spa", "eng", "fre"]) is None
+
+    def test_the_same_language_repeated_is_still_one_answer(self):
+        assert self.language(["eng", "eng"]) == "en"
+
+    def test_nothing_at_all(self):
+        assert self.language([]) is None
+        assert self.language(None) is None
+
+    def test_marc_codes_become_bcp47(self):
+        assert self.language(["ger"]) == "de"
+        assert self.language(["dut"]) == "nl"
+
+    def test_a_code_nobody_mapped_is_left_as_it_came(self):
+        # Better a code we did not translate than a wrong translation.
+        assert self.language(["swe"]) in ("sv", "swe")

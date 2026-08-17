@@ -252,3 +252,19 @@ class TestBooksNobodyCanOpen:
             tmp_path / "Secret Europe.epub")
         with pytest.raises(DrmError):
             EpubMetadataReader().read(tmp_path / "Secret Europe.epub")
+
+
+class TestALanguageThatIsNotOne:
+    """Some files declare "UND" — undetermined — which is the OPF's way
+    of shrugging. Showing it as a language is worse than showing none."""
+
+    @pytest.mark.parametrize("declared", ["UND", "und", "xx", "unknown", "  "])
+    def test_it_is_treated_as_nothing(self, tmp_path, declared):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="Shrug", language=declared).build(tmp_path / "a.epub")
+        assert EpubMetadataReader().read(tmp_path / "a.epub").language is None
+
+    def test_a_real_language_still_comes_through(self, tmp_path):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="Dutch", language="nl").build(tmp_path / "a.epub")
+        assert EpubMetadataReader().read(tmp_path / "a.epub").language == "nl"
