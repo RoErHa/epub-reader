@@ -19,7 +19,10 @@ library full of PDFs called "Contents" would collapse into one book.
 """
 from __future__ import annotations
 
+import difflib
 import logging
+import re
+from pathlib import Path
 
 from epub_match import normalise_title
 from epub_names import fold
@@ -52,6 +55,7 @@ class DuplicateFinder:
 
         found = []
         for copies in groups.values():
+            copies = self._same_title_same_book(copies)
             if len(copies) < 2:
                 continue
             keeper = self._best(copies)
@@ -82,6 +86,43 @@ class DuplicateFinder:
                AND m.title IS NOT NULL
             """
         ).fetchall()
+
+    @classmethod
+    def _same_title_same_book(cls, copies: list[dict]) -> list[dict]:
+        """Copies that really are one book.
+
+        A PDF's title is not evidence on its own — M7 measured that —
+        and a scanner had written the same list of works into two
+        different Roman histories, which then looked identical. So when
+        every copy is a PDF, the filenames have to agree as well. Where
+        an EPUB is present its title *is* trustworthy, and a PDF
+        agreeing with it is a real duplicate however it is named.
+        """
+        if any(c["format"] != "pdf" for c in copies):
+            return copies
+        first = copies[0]
+        return [first] + [c for c in copies[1:]
+                          if cls._named_alike(first["path"], c["path"])]
+
+    @staticmethod
+    def _named_alike(one: str, two: str) -> bool:
+        """Whether two filenames are the same book named twice.
+
+        Not similarity: "Dune.pdf" and "Dune (retail).pdf" score barely
+        higher than the two Roman histories that were wrongly paired.
+        What tells a duplicate apart is that one name is *the other plus
+        extras* — a copy, a scan note, an author. Two names that each
+        carry words the other lacks are two books.
+        """
+        skip = {"the", "a", "an", "and", "of", "in", "on", "to", "or", "not",
+                "ocr", "retail", "copy", "ebook", "epub", "pdf", "v1", "v2"}
+        words = []
+        for name in (one, two):
+            stem = re.sub(r"[^a-z0-9]+", " ", Path(name).stem.lower())
+            words.append({w for w in stem.split() if w not in skip})
+        if not words[0] or not words[1]:
+            return False
+        return words[0] <= words[1] or words[1] <= words[0]
 
     @staticmethod
     def _rank(copy: dict) -> tuple:

@@ -89,6 +89,53 @@ class TestFindingThem:
         assert len(finder.plan()) == 1
 
 
+class TestTwoPdfsAreNotEnough:
+    """A real failure, and the only one in 235: two different Roman
+    histories were hidden as one book. Their scanner had written the
+    same title into both — "roman family, republican rome army and
+    allies, war and imperialism in republican rome" — a list of several
+    works, and M7 already established that a PDF's title is not to be
+    trusted on its own.
+
+    So when both copies are PDFs, their filenames have to agree too.
+    Where one side is an EPUB its title *is* trustworthy, and a PDF
+    matching it is a real duplicate.
+    """
+
+    def test_two_pdfs_with_one_junk_title_are_not_the_same_book(
+        self, client, library, gateway, finder
+    ):
+        clear(library)
+        junk = "Roman Family, Republican Rome Army and Allies, War and Imperialism"
+        PdfBuilder(title=junk, author="Various Hands").build(
+            library / "War and Imperialism in Republican Rome (not ocr).pdf")
+        PdfBuilder(title=junk, author="Various Hands").build(
+            library / "Republican Rome, the Army and the Allies (not ocr).pdf")
+        gateway.reindex()
+        assert finder.plan() == []
+
+    def test_two_pdfs_of_one_book_still_pair_up(self, client, library, gateway,
+                                                finder):
+        clear(library)
+        for name in ("Dune.pdf", "Dune (retail).pdf"):
+            PdfBuilder(title="Dune", author="Frank Herbert",
+                       pages=2 if "retail" in name else 3).build(library / name)
+        gateway.reindex()
+        assert len(finder.plan()) == 1
+
+    def test_a_pdf_still_pairs_with_an_epub(self, client, library, gateway,
+                                            finder):
+        # The EPUB's title is trustworthy, so a PDF agreeing with it is
+        # a real duplicate however it is named.
+        clear(library)
+        EpubBuilder(title="Why Does E=mc2?", author="Brian Cox").build(
+            library / "why.epub")
+        PdfBuilder(title="Why Does E=mc2?", author="Brian Cox").build(
+            library / "Cox, Brian - Why Does E=mc2 (Da Capo, 2009).pdf")
+        gateway.reindex()
+        assert len(finder.plan()) == 1
+
+
 class TestWhichCopyToKeep:
     def test_the_reflowable_one_beats_the_scan(self, client, library, gateway,
                                                finder):
