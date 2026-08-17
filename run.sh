@@ -28,6 +28,8 @@
 #   ./run.sh refresh --max 25   # ...more of it at once
 #   ./run.sh dedupe             # find works held more than once
 #   ./run.sh dedupe --apply     # ...and show only one copy of each
+#   ./run.sh series             # read series from filenames
+#   ./run.sh series --apply     # ...and file the books under them
 #   ./run.sh --env .env.test start
 # =============================================================================
 set -euo pipefail
@@ -50,7 +52,7 @@ while [ $# -gt 0 ]; do
     --foreground|-f) FOREGROUND=1; shift ;;
     --apply)      APPLY=1; shift ;;
     --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|series|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -64,7 +66,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,31p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -120,6 +122,17 @@ do_repair() {
   else
     echo "▶  Checking authors and titles (nothing will be changed)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --repair
+  fi
+}
+
+do_series() {
+  # No provider needed: the filenames carry the series.
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Filing books under the series their names give…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --series --apply
+  else
+    echo "▶  Reading series from filenames (nothing will change)…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --series
   fi
 }
 
@@ -222,6 +235,7 @@ case "${COMMAND}" in
   repair)  do_repair ;;
   refresh) do_refresh ;;
   dedupe)  do_dedupe ;;
+  series)  do_series ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
   stop)    do_stop ;;

@@ -116,6 +116,26 @@ class RefreshCommand:
         return 0
 
 
+class SeriesCommand:
+    """`--series`: file books under the series their filenames name.
+
+    Needs no provider: 597 filenames carry "Series NN - Title", and a
+    name is only believed when two books by one author agree on it.
+    """
+
+    def __init__(self, config: Config, apply: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.name_series(apply=self._apply))
+        finally:
+            gateway.close()
+        return 0
+
+
 class DedupeCommand:
     """`--dedupe`: one row per work, and say what that took.
 
@@ -199,6 +219,11 @@ class GatewayCLI:
             help="Check authors and titles, report, then exit without serving.",
         )
         parser.add_argument(
+            "--series",
+            action="store_true",
+            help="File books under the series their names give, then exit.",
+        )
+        parser.add_argument(
             "--dedupe",
             action="store_true",
             help="Report works held more than once, then exit without serving.",
@@ -230,6 +255,8 @@ class GatewayCLI:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
         LoggingSetup(config).apply()
+        if args.series:
+            return SeriesCommand(config, apply=args.apply).run()
         if args.dedupe:
             return DedupeCommand(config, apply=args.apply).run()
         if args.refresh:

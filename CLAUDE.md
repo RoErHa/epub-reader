@@ -423,6 +423,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Titles that are really filenames | `POST /api/books/repair-titles` | `epub_titles.py` |
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
 | One row per work | `./run.sh dedupe [--apply]` | `epub_duplicates.py` |
+| Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 
@@ -555,7 +556,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
 | ✅ M8 | Unpacked EPUB directories; book-level dedupe; CBZ | done |
-| M9 | Series, which the library barely has: 135 books of 2,323 | — |
+| 🔄 M9 | Series from filenames ✅; Frank Herbert's Dune and the rest still need a provider | in progress |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 

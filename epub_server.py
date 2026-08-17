@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from epub_annotations import AnnotationError, AnnotationStore
 from epub_browse import BrowseError, BrowseQueries
 from epub_duplicates import DuplicateFinder
+from epub_series import SeriesFromNames
 from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
@@ -201,6 +202,7 @@ class EpubGateway:
         self._shelves = ShelfStore(self._database)
         self._annotations = AnnotationStore(self._database)
         self._duplicates = DuplicateFinder(self._database)
+        self._series = SeriesFromNames(self._database)
         # One fetcher for every provider, so the pacing is the whole
         # service's rather than each caller's: four separate streams is
         # how a library-wide run earns 503s.
@@ -256,6 +258,10 @@ class EpubGateway:
         """Bring the oldest author data up to date, and say what
         happened in one line."""
         return AuthorRefresh.summary(self._refresher.run(limit=limit))
+
+    def name_series(self, apply: bool = False) -> str:
+        """File books under the series their names give, in one line."""
+        return SeriesFromNames.summary(self._series.run(apply=apply))
 
     def dedupe_books(self, apply: bool = False) -> str:
         """One row per work, and one line about it."""
@@ -581,6 +587,12 @@ class EpubGateway:
         @app.post("/api/books/repair-authors")
         def repair_authors(apply: bool = False) -> JSONResponse:
             return JSONResponse(self._repairer.run(apply=apply))
+
+        @app.post("/api/books/name-series")
+        def name_series(apply: bool = False) -> JSONResponse:
+            """File books under the series their filenames name."""
+            report = self._series.run(apply=apply)
+            return JSONResponse({k: v for k, v in report.items() if k != "plan"})
 
         @app.post("/api/books/dedupe")
         def dedupe_books(apply: bool = False) -> JSONResponse:

@@ -47,10 +47,17 @@ class DuplicateFinder:
             if not row["author"]:
                 # A title on its own proves nothing.
                 continue
-            key = (normalise_title(row["title"]),
-                   fold(row["author"].split(",")[0]))
-            if not key[0]:
-                continue
+            author = fold(row["author"].split(",")[0])
+            # One author cannot have two fourth books in one series, so
+            # a shared position is a shared book. This catches pairs
+            # whose stored titles differ just enough to look like two —
+            # 46 of them in the real library.
+            if row["series_id"] and row["series_index"] is not None:
+                key = ("series", row["series_id"], row["series_index"], author)
+            else:
+                key = (normalise_title(row["title"]), author)
+                if not key[0]:
+                    continue
             groups.setdefault(key, []).append(dict(row))
 
         found = []
@@ -73,6 +80,7 @@ class DuplicateFinder:
             """
             SELECT b.id, b.path, b.format, b.size_bytes,
                    m.title, m.cover_path, m.isbn13, m.series_id,
+                   m.series_index,
                    a.sort_name AS author,
                    (SELECT COUNT(*) FROM annotation an
                      WHERE an.book_id = b.id) AS marks,

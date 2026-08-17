@@ -89,6 +89,64 @@ class TestFindingThem:
         assert len(finder.plan()) == 1
 
 
+class TestSameSeriesSamePosition:
+    """Filing books by series found 46 pairs that matching on titles had
+    missed — "Enders Game 4 - Children of the Mind.epub" beside the same
+    file with the author appended, their stored titles differing just
+    enough to look like two books.
+
+    One author cannot have two fourth books in one series, so a shared
+    position is the same book.
+    """
+
+    def series_pair(self, library, gateway, first, second):
+        clear(library)
+        EpubBuilder(title=first, author="Orson Scott Card").build(
+            library / f"Enders Game 4 - {first}.epub")
+        EpubBuilder(title=second, author="Orson Scott Card",
+                    chapters=3).build(
+            library / f"Enders Game 4 - {second} - Card_ Orson Scott.epub")
+        gateway.reindex()
+        from epub_series import SeriesFromNames
+        SeriesFromNames(gateway.database).run(apply=True)
+
+    def test_a_shared_position_is_a_duplicate(self, client, library, gateway,
+                                              finder):
+        # The titles differ, so nothing else here would have paired them.
+        self.series_pair(library, gateway, "Children of the Mind",
+                         "Children of the Mind (v1.1)")
+        groups = finder.plan()
+        assert len(groups) == 1
+        assert len(groups[0]["copies"]) == 2
+
+    def test_two_positions_are_two_books(self, client, library, gateway, finder):
+        clear(library)
+        for number, title in ((4, "Children of the Mind"), (5, "Ender's Shadow")):
+            EpubBuilder(title=title, author="Orson Scott Card").build(
+                library / f"Enders Game {number} - {title}.epub")
+        gateway.reindex()
+        from epub_series import SeriesFromNames
+        SeriesFromNames(gateway.database).run(apply=True)
+        assert finder.plan() == []
+
+    def test_the_same_position_by_another_author_is_another_book(
+        self, client, library, gateway, finder
+    ):
+        clear(library)
+        EpubBuilder(title="One", author="Ann Author").build(
+            library / "Chronicles 1 - One.epub")
+        EpubBuilder(title="Two", author="Ann Author").build(
+            library / "Chronicles 2 - Two.epub")
+        EpubBuilder(title="Other", author="Bill Writer").build(
+            library / "Chronicles 1 - Other.epub")
+        EpubBuilder(title="Second", author="Bill Writer").build(
+            library / "Chronicles 2 - Second.epub")
+        gateway.reindex()
+        from epub_series import SeriesFromNames
+        SeriesFromNames(gateway.database).run(apply=True)
+        assert finder.plan() == []
+
+
 class TestTwoPdfsAreNotEnough:
     """A real failure, and the only one in 235: two different Roman
     histories were hidden as one book. Their scanner had written the
