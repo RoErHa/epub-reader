@@ -4,7 +4,11 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M4 complete — the book-detail screen and author enrichment both work; shelves and the remaining sort options are next. Running against the real 1,300-book library.** EPUB only for now (§2.1). All seven decisions settled (§9). The reader has contents, themes, typography controls and server-side position. Next action is M2 (§8).
+**Status: M0–M8 complete, M9 in progress. Running against the real library: 2,268 books in six formats, 289 duplicate copies folded away, 154 series.** All seven decisions settled (§9).
+
+The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads EPUB, MOBI, AZW3, PRC, PDF and CBZ, including EPUBs stored as directories. Five maintenance passes tidy what thirty years of other people's filing left behind, all dry-run by default and none of them touching a file.
+
+**Next:** series for books whose filenames do not name one — Frank Herbert's own Dune novels among them (§8.8).
 
 ---
 
@@ -93,8 +97,10 @@ Known upstream weak spots we design around: the paginator uses CSS multi-column 
 
 ### 3.2 What the real library taught us
 
-Validated against `~/Books`: 34 GB, 1,327 EPUB files, 585 PDFs, 309 CBZ,
-295 CBR. Everything below is measured, not assumed.
+Validated against `~/Books` when M2 began: 34 GB, 1,327 EPUB files, 585
+PDFs, 309 CBZ, 295 CBR. Everything below is measured, not assumed. (The
+library is 2,268 books now, and all of those formats but CBR are read —
+§2.1.)
 
 **Two structural surprises, both of which M2 must handle:**
 
@@ -258,7 +264,10 @@ CREATE TABLE book (
   size_bytes    INTEGER NOT NULL,
   mtime         INTEGER NOT NULL,
   added_at      INTEGER NOT NULL,
-  missing_since INTEGER                    -- vanished; row never auto-deleted
+  missing_since INTEGER,                   -- vanished; row never auto-deleted
+  -- The same work held twice. The spare keeps its row and its path and
+  -- is simply not shown, so this is reversible and no file is touched.
+  duplicate_of  INTEGER REFERENCES book(id)
 );
 
 CREATE TABLE metadata (
@@ -266,6 +275,7 @@ CREATE TABLE metadata (
   title            TEXT,
   subtitle         TEXT,
   title_sort       TEXT,     -- precomputed, see §7
+  file_title       TEXT,     -- what the file called it, before §6.3
   synopsis         TEXT,     -- the book's own blurb
 
   -- THE TWO DATES ARE NOT THE SAME THING, and conflating them is the
@@ -371,8 +381,10 @@ CREATE TABLE annotation (
   cfi        TEXT NOT NULL,   -- range CFI
   text       TEXT NOT NULL,   -- quoted text, denormalized on purpose
   note       TEXT,
-  color      TEXT,
-  created_at INTEGER NOT NULL
+  color      TEXT,            -- one of a closed set; see §8.1
+  fraction   REAL NOT NULL DEFAULT 0,  -- CFIs do not sort as strings
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
 CREATE VIRTUAL TABLE book_fts USING fts5(
@@ -779,6 +791,8 @@ epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
 epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth having
+epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
+epub_series.py      SeriesFromNames — series read from filenames
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results

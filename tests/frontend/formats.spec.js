@@ -38,7 +38,11 @@ test.describe('a kindle book', () => {
     await page.goto('/')
     await page.locator('#search-input').fill('Kindle')
     await page.locator('#search-input').press('Enter')
-    await expect(page.locator('.book-name').first()).toHaveText('A Kindle Book')
+    // That the book is found, not that it is the first row: asserting on
+    // .first() depends on when the list re-renders, and failed once in a
+    // full run while passing alone.
+    await expect(page.locator('.book-name', { hasText: 'A Kindle Book' }))
+      .toBeVisible()
   })
 })
 

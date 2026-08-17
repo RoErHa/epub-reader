@@ -1,6 +1,6 @@
 # epub-reader
 
-A browser-based e-book library and reader for your own EPUB collection.
+A browser-based e-book library and reader for your own collection.
 Browse, search and read from a Mac, an iPad or a phone, with your place
 in each book kept on the server so every device agrees.
 
@@ -9,10 +9,19 @@ vanilla front end with no build step. Rendering is
 [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT), pinned as
 a submodule.
 
-**Status:** works and is in daily use, but it is a personal project
-rather than a product. EPUB only for now — PDF is a different rendering
-model and CBR is RAR, so listing them would promise what it cannot
-deliver.
+**Status:** works and is in daily use on a library of ~2,300 books, but it
+is a personal project rather than a product.
+
+## What it reads
+
+**EPUB, MOBI, AZW3, PRC, PDF and CBZ** — including EPUBs that were never
+zipped and are stored as directories, which are zipped on the way out so
+nothing downstream needs to know. Only **CBR** stays out: it is RAR, and
+nothing in the stack reads RAR.
+
+Three rendering models sit behind those six: reflowed text, rasterised
+pages (PDF, via pdf.js), and images page by page (CBZ) — so the
+typography controls apply to the first and not the other two.
 
 ## What it does
 
@@ -21,17 +30,46 @@ deliver.
 - **Search** across titles, authors, series and genres (SQLite FTS5, with
   diacritics folded — `le carre` finds *le Carré*).
 - **Read** with four themes, adjustable type, paginated or scrolled flow,
-  and a table of contents.
+  and a table of contents. On a phone or an iPad the reader takes the
+  whole screen, and an **Aa** button brings the panels in over the page.
+- **Highlight and annotate** — four colours, notes, and a Highlights
+  panel that jumps to the passage. Shared across devices, like your place.
 - **Remembers your place** server-side, keyed by content hash, so
   renaming or moving a file does not lose it.
 - **Shelves** you make, plus *Reading now* and *Finished*, which are
   derived from reading state rather than maintained by hand.
-- Indexes ~1,300 books in about 8 seconds, and re-scans in under a second.
+- Indexes ~2,300 books in about 7 seconds, and re-scans in under a second.
+
+## Tidying a library nobody catalogued
+
+A collection assembled over thirty years carries other people's filing.
+Every pass below is **dry-run by default**, **database-only**, and
+reversible. **No book file is ever renamed, moved, written to or
+deleted** — the library is opened read-only.
+
+```sh
+./run.sh repair             # check authors and titles, change nothing
+./run.sh repair --apply     # ...and fix what it can prove
+./run.sh dedupe [--apply]   # one row per work, spares kept and restorable
+./run.sh series [--apply]   # read series from filenames
+./run.sh refresh [--max N]  # re-ask about the oldest author data
+```
+
+What that found here: 607 authors became 400 (misspellings and spacing);
+192 books filed under their own title got a real author; 311 titles that
+were really filenames were corrected; 289 spare copies of 253 works are
+now one row each; 297 books were filed under 80 series.
+
+Everything a provider says is cached, so an author is looked up **once,
+ever**. A weekly launchd job re-asks about the ten oldest, which walks
+the whole library in about forty weeks without ever looking like a bulk
+sweep — Open Library allows 3 requests/second to a client that
+identifies itself, and asks that its APIs not be used as a bulk backend.
 
 ## Requirements
 
-Python 3.12+, Node (for the tests only), and a folder of EPUBs. Nothing
-is ever written to your books — the library is opened read-only.
+Python 3.12+, Node (for the tests only), and a folder of books. Nothing
+is ever written to your books.
 
 ## Setup
 
@@ -48,9 +86,10 @@ cp .env.example .env          # then set LIBRARY_ROOT
 `start --foreground` to watch it run. Every start rescans, so books
 dropped into the library folder are picked up without a separate step.
 
-**All configuration lives in `.env`** — ports, paths, TLS certificates
-and any API keys. Nothing is hardcoded and there is no second config
-file. `.env` is gitignored; `.env.example` documents every key.
+**All configuration lives in `.env`** — ports, paths, TLS certificates,
+request pacing and any API keys. Nothing is hardcoded and there is no
+second config file. `.env` is gitignored; `.env.example` documents every
+key.
 
 ### Trying it without a library
 
@@ -59,9 +98,11 @@ file. `.env` is gitignored; `.env.example` documents every key.
 ./run.sh --env .env.test start
 ```
 
-That builds a handful of synthetic EPUBs — including deliberately awkward
-ones: a book whose whole text is a single huge section, and one with a
-comma in its internal filenames. Both used to break the reader.
+That builds a handful of synthetic books — one of each format, and
+deliberately awkward ones: a book whose whole text is a single huge
+section, one with a comma in its internal filenames, one stored as a
+directory, and an EPUB carrying hostile JavaScript. Every one of those
+broke something real.
 
 ### Serving over TLS
 
@@ -79,8 +120,9 @@ npx playwright test           # UI, against Chromium and WebKit
 The UI suite runs against **both engines on purpose**: this is mostly
 read in Safari, and a Chromium-only suite once stayed green while books
 failed to open in Safari entirely. It also runs serially — reading
-position is shared server-side by design, so parallel tests would race
-over real application state.
+position and highlights are shared server-side by design, so parallel
+tests would race over real application state. No test touches the
+network: the fetcher is injected and refuses.
 
 ## Security
 
@@ -91,11 +133,17 @@ suite proves the containment by rendering a hostile EPUB carrying inline
 and external scripts and asserting neither runs — and that test is itself
 verified by weakening the policy and watching it fail.
 
+PDF support needed no relaxation of that policy: pdf.js runs its parser
+in a Web Worker, and a same-origin worker is already allowed. A test
+watches the console for refusals while a PDF opens, so if that stops
+being true it is a failing test rather than a blank page.
+
 ## Design notes
 
 `CLAUDE.md` and `design.html` carry the full design, the decisions behind
-it, and what a real 1,300-book library taught us — including four defects
-in the rendering engine that no synthetic fixture would have produced.
+it, and what a real 2,300-book library taught us — including several
+defects in the rendering engine, and a few of our own, that no synthetic
+fixture would have produced.
 
 ## Licence
 

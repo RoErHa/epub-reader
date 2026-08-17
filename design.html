@@ -327,8 +327,21 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <p>Known upstream weak spots we design around rather than discover: the paginator uses CSS multi-column (epub.js's strategy, and inherits its slowness and CSS quirks), in-book search is slow enough to need incremental loading, and <strong>the PDF adapter is self-described as a proof-of-concept</strong>. Upstream tests cover CFI parsing only, and there are no types.</p>
 
 <!-- ─────────────────────────────────────────── -->
-<h3>Scope: EPUB only, for now</h3>
-<p>The library also holds PDFs, CBZ and CBR, but <strong>only <code>.epub</code> is listed or served</strong> until the reader is finished. PDF is a different rendering model and foliate's adapter is self-described as a proof-of-concept; CBR is RAR, which nothing in the stack reads. Listing a format we cannot render well only promises what we do not deliver. MOBI/AZW3 come next — same engine. <code>BookLibrary.SUFFIXES</code> is the single switch, and <code>resolve()</code> refuses anything outside it.</p>
+<h3>Scope: six formats, and one refusal</h3>
+<p><strong>EPUB, MOBI, AZW3, PRC, PDF and CBZ</strong> — plus EPUBs that were never zipped, which are directories rather than files. Only <strong>CBR</strong> stays out: it is RAR, and nothing in the stack reads RAR. Listing a format we cannot render only promises what we do not deliver.</p>
+<p><code>BookLibrary.SUFFIXES</code> is still the single switch, and <code>resolve()</code> still refuses anything outside it. Three rendering models sit behind those six extensions: reflowed text (EPUB, MOBI and friends), rasterised pages (PDF, via pdf.js), and images page by page (CBZ) — so the typography controls apply to the first and not the other two.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Format</th><th class="num">Books</th><th>What it cost us</th></tr></thead>
+<tbody>
+<tr><td>EPUB</td><td class="num">1,416</td><td>the original target</td></tr>
+<tr><td>PDF</td><td class="num">565</td><td>a metadata reader; the CSP needed no change at all</td></tr>
+<tr><td>CBZ</td><td class="num">286</td><td>a filename parser and a first page</td></tr>
+<tr><td>PRC · MOBI · AZW3</td><td class="num">56</td><td>a PalmDB/EXTH reader; the reading half was free</td></tr>
+</tbody>
+</table>
+</div>
 
 <h3>What the real library taught us</h3>
 <p>Validated against <code>~/Books</code>: 34&nbsp;GB, 1,327 EPUB files, 585 PDFs, 309 CBZ, 295 CBR. Measured, not assumed.</p>
@@ -337,7 +350,7 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <table>
 <thead><tr><th>Structural surprise</th><th class="num">Count</th><th>Consequence for M2</th></tr></thead>
 <tbody>
-<tr><td>Unpacked EPUBs stored as <strong>directories</strong> (iTunes exports)</td><td class="num">262</td><td>Invisible today — we list files only. foliate-js <em>can</em> read unpacked directories.</td></tr>
+<tr><td>Unpacked EPUBs stored as <strong>directories</strong> (iTunes exports)</td><td class="num">265</td><td>Fixed in M8 — indexed in place, zipped on the way out.</td></tr>
 <tr><td>Books in <strong>subfolders</strong></td><td class="num">1,131</td><td>Invisible today — the scan is not recursive. 44% of the library.</td></tr>
 </tbody>
 </table>
@@ -504,6 +517,28 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
   <span class="eyebrow">A second WebKit lesson</span>
   <p><strong>WebKit will not paint an <code>&lt;img&gt;</code> inside a <code>transform-style: preserve-3d</code> context.</strong> The cover rendered as a flat navy rectangle in Safari while Chromium was perfect, from identical markup. A wrapper element did not help and removing <code>backface-visibility</code> did not help — only dropping <code>preserve-3d</code> did. The book now turns within ±58° on perspective alone, which needs no back face and keeps the cover visible throughout.</p>
 </div>
+
+<h3>4.5 &nbsp;Highlights and notes</h3>
+<p>Selecting text offers <strong>Highlight · Note · Copy</strong> and a row of colours; the right panel gains a <strong>Highlights</strong> tab beside Contents and Display. Marks are server-side and shared, exactly like reading position (decision 7): a passage marked on the iPad is marked on the Mac. What stays per device is how the page looks, not what is on it.</p>
+
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p><code>static/reader.js</code> is still the only importer of foliate-js. It answers foliate's <code>draw-annotation</code> event by saying what a mark should <em>look</em> like — the engine asks rather than decides, so the palette lives in one place and matches the set the server will accept.</p>
+</div>
+
+<p>Three things the shape of the DOM forced:</p>
+<ul>
+<li><strong>The offer belongs to the page, not the book.</strong> A document cannot draw outside itself, so a selection's rectangle is converted from frame coordinates to page ones. The menu sits above the words unless there is no room — a menu covering the words you just chose is no use.</li>
+<li><strong>Selection is watched per section</strong>, because foliate replaces the document when you move between them.</li>
+<li><strong>A section gets a fresh overlay when it loads</strong>, so everything drawn on it is drawn again.</li>
+</ul>
+
+<div class="rule">
+  <span class="eyebrow">Emptying a note is not the same as not mentioning one</span>
+  <p><code>PATCH</code> applies only the fields a request actually names: <code>{"note": null}</code> clears it, <code>{}</code> changes nothing. Without that distinction a colour change would quietly erase a note, since both arrive as <code>None</code>. Anything outside <code>note</code> and <code>color</code> is refused rather than ignored — the words and the place are what a highlight <em>is</em>, and editing them would make it a different highlight wearing the same id.</p>
+</div>
+
+<p>The note is asked for <em>before</em> the mark is made, so a cancelled note leaves no orphan highlight. It is a composer rather than <code>window.prompt</code>, which blocks the page, cannot be styled, and on iOS reads as the browser asking rather than the app.</p>
 
 <h2 id="s5"><span class="n">05</span>Data model</h2>
 
@@ -814,6 +849,61 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <p>An author whose books have all vanished from the library is not refreshed at all.</p>
 
+<h3>6.9 &nbsp;Books that were never zipped</h3>
+<p><strong>265 books in the library are directories rather than files</strong> — iTunes exports, and anything somebody unzipped and never put back. They had been invisible since M2, because the scan listed files only: 265 books you own and cannot see.</p>
+<p>They are indexed in place and <strong>zipped on the way out</strong>, mimetype first and uncompressed as the container spec asks, so the reader, CFI positions, highlights and the loading bar carry on knowing nothing about it. Serving the tree file by file for foliate's directory loader would have put a second book-fetching path through the CSP and the position code for no gain.</p>
+<ul>
+<li><strong>The walk stops at a book.</strong> A directory named <code>*.epub</code> holding a <code>META-INF/container.xml</code> is one — and without both tests, either <code>Drive.epub/</code> becomes a hundred documents or somebody's <code>Notes.epub/</code> folder becomes a book.</li>
+<li><strong>A directory's own mtime does not move</strong> when a file inside it is edited, so an unpacked book is stamped by the size and mtime of its <em>contents</em> — otherwise every scan would call an edited book unchanged.</li>
+<li><strong>The hash covers names as well as bytes</strong>, so moving a file within a book changes its identity as editing one does.</li>
+<li><strong>The parser reads a loader, not a zip.</strong> <code>ZipContents</code> and <code>FolderContents</code> both answer <code>names()</code> and <code>read()</code>, and a book cannot name a file outside itself.</li>
+</ul>
+
+<h3>6.10 &nbsp;The same book, twice</h3>
+<p>A library assembled over thirty years holds the same work more than once: a better scan downloaded years later, a MOBI beside the EPUB, a copy somebody unzipped. <strong>199 works, 234 spare copies</strong> — and then series filing found 53 more that titles alone could not see.</p>
+
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p><strong>No file is ever deleted.</strong> The library has been read-only since M2 and stays that way. Dedupe means <strong>one row per work on screen</strong>: a spare keeps its row and its path, <code>duplicate_of</code> records which copy it belongs to, and <code>restore-duplicates</code> shows them all again. Deleting is the reader's business, and the plan names every path.</p>
+</div>
+
+<p>Which copy to keep, and what actually decided this library:</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Rule</th><th class="num">Works</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>The copy you have been reading</td><td class="num">12</td><td>your place and your highlights hang off one copy</td></tr>
+<tr><td>The format that reads best</td><td class="num">30</td><td>a PDF is a picture of a book and cannot reflow</td></tr>
+<tr><td>The copy with a cover</td><td class="num">155</td><td>a tie has to break somewhere useful</td></tr>
+<tr><td>Fuller metadata, then size</td><td class="num">3</td><td>last resort</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Apply, then audit</span>
+  <p>The rule looked right on a dry run, and the one fault in 235 appeared only by asking a different question afterwards: <em>which hidden copies have filenames that disagree?</em> Two different Roman histories had been shown as one book, because a scanner wrote the same list of works into both. Two PDFs now need their filenames to agree as well — and agreement is not similarity: <code>Dune.pdf</code> and <code>Dune (retail).pdf</code> score barely higher than those two did. What tells a duplicate apart is that one name is <strong>the other plus extras</strong>.</p>
+</div>
+
+<h3>6.11 &nbsp;Series, read from the filenames</h3>
+<p>135 books of 2,323 had a series, every one from a <code>calibre:series</code> tag inside the file. §6 said series would come from providers; that was never built, so most of the library had no thread between its books — the Dune novels sat beside each other as strangers.</p>
+<p>The filenames know, and need no provider: <strong>297 books filed under 80 series</strong>, from the shape <code>Cussler, Clive - Dirk Pitt 01 - Pacific Vortex</code>. The library holds <strong>154 series</strong> now, from 39 before M8.</p>
+
+<div class="rule">
+  <span class="eyebrow">A series of one is a misread</span>
+  <p>"10 is Better Than 01 - Heather Jarman" is a book <em>called</em> "10 is Better Than 01", not book 1 of a series called "is Better Than". A name is only believed when <strong>two books by the same author agree on it</strong>, which threw out every false positive the real library produced. An author's own name is refused too, and a four-digit number is a year rather than a position.</p>
+</div>
+
+<p><strong>Then series found duplicates that titles could not.</strong> Filing revealed 46 positions claimed by two books — <code>Enders Game 4 - Children of the Mind.epub</code> beside the same file with the author appended, their stored titles differing just enough to look like two works. One author cannot have two fourth books in one series.</p>
+<p>What it cannot reach: <code>Chapterhouse Dune</code> and <code>Children Of Dune</code> carry no marker, so Frank Herbert's own novels are still loose. Brian Herbert's are filed — <em>Dune Chronicles</em>, <em>Prelude to Dune</em>, <em>Great Schools of Dune</em>, <em>Heroes of Dune</em> — because those files were named by someone who cared.</p>
+
+<h3>6.12 &nbsp;Comics</h3>
+<p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
+<pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>
+<p>Everything in brackets is the scanner talking, and the year among it is the <em>edition</em> — a 2025 scan of a 1985 comic is not a 1985 work. The issue number is worth keeping because it orders a run: <code>Shadowman 004</code> is the fourth Shadowman. The cover is the first page, sorted, because scanners pad their filenames and <code>002</code> really does come before <code>010</code>.</p>
+<p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
+<p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
+
 <h3>6.5 &nbsp;Asking a provider 1,200 times</h3>
 <p>A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns <code>503</code>, <code>Connection reset by peer</code>, and SSL handshake timeouts — all three, in one run.</p>
 <p><strong>Open Library publishes its limits: 1 request/second anonymously, 3/second for a client that identifies itself</strong> with an application name and contact address — which <code>OPENLIBRARY_CONTACT_EMAIL</code> provides. <code>PROVIDER_MAX_RPS</code> sets the pace, defaults to <strong>2</strong> for headroom, and is capped at their ceiling. Their APIs are explicitly not a bulk backend — for bulk work they ask you to use the monthly data dumps, which is a fair description of a 1,300-book sweep, and the reason every answer is cached.</p>
@@ -851,7 +941,10 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M4</td><td>Book detail: synopsis, About the author, Also published</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M5</td><td>Enrichment: providers, scoring, BISAC genre map, review queue</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M5.1</td><td>Library repair: author dedupe, title-as-author, titles from bibliographies, rescan safety</td><td class="num win">done</td></tr>
-<tr class="self"><td class="num">✅ M6</td><td>Annotations; then MOBI/AZW3 (largely free); PDF as a separate track</td><td class="num">—</td></tr>
+<tr class="self"><td class="num">✅ M6</td><td>Annotations: highlights, notes, the panel — and MOBI/AZW3/PRC</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M7</td><td>PDF: metadata from the filename first, pdf.js under the existing CSP</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M8</td><td>Books that were never zipped; one row per work; comics</td><td class="num win">done</td></tr>
+<tr><td class="num">🔄 M9</td><td>Series from filenames ✅; Frank Herbert's own Dune still needs a provider</td><td class="num">—</td></tr>
 </tbody>
 </table>
 </div>
