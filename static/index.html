@@ -35,6 +35,8 @@
     <div class="browse-modes" id="browse-modes"></div>
     <div class="letter-bar" id="letter-bar" hidden></div>
     <button id="new-shelf" hidden>＋ New shelf</button>
+    <input id="shelf-name" type="text" hidden autocomplete="off"
+           placeholder="Name the shelf, then Enter" aria-label="Name the shelf">
     <button id="review-accept-all" hidden>✓ Accept all pending</button>
     <div class="browse-back" id="browse-back" hidden>
       <button class="back-link">← back</button>
@@ -56,6 +58,7 @@
           <div id="detail-facts"></div>
           <div class="detail-actions">
             <button class="btn primary" id="detail-read">▶ Read</button>
+            <button class="btn" id="detail-finished">✓ Mark as read</button>
             <button class="btn" id="detail-shelf">＋ Shelf</button>
           </div>
         </div>
@@ -128,6 +131,9 @@
       </div>
       <div id="shelf-choices"></div>
       <button class="btn" id="shelf-new">＋ New shelf</button>
+      <input id="shelf-sheet-name" type="text" hidden autocomplete="off"
+             placeholder="Name the shelf, then Enter"
+             aria-label="Name the shelf">
     </div>
   </div>
 

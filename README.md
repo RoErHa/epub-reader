@@ -40,12 +40,17 @@ the Earthsea novels among them, and they read perfectly.
   whole screen, and an **Aa** button brings the panels in over the page.
 - **Highlight and annotate** — four colours, notes, and a Highlights
   panel that jumps to the passage. Shared across devices, like your place.
-- **Shelve from the list** — put a book on a shelf, or take it off,
-  without opening it.
+- **Shelve from the list** — make a shelf, throw one away, and put a book
+  on or take it off without opening it.
+- **Mark a book read** — from the list or from its detail page, and it
+  moves from *Reading now* to *Finished*, keeping your place. Books you
+  finished years ago on something else can say so too.
 - **Remembers your place** server-side, keyed by content hash, so
   renaming or moving a file does not lose it.
 - **Shelves** you make, plus *Reading now* and *Finished*, which are
-  derived from reading state rather than maintained by hand.
+  derived from reading state rather than maintained by hand — so nothing
+  puts a book on one, and the way off is to say you have finished it, or
+  stopped.
 - Indexes ~2,200 books in about 7 seconds, and re-scans in under a second.
 
 ## Tidying a library nobody catalogued

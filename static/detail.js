@@ -8,17 +8,20 @@ export class BookDetail {
   #dom = null
   #onRead = null
   #onOpenBook = null
+  #onStatus = () => {}
   #book = null
   #author = null
   #showAll = false
 
-  constructor (dom, { onRead, onOpenBook }) {
+  constructor (dom, { onRead, onOpenBook, onStatus = () => {} }) {
     this.#dom = dom
     this.#onRead = onRead
     this.#onOpenBook = onOpenBook
+    this.#onStatus = onStatus
     dom.detailRead.addEventListener('click', () => {
       if (this.#book) this.#onRead(this.#book)
     })
+    dom.detailFinished.addEventListener('click', () => this.#toggleRead())
     dom.detailLookup.addEventListener('click', () => this.#lookUpAuthor())
     dom.detailShowAll.addEventListener('click', () => {
       this.#showAll = !this.#showAll
@@ -68,6 +71,8 @@ export class BookDetail {
     if (book.percent > 0) facts.push(`${book.percent}% read`)
     d.detailFacts.textContent = facts.join(' · ')
 
+    this.#showRead(book.status === 'finished')
+
     if (book.cover) {
       d.detailCover.src = book.cover
       d.detailCover.alt = `Cover of ${book.title ?? book.name}`
@@ -76,6 +81,32 @@ export class BookDetail {
       d.detailCover.removeAttribute('src')
       d.detailCover.hidden = true
     }
+  }
+
+  /** Read is a fact about the book, and "Finished" is a view of it — so
+   *  this button is a toggle, not a one-way door: a book marked read by
+   *  mistake, or picked up again, can say so. */
+  #showRead (done) {
+    const button = this.#dom.detailFinished
+    button.classList.toggle('done', done)
+    button.textContent = done ? '✓ Read' : '✓ Mark as read'
+    button.title = done
+      ? 'Mark this as unread — it leaves Finished'
+      : 'Mark this as read — it moves to Finished'
+  }
+
+  async #toggleRead () {
+    if (!this.#book) return
+    const done = this.#book.status === 'finished'
+    // Say it on screen before the round trip: the fact is ours to state.
+    this.#showRead(!done)
+    await fetch(`/api/books/${this.#book.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: done ? 'unread' : 'finished' })
+    })
+    this.#book.status = done ? 'unread' : 'finished'
+    this.#onStatus(this.#book)
   }
 
   #renderSynopsis (book) {

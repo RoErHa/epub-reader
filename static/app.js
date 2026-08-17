@@ -8,6 +8,7 @@ import { LoadingIndicator, fetchWithProgress } from '/static/loading.js'
 import { ReaderEngine } from '/static/reader.js'
 import { ReaderSettings } from '/static/settings.js'
 import { Annotations } from '/static/annotations.js'
+import { NameComposer } from '/static/composer.js'
 import { TableOfContents } from '/static/toc.js'
 
 class PositionStore {
@@ -92,17 +93,23 @@ class ShelfSheet {
    *  by state on each row, so one list does both adding and removing. */
   #dom = null
   #bookId = null
+  #composer = null
 
   constructor (dom) {
     this.#dom = dom
+    this.#composer = new NameComposer(
+      dom.shelfSheetName, dom.shelfNew, name => this.#create(name))
     dom.shelfClose.addEventListener('click', () => this.hide())
-    dom.shelfNew.addEventListener('click', () => this.#create())
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') this.hide()
+      // Escape inside the composer gives up on the name, not the sheet.
+      if (e.key === 'Escape' && e.target !== dom.shelfSheetName) this.hide()
     })
   }
 
-  hide () { this.#dom.shelfSheet.hidden = true }
+  hide () {
+    this.#composer.close()
+    this.#dom.shelfSheet.hidden = true
+  }
 
   async show (bookId) {
     this.#bookId = bookId
@@ -143,15 +150,19 @@ class ShelfSheet {
     await this.render()
   }
 
-  async #create () {
-    const name = window.prompt('Name the shelf')
-    if (!name) return
+  /** A shelf made while holding a book is a shelf meant for that book,
+   *  so it is chosen in the same gesture. */
+  async #create (name) {
     const res = await fetch('/api/shelves', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
     })
-    if (res.ok) await this.render()
+    if (!res.ok) return
+    const { shelf } = await res.json()
+    await fetch(`/api/shelves/${shelf.id}/books/${this.#bookId}`,
+                { method: 'PUT' })
+    await this.render()
   }
 }
 
@@ -187,11 +198,13 @@ class BooksApp {
       readerBack: root.getElementById('reader-back'),
       sort: root.getElementById('sort-select'),
       newShelf: root.getElementById('new-shelf'),
+      shelfName: root.getElementById('shelf-name'),
       shelf: root.getElementById('btn-shelf'),
       shelfSheet: root.getElementById('shelf-sheet'),
       shelfChoices: root.getElementById('shelf-choices'),
       shelfClose: root.getElementById('shelf-close'),
       shelfNew: root.getElementById('shelf-new'),
+      shelfSheetName: root.getElementById('shelf-sheet-name'),
       detail: root.getElementById('detail'),
       detailCover: root.getElementById('detail-cover'),
       detailTitle: root.getElementById('detail-title'),
@@ -199,6 +212,7 @@ class BooksApp {
       detailAuthor: root.getElementById('detail-author'),
       detailFacts: root.getElementById('detail-facts'),
       detailRead: root.getElementById('detail-read'),
+      detailFinished: root.getElementById('detail-finished'),
       detailShelf: root.getElementById('detail-shelf'),
       detailSynopsis: root.getElementById('detail-synopsis'),
       detailBio: root.getElementById('detail-bio'),
@@ -253,6 +267,7 @@ class BooksApp {
         list: this.dom.list, modes: this.dom.modes, letters: this.dom.letters,
         back: this.dom.back, backTitle: this.dom.backTitle,
       statusbar: this.dom.statusbar, newShelf: this.dom.newShelf,
+      shelfName: this.dom.shelfName,
       acceptAll: this.dom.reviewAcceptAll
     }
     this.#review = new ReviewPanel(this.dom, () => this.#list.reload())
@@ -273,7 +288,10 @@ class BooksApp {
     // Choosing a book shows it; reading starts when you ask for it.
     this.#detail = new BookDetail(this.dom, {
       onRead: book => this.open(book),
-      onOpenBook: bookId => this.show(bookId)
+      onOpenBook: bookId => this.show(bookId),
+      // Marking a book read moves it between smart shelves, so the list
+      // behind the detail is now out of date.
+      onStatus: () => this.#list.reload()
     })
   }
 
@@ -322,15 +340,8 @@ class BooksApp {
   }
 
   async #bindShelves () {
-    this.dom.newShelf.addEventListener('click', async () => {
-      const name = window.prompt('Name the shelf')
-      if (!name) return
-      try {
-        await this.#list.createShelf(name)
-      } catch (err) {
-        this.#status(err.message)
-      }
-    })
+    // Naming a new shelf is the Browser's own composer now: it owns the
+    // list the shelf appears in.
     this.dom.shelf.addEventListener('click', () => {
       if (this.#current) this.#sheet.show(this.#current)
     })

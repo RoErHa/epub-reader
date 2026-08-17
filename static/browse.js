@@ -5,6 +5,8 @@
  * apps behave the same way under the hand.
  */
 
+import { NameComposer } from './composer.js'
+
 export const MODES = [
   { id: 'titles', label: 'Titles' },
   { id: 'authors', label: 'Authors', endpoint: '/api/authors', key: 'authors' },
@@ -26,17 +28,25 @@ export class Browser {
   #onOpenBook = null
   #onShelveBook = () => {}
   #onReview = null
+  #onStatus = () => {}
+  #composer = null
   #mode = 'titles'
   #letter = null
-  #drill = null // { title, endpoint }
+  #drill = null // { title, endpoint, shelfId, smart }
   #query = ''
   #sort = 'title'
 
-  constructor (dom, onOpenBook, onReview = () => {}, onShelveBook = () => {}) {
+  constructor (dom, onOpenBook, onReview = () => {}, onShelveBook = () => {},
+               onStatus = () => {}) {
     this.#dom = dom
     this.#onOpenBook = onOpenBook
     this.#onShelveBook = onShelveBook
     this.#onReview = onReview
+    this.#onStatus = onStatus
+    this.#composer = new NameComposer(
+      dom.shelfName, dom.newShelf,
+      name => this.createShelf(name),
+      message => this.#onStatus(message))
   }
 
   /** Show results for a query, or return to browsing when it is empty. */
@@ -138,10 +148,16 @@ export class Browser {
 
   // ── content ───────────────────────────────────────────────────────
   async #render () {
+    // Asking for a name belongs to the screen you asked on: leaving it
+    // takes the question with you.
+    this.#composer.close()
     await this.#renderLetters()
     this.#dom.back.hidden = this.#drill === null
+    // One assignment, on every path: the offer to make a shelf belongs
+    // to the list of shelves and nowhere else.
+    this.#dom.newShelf.hidden = !(
+      this.#mode === 'shelves' && !this.#drill && !this.#query)
     if (this.#drill || this.#query) {
-      this.#dom.newShelf.hidden = true
       this.#dom.acceptAll.hidden = true
     }
     if (this.#drill) {
@@ -164,7 +180,6 @@ export class Browser {
     const { items } = await json('/api/review')
     const list = this.#dom.list
     list.replaceChildren()
-    this.#dom.newShelf.hidden = true
     this.#dom.acceptAll.hidden = !items.length
     if (!items.length) {
       return this.#message('Nothing waiting to be reviewed.')
@@ -261,7 +276,6 @@ export class Browser {
     list.replaceChildren()
     if (!rows.length) return this.#message('Nothing here yet.')
 
-    this.#dom.newShelf.hidden = mode.id !== 'shelves'
     this.#dom.acceptAll.hidden = true
     for (const row of rows) {
       const isYear = mode.id === 'years'
@@ -288,12 +302,57 @@ export class Browser {
           // A stored shelf is the one place a book can be taken *off*
           // something. A smart shelf is a consequence of reading, so
           // there is nothing to remove it from.
-          shelfId: mode.id === 'shelves' && !row.smart ? row.id : null
+          shelfId: mode.id === 'shelves' && !row.smart ? row.id : null,
+          // A smart shelf has no membership to edit, but the fact behind
+          // it can be changed — which is how a book leaves one.
+          smart: mode.id === 'shelves' && row.smart ? row.key : null
         }
         this.#render()
       })
-      list.append(button)
+      // A shelf you made can be thrown away; a smart one is a
+      // consequence of reading, and there is nothing there to delete.
+      if (mode.id === 'shelves' && !row.smart) {
+        const item = document.createElement('div')
+        item.className = 'shelf-item'
+        item.append(button, this.#deleteShelf(row))
+        list.append(item)
+      } else {
+        list.append(button)
+      }
     }
+  }
+
+  /** Two taps, not one: a shelf cannot be un-deleted, and a stray tap on
+   *  a phone should not cost you a list you built. The books stay. */
+  #deleteShelf (shelf) {
+    const button = document.createElement('button')
+    button.className = 'row-shelf-delete'
+    button.type = 'button'
+    button.textContent = '−'
+    button.title = `Delete the shelf "${shelf.name}"`
+    button.setAttribute('aria-label', button.title)
+
+    let asked = false
+    button.addEventListener('click', async event => {
+      event.stopPropagation()
+      if (!asked) {
+        asked = true
+        button.classList.add('asking')
+        button.textContent = 'Delete?'
+        // Asking is not waiting for ever: an unanswered question goes
+        // back to being an offer.
+        setTimeout(() => {
+          if (!asked) return
+          asked = false
+          button.classList.remove('asking')
+          button.textContent = '−'
+        }, 5000)
+        return
+      }
+      await fetch(`/api/shelves/${shelf.id}`, { method: 'DELETE' })
+      await this.#render()
+    })
+    return button
   }
 
   async #renderBooks (endpoint) {
@@ -380,21 +439,53 @@ export class Browser {
     // Only while looking at a shelf: elsewhere there is no shelf to
     // take it off.
     if (this.#drill?.shelfId) {
-      const remove = document.createElement('button')
-      remove.className = 'row-unshelf'
-      remove.type = 'button'
-      remove.textContent = '−'
-      remove.title = `Take "${book.title || book.name}" off ${this.#drill.title}`
-      remove.setAttribute('aria-label', remove.title)
-      remove.addEventListener('click', async event => {
-        event.stopPropagation()
-        await fetch(`/api/shelves/${this.#drill.shelfId}/books/${book.id}`,
-                    { method: 'DELETE' })
-        await this.#render()
-      })
-      controls.push(remove)
+      controls.push(this.#control(
+        'row-unshelf', '−',
+        `Take "${book.title || book.name}" off ${this.#drill.title}`,
+        () => fetch(`/api/shelves/${this.#drill.shelfId}/books/${book.id}`,
+                    { method: 'DELETE' })))
+    }
+
+    // A smart shelf is a view of a fact, so you cannot take a book off
+    // it — you change the fact, and it leaves.
+    if (this.#drill?.smart === 'reading') {
+      controls.push(this.#control(
+        'row-finish', '✓', `Mark "${book.title || book.name}" as read`,
+        () => this.#setStatus(book, 'finished')))
+      controls.push(this.#control(
+        'row-unshelf', '−',
+        `Stop reading "${book.title || book.name}" — your place is kept`,
+        () => this.#setStatus(book, 'unread')))
+    } else if (this.#drill?.smart === 'finished') {
+      controls.push(this.#control(
+        'row-unshelf', '−',
+        `"${book.title || book.name}" is not finished after all`,
+        () => this.#setStatus(book, 'unread')))
     }
     return controls
+  }
+
+  #control (className, glyph, title, act) {
+    const button = document.createElement('button')
+    button.className = className
+    button.type = 'button'
+    button.textContent = glyph
+    button.title = title
+    button.setAttribute('aria-label', title)
+    button.addEventListener('click', async event => {
+      event.stopPropagation()
+      await act()
+      await this.#render()
+    })
+    return button
+  }
+
+  #setStatus (book, status) {
+    return fetch(`/api/books/${book.id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    })
   }
 
   #number (value) {

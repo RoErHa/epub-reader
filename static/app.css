@@ -323,6 +323,8 @@ foliate-view{display:block;width:100%;height:100%}
 }
 .detail-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .btn.primary{background:var(--amber);color:var(--bg);border-color:var(--amber-d);font-weight:600}
+/* Already read: the button states a fact rather than offering one. */
+.btn.done{color:var(--green);border-color:var(--green)}
 .btn.primary:hover{background:var(--amber-d)}
 
 .detail-panel{
@@ -821,7 +823,7 @@ body[data-read-theme="black"]{
 .book-item{position:relative;display:flex;align-items:stretch}
 .book-item .book-row{flex:1;min-width:0}
 
-.row-shelf,.row-unshelf{
+.row-shelf,.row-unshelf,.row-finish{
   flex:0 0 auto;
   width:34px;
   border:0;
@@ -833,10 +835,53 @@ body[data-read-theme="black"]{
   line-height:1;
   cursor:pointer;
 }
-.row-shelf:hover,.row-unshelf:hover{background:var(--raised);color:var(--amber)}
+.row-shelf:hover,.row-unshelf:hover,.row-finish:hover{
+  background:var(--raised);color:var(--amber);
+}
 .row-unshelf:hover{color:var(--red)}
+.row-shelf:focus-visible,.row-unshelf:focus-visible,.row-finish:focus-visible{
+  outline:2px solid var(--amber);outline-offset:-2px;
+}
+
+/* Marking a book read is the one row control that is an achievement
+ * rather than an edit, so it is the one that carries the accent. */
+.row-finish{color:var(--green)}
+.row-finish:hover{color:var(--green)}
+
+/* A shelf you made can be thrown away. Smart shelves carry no such
+ * control, because there is no list there to delete. */
+.shelf-item{display:flex;align-items:stretch}
+.shelf-item .group-row{flex:1;min-width:0}
+.row-shelf-delete{
+  flex:0 0 auto;
+  min-width:34px;
+  border:0;
+  border-left:1px solid var(--border);
+  background:transparent;
+  color:var(--ink-dim);
+  font:inherit;font-size:15px;line-height:1;cursor:pointer;
+}
+.row-shelf-delete:hover{background:var(--raised);color:var(--red)}
+.row-shelf-delete:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+/* Asked, not yet done: it says what the next tap will do. */
+.row-shelf-delete.asking{
+  color:var(--red);font-size:12px;padding:0 10px;background:var(--raised);
+}
+
+/* Naming a shelf happens here rather than in a browser dialog. */
+#shelf-name,#shelf-sheet-name{
+  margin:8px 12px;padding:7px 10px;flex-shrink:0;
+  background:var(--bg);color:var(--ink);
+  border:1px solid var(--amber-d);border-radius:var(--r);
+  font:inherit;font-size:12px;
+}
+#shelf-sheet-name{margin:0;font-size:14px;padding:9px 10px}
+#shelf-name:focus,#shelf-sheet-name:focus{
+  outline:2px solid var(--amber);outline-offset:1px;
+}
 
 /* A 44 pt target on touch, where these matter most. */
 @media (max-width:1180px){
-  .row-shelf,.row-unshelf{width:44px}
+  .row-shelf,.row-unshelf,.row-finish{width:44px}
+  .row-shelf-delete{min-width:44px}
 }

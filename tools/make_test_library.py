@@ -97,6 +97,15 @@ class TestLibrary:
             chapters=2, paragraphs_per_chapter=4,
         ).build(self.library / "shelf-reading.epub")
 
+        # Marking a book read writes reading state exactly as opening one
+        # does, so the finishing tests get their own book too. They reset
+        # its status in beforeEach, the way the annotation tests clear
+        # their marks — status can be set back, a position cannot.
+        EpubBuilder(
+            title="Finish Me", author="Test Author",
+            chapters=2, paragraphs_per_chapter=3,
+        ).build(self.library / "finish-me.epub")
+
         # Opening-position tests need books NOTHING else opens: any test
         # that opens a book saves a position, and a book with a saved
         # position correctly resumes instead of opening at the start.

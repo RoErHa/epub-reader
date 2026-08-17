@@ -198,3 +198,83 @@ class TestSorting:
         assert {"title", "author", "series", "year", "added", "opened",
                 "progress"} <= keys
         assert all("label" in s for s in sorts)
+
+
+def smart_titles(client, key):
+    return [b["title"] for b in
+            client.get(f"/api/shelves/smart/{key}/books").json()["books"]]
+
+
+class TestMarkingABookRead:
+    """Marking a book read is a change to a fact, and the smart shelves
+    follow it: it leaves "Reading now" and appears under "Finished".
+
+    That is also the only way *off* a smart shelf. There is still no
+    route that puts a book on one — membership is a consequence, so you
+    change the cause.
+    """
+
+    def test_marking_it_read_moves_it_from_reading_to_finished(self, stocked):
+        dune = book_id(stocked, "Dune")
+        stocked.put(f"/api/books/{dune}/position",
+                    json={"cfi": CFI, "fraction": 0.4})
+        assert smart_titles(stocked, "reading") == ["Dune"]
+
+        assert stocked.put(f"/api/books/{dune}/status",
+                           json={"status": "finished"}).status_code == 200
+        assert smart_titles(stocked, "reading") == []
+        assert smart_titles(stocked, "finished") == ["Dune"]
+
+    def test_marking_it_read_keeps_your_place(self, stocked):
+        # Finishing a book is not forgetting it: you may want the last
+        # page again, and the highlights hang off the same row.
+        dune = book_id(stocked, "Dune")
+        stocked.put(f"/api/books/{dune}/position",
+                    json={"cfi": CFI, "fraction": 0.4})
+        stocked.put(f"/api/books/{dune}/status", json={"status": "finished"})
+
+        place = stocked.get(f"/api/books/{dune}/position").json()["position"]
+        assert place["cfi"] == CFI
+        assert place["fraction"] == pytest.approx(0.4)
+        assert place["finished_at"]
+
+    def test_a_book_can_be_marked_read_without_being_opened(self, stocked):
+        # You finished it in print, or years ago on something else.
+        emma = book_id(stocked, "Emma")
+        stocked.put(f"/api/books/{emma}/status", json={"status": "finished"})
+        assert smart_titles(stocked, "finished") == ["Emma"]
+
+    def test_taking_it_off_reading_now_keeps_your_place(self, stocked):
+        # The − on a smart shelf changes the fact rather than deleting a
+        # row: the book leaves the list, and your place survives.
+        dune = book_id(stocked, "Dune")
+        stocked.put(f"/api/books/{dune}/position",
+                    json={"cfi": CFI, "fraction": 0.4})
+        stocked.put(f"/api/books/{dune}/status", json={"status": "unread"})
+
+        assert smart_titles(stocked, "reading") == []
+        assert smart_titles(stocked, "finished") == []
+        place = stocked.get(f"/api/books/{dune}/position").json()["position"]
+        assert place["cfi"] == CFI
+        assert place["fraction"] == pytest.approx(0.4)
+
+    def test_a_book_can_stop_being_finished(self, stocked):
+        dune = book_id(stocked, "Dune")
+        stocked.put(f"/api/books/{dune}/status", json={"status": "finished"})
+        stocked.put(f"/api/books/{dune}/status", json={"status": "unread"})
+        assert smart_titles(stocked, "finished") == []
+        assert stocked.get(f"/api/books/{dune}/position"
+                           ).json()["position"]["finished_at"] is None
+
+    def test_the_shelf_counts_follow(self, stocked):
+        dune = book_id(stocked, "Dune")
+        stocked.put(f"/api/books/{dune}/status", json={"status": "finished"})
+        counts = {s.get("key"): s["books"]
+                  for s in stocked.get("/api/shelves").json()["shelves"]}
+        assert counts["finished"] == 1
+        assert counts["reading"] == 0
+
+    def test_a_status_nobody_can_render_is_refused(self, stocked):
+        dune = book_id(stocked, "Dune")
+        assert stocked.put(f"/api/books/{dune}/status",
+                           json={"status": "half"}).status_code == 422

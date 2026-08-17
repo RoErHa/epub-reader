@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M9 · SERIES</span>
-  <div class="hdr-right">918 pytest · 390 playwright (chromium + webkit)</div>
+  <div class="hdr-right">925 pytest · 422 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -556,6 +556,22 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <li><strong>Always visible, 44 pt on touch.</strong> Hover is unreachable on an iPad, which is where most of this library is read.</li>
 <li><strong>Only a stored shelf offers −.</strong> "Reading now" is a consequence of reading rather than a list.</li>
 </ul>
+
+<h3>4.7 &nbsp;Finishing a book, and leaving a shelf</h3>
+<p>That left three things you still could not do: say you had finished a book, throw a shelf away, or get a book off <em>Reading now</em> — where anything opened once stayed for ever.</p>
+
+<div class="rule">
+  <span class="eyebrow">You cannot take a book off a consequence; you change the fact</span>
+  <p>A smart shelf is a view of reading state, so the row controls there edit the state and the shelf follows: <strong>✓</strong> marks a book read and it moves to <em>Finished</em>, <strong>−</strong> says you are not reading it any more. There is still no route that <em>puts</em> a book on a smart shelf — the asymmetry is the design, not an omission.</p>
+</div>
+
+<p>Marking a book read <strong>keeps your place</strong>: finishing is not forgetting, so the CFI, the fraction and the highlights stay and only the status changes. The same gesture sits on the book detail as a <em>toggle</em> rather than a one-way door — a book marked read by mistake, or picked up again, has to be able to say so — and it is the only way to mark a book you never opened here, which is most of what a thirty-year library contains.</p>
+
+<p><strong>Deleting a shelf asks twice.</strong> One tap turns <strong>−</strong> into <em>Delete?</em>, the second does it, and an unanswered question goes back to being an offer after five seconds. A shelf cannot be un-deleted, and a stray tap on a phone should not cost you a list you built. The books stay: a shelf is a grouping, not an owner.</p>
+
+<p><strong>Naming a shelf is the app asking, not the browser.</strong> <code>NameComposer</code> generalises the note composer above — Enter keeps the name, Escape or tapping away gives up, and an empty name is giving up rather than a shelf called "". A shelf made from the sheet while holding a book is a shelf <em>meant</em> for that book, so it is created and chosen in one gesture.</p>
+
+<p><strong>A bug this uncovered:</strong> <code>＋ New shelf</code> was hidden on some render paths and not others, so leaving Shelves for Titles left the button behind — offering to make a shelf on a screen with no shelves on it. Its visibility is decided once now, on every path.</p>
 
 <h2 id="s5"><span class="n">05</span>Data model</h2>
 

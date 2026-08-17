@@ -803,6 +803,22 @@ Every book row carries **＋**, which opens the same sheet the reader uses — t
 
 Tests pin the point of it: **＋** must not open the book, and clicking the row must still show it.
 
+### 8.11 M10, continued: finishing a book, and leaving a shelf
+
+Shelving from the list (§8.9) left three things you still could not do: say you had finished a book, throw away a shelf, or get a book off **Reading now** — where anything opened once stayed for ever.
+
+> **You cannot take a book off a consequence; you change the fact.** A smart shelf is a view of reading state (§10.9), so the row controls there edit the state and the shelf follows: **✓** marks a book read and it moves to Finished, **−** says you are not reading it any more. There is still no route that *puts* a book on a smart shelf — the asymmetry is the design, not an omission.
+
+Marking a book read **keeps your place**. Finishing is not forgetting: the CFI, the fraction and the highlights all belong to the book, and only the status changes. Taking a book off Reading now keeps it too, which is what makes the control safe enough to offer on a row.
+
+The same gesture lives on the book detail, as a **toggle** rather than a one-way door — a book marked read by mistake, or picked up again, has to be able to say so. It is also the only way to mark a book you never opened here, which is most of what a thirty-year library contains.
+
+**Deleting a shelf asks twice.** One tap turns **−** into **Delete?**, the second does it, and an unanswered question goes back to being an offer after five seconds. A shelf cannot be un-deleted and a stray tap on a phone should not cost you a list you built. The books are not the shelf's to take: `ShelfStore.delete` removes the shelf alone. Smart shelves carry no such control, because there is no list there to delete.
+
+**Naming a shelf is the app asking, not the browser.** `window.prompt` blocks the page, cannot be styled, and on iOS reads as Safari asking — the reasons §8.2 gave for the note composer, and they apply here too. `NameComposer` is that composer generalised: Enter keeps the name, Escape or tapping away gives up, and an empty name is giving up rather than a shelf called "". A shelf made from the sheet while holding a book is a shelf **meant** for that book, so it is created and chosen in one gesture.
+
+**A bug this uncovered:** `＋ New shelf` was hidden on some render paths and not others, so leaving Shelves for Titles left the button behind, offering to make a shelf on a screen with no shelves on it. Its visibility is now decided once, on every path.
+
 ## 9. Decisions — settled
 
 | # | Decision | Consequence |
@@ -910,6 +926,8 @@ static/settings.js  ReaderSettings — display prefs, per device
 static/annotations.js Annotations — the selection offer and the marks panel
 epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
+static/composer.js  NameComposer — asking for a name in the app, not the
+                    browser; shelves are named here
 run.sh              start / stop / restart / status / scan / repair / refresh
 com.roha.epub-reader.refresh.plist   the weekly author refresh
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
@@ -1068,6 +1086,8 @@ about Stephen R. Donaldson has been looked up yet."*
 are lists the reader maintains. Smart shelves ("Reading now", "Finished")
 are derived from reading state — a view of a fact, not a list — so they
 have no rows and there is deliberately **no route to put a book on one**.
+Getting a book *off* one is a different question, and §8.11 answers it:
+you change the reading state, and the shelf follows.
 
 Sorting gained `opened` and `progress`, which need a join to
 `reading_state`; untouched books sort last via `COALESCE`, not `NULLS

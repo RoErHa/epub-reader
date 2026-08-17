@@ -12,6 +12,16 @@ async function makeShelf (page, name) {
   return (await res.json()).shelf
 }
 
+async function shelfById (page, id) {
+  const res = await page.request.get('/api/shelves')
+  return (await res.json()).shelves.find(s => s.id === id)
+}
+
+async function shelfNamed (page, name) {
+  const res = await page.request.get('/api/shelves')
+  return (await res.json()).shelves.find(s => s.name === name)
+}
+
 test.describe('shelves', () => {
   test('the browse strip offers Shelves', async ({ page }) => {
     await page.goto('/')
@@ -33,9 +43,93 @@ test.describe('shelves', () => {
     const name = uniqueName()
     await page.goto('/')
     await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
-    page.once('dialog', d => d.accept(name))
     await page.locator('#new-shelf').click()
+    await page.locator('#shelf-name').fill(name)
+    await page.locator('#shelf-name').press('Enter')
     await expect(page.locator('.group-row', { hasText: name })).toBeVisible()
+  })
+
+  test('naming it is the app asking, not the browser', async ({ page }) => {
+    // window.prompt blocks the page, cannot be styled, and on iOS reads
+    // as Safari asking rather than the app — the same reason the note
+    // composer exists (§8.2).
+    let asked = false
+    page.on('dialog', d => { asked = true; d.dismiss() })
+    await page.goto('/')
+    await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
+    await page.locator('#new-shelf').click()
+    await expect(page.locator('#shelf-name')).toBeFocused()
+    expect(asked).toBe(false)
+  })
+
+  test('giving up on the name leaves no shelf behind', async ({ page }) => {
+    await page.goto('/')
+    await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
+    const before = await (await page.request.get('/api/shelves')).json()
+    await page.locator('#new-shelf').click()
+    await page.locator('#shelf-name').fill('Never mind')
+    await page.locator('#shelf-name').press('Escape')
+
+    await expect(page.locator('#shelf-name')).toBeHidden()
+    const after = await (await page.request.get('/api/shelves')).json()
+    expect(after.shelves.length).toBe(before.shelves.length)
+  })
+
+  test('a shelf can be deleted from the list', async ({ page }) => {
+    const shelf = await makeShelf(page, uniqueName())
+    await page.goto('/')
+    await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
+    const row = page.locator('.shelf-item', { hasText: shelf.name })
+    await expect(row).toBeVisible()
+
+    // Two taps, not one: deleting a shelf cannot be undone, and a stray
+    // tap on a phone should not cost you a list you built.
+    await row.locator('.row-shelf-delete').click()
+    await expect(row.locator('.row-shelf-delete')).toHaveText(/Delete/)
+    await row.locator('.row-shelf-delete').click()
+
+    await expect(page.locator('.group-row', { hasText: shelf.name }))
+      .toHaveCount(0)
+    expect(await shelfById(page, shelf.id)).toBeUndefined()
+  })
+
+  test('one tap deletes nothing', async ({ page }) => {
+    const shelf = await makeShelf(page, uniqueName())
+    await page.goto('/')
+    await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
+    await page.locator('.shelf-item', { hasText: shelf.name })
+      .locator('.row-shelf-delete').click()
+    expect(await shelfById(page, shelf.id)).toBeTruthy()
+  })
+
+  test('deleting a shelf keeps its books', async ({ page }) => {
+    // The shelf was yours; the books are not the shelf's to take.
+    const shelf = await makeShelf(page, uniqueName())
+    const books = await (await page.request.get('/api/books?limit=500')).json()
+    const book = books.books[0]
+    await page.request.put(`/api/shelves/${shelf.id}/books/${book.id}`)
+
+    await page.goto('/')
+    await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
+    const row = page.locator('.shelf-item', { hasText: shelf.name })
+    await row.locator('.row-shelf-delete').click()
+    await row.locator('.row-shelf-delete').click()
+    await expect(page.locator('.group-row', { hasText: shelf.name }))
+      .toHaveCount(0)
+
+    const res = await page.request.get(`/api/books/${book.id}/detail`)
+    expect(res.ok()).toBe(true)
+  })
+
+  test('a smart shelf cannot be deleted', async ({ page }) => {
+    // It is a consequence of reading, not a list — there is nothing to
+    // delete, only a fact to change.
+    await page.goto('/')
+    await page.locator('.browse-mode', { hasText: 'Shelves' }).click()
+    await expect(page.locator('.group-row', { hasText: 'Reading now' }))
+      .toBeVisible()
+    await expect(page.locator('.shelf-item', { hasText: 'Reading now' })
+      .locator('.row-shelf-delete')).toHaveCount(0)
   })
 
   test('a book can be put on a shelf while reading it', async ({ page }) => {
@@ -59,6 +153,28 @@ test.describe('shelves', () => {
     await choice.click()
     await expect(choice).not.toHaveClass(/on-shelf/)
   })
+
+  test('a shelf can be made from the sheet, and the book goes on it',
+    async ({ page }) => {
+      const name = uniqueName()
+      await page.goto('/')
+      // This suite's own book: the shelving suite counts how many
+      // shelves untouched.epub sits on, so it must not gain one here.
+      await page.locator(`.book-item[data-name="${BOOK}"] .row-shelf`).click()
+      await page.locator('#shelf-new').click()
+      await page.locator('#shelf-sheet-name').fill(name)
+      await page.locator('#shelf-sheet-name').press('Enter')
+
+      // Made and chosen in one gesture: you asked for a shelf while
+      // holding a book.
+      await expect(page.locator('.shelf-choice', { hasText: name }))
+        .toHaveClass(/on-shelf/)
+
+      // Clear up: this book is shared with the shelving suite, which
+      // counts how many shelves it sits on.
+      const shelf = await shelfNamed(page, name)
+      await page.request.delete(`/api/shelves/${shelf.id}`)
+    })
 
   test('drilling into a shelf shows what is on it', async ({ page }) => {
     const shelf = await makeShelf(page, uniqueName())
