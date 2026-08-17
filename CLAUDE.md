@@ -51,6 +51,16 @@ static/vendor/foliate-js/            pinned submodule
 
 Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, PWA manifest + service worker, rotating `gateway.log`.
 
+## 2.0 Books nobody can open
+
+**50 books in the library are Apple Books purchases**, encrypted with FairPlay: every document inside is ciphertext and the key lives in an Apple ID. Nothing here or anywhere else can open them, so they are **excluded at scan time** rather than listed as titles that fail.
+
+> **Encrypted fonts are not DRM.** `META-INF/encryption.xml` is also how fonts are obfuscated, which is ordinary and readable — 8 books here do it, the Earthsea novels among them. The difference is *what* is encrypted: documents mean DRM, fonts mean typography. Excluding on the presence of the file alone would have lost 8 books that work perfectly.
+
+A locked book is **not a failure** — nothing is wrong with the file or with us — so it is counted separately and says so: `50 locked by their shop`. It is recognised before the book is hashed or stored, or every scan would hash fifty books it is about to throw away.
+
+Two references to a `book` row have **no cascade**, and both took a scan down in turn once books started being deleted: `book.duplicate_of`, where a hidden copy points at the copy that was kept, and `author_work.book_id`, where "Also published" links a work to the copy you own. Neither should vanish with the book — the hidden copy comes back into view, and the work stays on its author's shelf as one you no longer own.
+
 ## 2.1 Scope: what the reader can open
 
 **EPUB, MOBI, AZW3, PRC, PDF and CBZ.** Only CBR stays out: it is RAR,
@@ -569,6 +579,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
 | ✅ M8 | Unpacked EPUB directories; book-level dedupe; CBZ | done |
 | 🔄 M9 | Series from filenames ✅; Frank Herbert's Dune and the rest still need a provider | in progress |
+| M10 | Shelves from the browse pane: add and remove a book without opening it | — |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 

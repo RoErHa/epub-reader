@@ -49,6 +49,21 @@ class BookMetadata:
     cover_suffix: str | None = None
 
 
+# Files whose encryption means obfuscation rather than DRM. Mangling a
+# font is ordinary and every reader handles it; 8 books here do it,
+# including the Earthsea novels.
+FONT_TYPES = (".otf", ".ttf", ".woff", ".woff2", ".eot")
+
+
+class DrmError(MetadataError):
+    """The book is encrypted, and the key is not in the file.
+
+    50 books in the real library are Apple Books purchases. Nothing here
+    or anywhere else can open them, so listing them would promise what
+    we cannot deliver.
+    """
+
+
 class ZipContents:
     """The files inside a zipped EPUB."""
 
@@ -107,6 +122,7 @@ class EpubMetadataReader:
     def _read_book(self, contents, path: Path) -> BookMetadata:
         zf = contents            # a zip or a folder; both answer the same way
         names = contents.names()
+        self._refuse_if_locked(contents, names, path)
         container = next((n for n in names if n.endswith(CONTAINER)), None)
         if container is None:
             raise MetadataError(f"{path.name} has no META-INF/container.xml.")
@@ -131,6 +147,52 @@ class EpubMetadataReader:
         meta.title_sort = title_sort_key(meta.title)
         self._read_cover(zf, root, base, meta)
         return meta
+
+    def is_locked(self, path: Path) -> bool:
+        """Whether a book is encrypted by the shop that sold it.
+
+        Cheap enough — one small file out of the archive — to ask about
+        every book on every scan, which is what keeps a library that was
+        indexed before this rule existed from carrying them for ever.
+        """
+        path = Path(path)
+        try:
+            if path.is_dir():
+                contents = FolderContents(path)
+                self._refuse_if_locked(contents, contents.names(), path)
+                return False
+            with zipfile.ZipFile(path) as archive:
+                contents = ZipContents(archive)
+                self._refuse_if_locked(contents, contents.names(), path)
+        except DrmError:
+            return True
+        except Exception:  # noqa: BLE001 — anything else is not this question
+            return False
+        return False
+
+    @staticmethod
+    def _refuse_if_locked(contents, names: list[str], path: Path) -> None:
+        """Encrypted *documents* mean DRM; encrypted *fonts* mean
+        obfuscation, which is ordinary and readable. The difference is
+        what is listed, not that anything is listed at all."""
+        found = next((n for n in names
+                      if n.endswith("META-INF/encryption.xml")), None)
+        if not found:
+            return
+        try:
+            declared = contents.read(found).decode("utf-8", "replace")
+        except Exception:  # noqa: BLE001 — an unreadable note is not DRM
+            return
+
+        locked = [uri for uri in re.findall(r'CipherReference[^>]*URI="([^"]+)"',
+                                            declared)
+                  if not uri.lower().endswith(FONT_TYPES)]
+        if not locked:
+            return
+        where = ("Apple Books" if "itunes.apple.com" in declared
+                 else "the shop it came from")
+        raise DrmError(
+            f"{path.name} is encrypted and can only be read in {where}.")
 
     def _children(self, root, parent_name: str) -> list:
         for child in root:

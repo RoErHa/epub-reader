@@ -192,6 +192,14 @@ class EpubBuilder:
             "</package>\n"
         )
 
+    encrypted: list[str] = field(default_factory=list)
+    """Files listed in META-INF/encryption.xml.
+
+    Fonts there mean obfuscation, which every reader handles and which
+    8 books in the real library use. Documents there mean DRM, which
+    nothing can read — 50 books, all bought from Apple.
+    """
+
     def build_unpacked(self, dest: Path) -> Path:
         """The same book, stored as a directory rather than a zip.
 
@@ -207,6 +215,22 @@ class EpubBuilder:
         packed.unlink()
         return dest
 
+    def encryption_xml(self) -> str:
+        """As Apple and Adobe write it: one EncryptedData per file."""
+        blocks = "\n".join(
+            '  <e:EncryptedData>\n'
+            '    <e:EncryptionMethod Algorithm="http://itunes.apple.com/dataenc"/>\n'
+            '    <e:CipherData>\n'
+            f'      <e:CipherReference URI="{name}"/>\n'
+            '    </e:CipherData>\n'
+            '  </e:EncryptedData>' for name in self.encrypted)
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<c:encryption'
+            ' xmlns:c="urn:oasis:names:tc:opendocument:xmlns:container"'
+            ' xmlns:e="http://www.w3.org/2001/04/xmlenc#">\n'
+            f'{blocks}\n</c:encryption>\n')
+
     def build(self, dest: Path) -> Path:
         dest.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -217,6 +241,8 @@ class EpubBuilder:
                 compress_type=zipfile.ZIP_STORED,
             )
             zf.writestr("META-INF/container.xml", CONTAINER_XML)
+            if self.encrypted:
+                zf.writestr("META-INF/encryption.xml", self.encryption_xml())
             zf.writestr("OEBPS/content.opf", self.content_opf())
             zf.writestr("OEBPS/nav.xhtml", self.nav_xhtml())
             if self.cover:

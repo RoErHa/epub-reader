@@ -86,6 +86,14 @@ class ForgetMissing:
                                (book["content_hash"],))
             cursor.execute("DELETE FROM annotation WHERE book_id = ?",
                            (book["id"],))
+            # Two references have no cascade: a copy hidden behind this
+            # one, and the "Also published" link to the copy you owned.
+            cursor.execute(
+                "UPDATE book SET duplicate_of = NULL WHERE duplicate_of = ?",
+                (book["id"],))
+            cursor.execute(
+                "UPDATE author_work SET book_id = NULL WHERE book_id = ?",
+                (book["id"],))
             cursor.execute("DELETE FROM book WHERE id = ?", (book["id"],))
             LOG.info("forgot %s", book["path"])
             report["forgotten"] += 1

@@ -557,3 +557,150 @@ class TestComics:
         add(library, "good.epub", title="Fine")
         report = indexer.run()
         assert report.failed == 1
+
+
+class TestBooksThatCannotBeOpened:
+    """Apple Books purchases: every document encrypted, the key in an
+    Apple ID. 50 of them here. They are not failures — nothing is wrong
+    with the file or with us — so they are skipped and said so."""
+
+    def locked(self, library, name="drm.epub"):
+        return EpubBuilder(title="Secret Europe",
+                           encrypted=["OEBPS/chapter1.xhtml"]).build(
+            library / name)
+
+    def test_it_is_not_indexed(self, indexer, library, db):
+        self.locked(library)
+        add(library, "readable.epub", title="Plain", author="Someone")
+        report = indexer.run()
+        assert report.added == 1
+        titles = {r["title"] for r in
+                  db.connection.execute("SELECT title FROM metadata")}
+        assert titles == {"Plain"}
+
+    def test_it_is_not_counted_as_a_failure(self, indexer, library, db):
+        # Nothing is broken. Calling it a failure would send somebody
+        # looking for a fault that is not there.
+        self.locked(library)
+        report = indexer.run()
+        assert report.failed == 0
+        assert report.locked == 1
+
+    def test_a_book_with_obfuscated_fonts_is_kept(self, indexer, library, db):
+        EpubBuilder(title="The Tombs of Atuan", author="Ursula K. Le Guin",
+                    encrypted=["OEBPS/fonts/Charter.otf"]).build(
+            library / "atuan.epub")
+        assert indexer.run().added == 1
+
+    def test_one_already_indexed_is_removed(self, indexer, library, db):
+        # It was listed before this was understood; excluding it means
+        # taking it off the shelves, not leaving it there unreadable.
+        add(library, "drm.epub", title="Secret Europe", author="Lonely Planet")
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM book").fetchone()["n"] == 1
+
+        (library / "drm.epub").unlink()
+        self.locked(library)
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM book").fetchone()["n"] == 0
+
+    def test_one_indexed_before_is_dropped_on_the_next_scan(self, indexer,
+                                                            library, db):
+        # A scan short-circuits on an unchanged file, so a book listed
+        # before this rule existed would sit there for ever. Checking
+        # for a lock costs 0.1s across 1,600 books, so it is done every
+        # time rather than in a command somebody has to remember.
+        self.locked(library)
+        db.connection.execute(
+            "INSERT INTO book (content_hash, path, format, size_bytes, mtime,"
+            " added_at) VALUES ('abc', 'drm.epub', 'epub', 1, 1, 1)")
+        report = indexer.run()
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM book WHERE path = 'drm.epub'"
+        ).fetchone()["n"] == 0
+        assert report.locked >= 1
+
+    def test_a_font_obfuscated_book_survives_every_scan(self, indexer, library,
+                                                        db):
+        EpubBuilder(title="Tehanu", author="Ursula K. Le Guin",
+                    encrypted=["OEBPS/fonts/Charter.otf"]).build(
+            library / "tehanu.epub")
+        indexer.run()
+        indexer.run()
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM book").fetchone()["n"] == 1
+
+    def test_dropping_one_that_hides_a_duplicate_does_not_fail(self, indexer,
+                                                               library, db):
+        # A locked book can be the copy a duplicate points at. Deleting
+        # it then breaks the foreign key and takes the whole scan down —
+        # which is exactly what happened on the real library.
+        # As it happened: both listed while readable, one hidden behind
+        # the other, and only later replaced by a locked copy.
+        add(library, "keeper.epub", title="Secret Europe", author="Lonely Planet")
+        add(library, "spare.epub", title="Secret Europe", author="Lonely Planet",
+            chapters=2)
+        indexer.run()
+        keeper = db.connection.execute(
+            "SELECT id FROM book WHERE path = 'keeper.epub'").fetchone()["id"]
+        spare = db.connection.execute(
+            "SELECT id FROM book WHERE path = 'spare.epub'").fetchone()["id"]
+        db.connection.execute("UPDATE book SET duplicate_of = ? WHERE id = ?",
+                              (keeper, spare))
+
+        (library / "keeper.epub").unlink()
+        self.locked(library, "keeper.epub")
+
+        report = indexer.run()          # must not raise
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM book WHERE path = 'keeper.epub'"
+        ).fetchone()["n"] == 0
+        # ...and the copy it was hiding comes back into view.
+        assert db.connection.execute(
+            "SELECT duplicate_of FROM book WHERE id = ?", (spare,)
+        ).fetchone()["duplicate_of"] is None
+
+    def test_dropping_one_listed_in_a_bibliography_does_not_fail(self, indexer,
+                                                                 library, db):
+        # "Also published" links each work to the copy you own, and that
+        # link is a foreign key without a cascade. Two references to a
+        # book row have no cascade — this is the second, and it took the
+        # scan down on the real library after the first was fixed.
+        add(library, "keeper.epub", title="Secret Europe", author="Lonely Planet")
+        indexer.run()
+        book = db.connection.execute(
+            "SELECT id FROM book WHERE path = 'keeper.epub'").fetchone()["id"]
+        author = db.connection.execute(
+            "SELECT id FROM author LIMIT 1").fetchone()["id"]
+        db.connection.execute(
+            "INSERT INTO author_work (author_id, title, work_type, source,"
+            " fetched_at, book_id) VALUES (?, 'Secret Europe', 'novel',"
+            " 'openlibrary', 1, ?)", (author, book))
+
+        (library / "keeper.epub").unlink()
+        self.locked(library, "keeper.epub")
+        indexer.run()                      # must not raise
+
+        assert db.connection.execute(
+            "SELECT COUNT(*) n FROM book WHERE path = 'keeper.epub'"
+        ).fetchone()["n"] == 0
+        # The work stays on the author's shelf; we simply no longer own it.
+        row = db.connection.execute(
+            "SELECT book_id FROM author_work").fetchone()
+        assert row["book_id"] is None
+
+    def test_a_locked_book_is_never_hashed(self, indexer, library, db):
+        # Recognised before any work is done on it: otherwise every scan
+        # hashes 50 books it is about to throw away, and adds and
+        # removes their rows for ever.
+        self.locked(library)
+        report = indexer.run()
+        assert report.locked == 1
+        assert report.added == 0
+        assert indexer.hashed == 0
+
+    def test_the_summary_mentions_them(self, indexer, library, db):
+        self.locked(library)
+        assert "locked" in indexer.run().summary()

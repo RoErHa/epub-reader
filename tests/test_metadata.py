@@ -201,3 +201,54 @@ class TestAnUnpackedBook:
             '</rootfiles></container>')
         with pytest.raises(MetadataError):
             EpubMetadataReader().read(broken)
+
+
+class TestBooksNobodyCanOpen:
+    """50 books in the real library are Apple Books purchases: every
+    document inside is encrypted with FairPlay, and the key lives in an
+    Apple ID rather than in the file. No reader here or anywhere else
+    can open them, so listing them promises something we cannot deliver.
+
+    But `META-INF/encryption.xml` is *also* how fonts are obfuscated,
+    which is ordinary and harmless — 8 books here do it, including the
+    Earthsea novels. Excluding those would be losing books that work.
+    """
+
+    def test_an_encrypted_book_is_refused(self, tmp_path):
+        from epub_metadata import DrmError
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="Secret Europe",
+                    encrypted=["OEBPS/chapter1.xhtml", "nav.xhtml"]).build(
+            tmp_path / "drm.epub")
+        with pytest.raises(DrmError):
+            EpubMetadataReader().read(tmp_path / "drm.epub")
+
+    def test_obfuscated_fonts_are_not_drm(self, tmp_path):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="The Tombs of Atuan", author="Ursula K. Le Guin",
+                    encrypted=["OEBPS/fonts/Charter.otf",
+                               "OEBPS/fonts/Charter-Bold.ttf"]).build(
+            tmp_path / "fonts.epub")
+        meta = EpubMetadataReader().read(tmp_path / "fonts.epub")
+        assert meta.title == "The Tombs of Atuan"
+
+    def test_a_book_with_no_encryption_at_all_is_fine(self, tmp_path):
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(title="Plain").build(tmp_path / "plain.epub")
+        assert EpubMetadataReader().read(tmp_path / "plain.epub").title == "Plain"
+
+    def test_the_message_says_where_to_read_it(self, tmp_path):
+        from epub_metadata import DrmError
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(encrypted=["OEBPS/chapter1.xhtml"]).build(
+            tmp_path / "drm.epub")
+        with pytest.raises(DrmError, match="Apple"):
+            EpubMetadataReader().read(tmp_path / "drm.epub")
+
+    def test_it_holds_for_an_unpacked_book_too(self, tmp_path):
+        from epub_metadata import DrmError
+        from tests.epub_fixtures import EpubBuilder
+        EpubBuilder(encrypted=["OEBPS/chapter1.xhtml"]).build_unpacked(
+            tmp_path / "Secret Europe.epub")
+        with pytest.raises(DrmError):
+            EpubMetadataReader().read(tmp_path / "Secret Europe.epub")

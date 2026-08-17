@@ -16,7 +16,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from epub_metadata import BookMetadata, EpubMetadataReader, MetadataError
+from epub_metadata import (BookMetadata, DrmError, EpubMetadataReader,
+                           MetadataError)
 from epub_mobi import MobiMetadataReader
 from epub_cbz import CbzMetadataReader
 from epub_pdf import PdfMetadataReader
@@ -37,6 +38,9 @@ class IndexReport:
     missing: int = 0
     returned: int = 0
     failed: int = 0
+    # Books nothing can open: encrypted by the shop that sold them.
+    # Not failures — there is no fault to go looking for.
+    locked: int = 0
     searchable: int = 0
     seconds: float = 0.0
     added_names: list[str] = field(default_factory=list)
@@ -47,7 +51,7 @@ class IndexReport:
     def has_changes(self) -> bool:
         return bool(
             self.added or self.updated or self.moved or self.missing
-            or self.returned or self.failed or self.searchable
+            or self.returned or self.failed or self.locked or self.searchable
         )
 
     @staticmethod
@@ -61,7 +65,8 @@ class IndexReport:
         for count, label in (
             (self.added, "new"), (self.updated, "updated"), (self.moved, "moved"),
             (self.returned, "back"), (self.missing, "missing"),
-            (self.failed, "failed"), (self.searchable, "newly searchable"),
+            (self.failed, "failed"), (self.locked, "locked by their shop"),
+            (self.searchable, "newly searchable"),
         ):
             if count:
                 parts.append(f"{self._books(count) if label == 'new' else count} {label}")
@@ -147,10 +152,18 @@ class LibraryIndexer:
                     book_id = self._index_one(path, report)
                     if book_id:
                         seen.add(book_id)
+                except DrmError as exc:
+                    # Not a failure: nothing is wrong with the file or
+                    # with us. It simply cannot be opened by anything
+                    # except the shop that sold it.
+                    LOG.info("%s", exc)
+                    self._forget_locked(path, report)
+                    report.locked += 1
                 except Exception as exc:  # noqa: BLE001 — never stop the run
                     LOG.warning("indexing %s failed: %s", path, exc)
                     report.failed += 1
 
+        self._drop_locked(report)
         self._mark_missing(seen, report)
         self._backfill_search(report)
         report.seconds = time.time() - started
@@ -219,6 +232,15 @@ class LibraryIndexer:
     # ── per book ──────────────────────────────────────────────────────
     def _index_one(self, path: Path, report: IndexReport) -> int | None:
         rel = str(path.relative_to(self._library.root))
+        # Asked before anything is done: a book nothing can open should
+        # not be hashed, stored and then removed on every single scan.
+        if path.suffix.lower() == ".epub" and self._readers[".epub"].is_locked(
+            path
+        ):
+            raise DrmError(
+                f"{path.name} is encrypted and can only be read where it was"
+                " bought.")
+
         size, mtime = self._stamp(path)
         cursor = self._db.connection
 
@@ -288,6 +310,10 @@ class LibraryIndexer:
 
         try:
             meta = self._reader_for(path).read(path)
+        except DrmError:
+            # Not a failure, and not this method's to record: the run
+            # loop takes the book off the shelves entirely.
+            raise
         except MetadataError as exc:
             # Keep whatever metadata we already had — a book that starts
             # failing should not lose its title.
@@ -423,6 +449,64 @@ class LibraryIndexer:
                 " WHERE book_id = ?", (book_id,))
             if row["locked"] or row["origin"] in ("user", "provider")
         }
+
+    def _drop_locked(self, report: IndexReport) -> None:
+        """Books listed before the lock was understood.
+
+        A scan short-circuits on an unchanged file, so these would stay
+        on the shelves for ever otherwise. Asking costs a tenth of a
+        second across 1,600 books, which is cheaper than a command
+        somebody has to remember.
+        """
+        reader = self._readers.get(".epub")
+        rows = self._db.connection.execute(
+            "SELECT id, path FROM book WHERE format = 'epub'"
+            " AND missing_since IS NULL").fetchall()
+        for row in rows:
+            path = self._library.root / row["path"]
+            if not path.exists() or not reader.is_locked(path):
+                continue
+            LOG.info("%s is locked by the shop that sold it; removing",
+                     row["path"])
+            self._delete_book(row["id"])
+            report.locked += 1
+
+    def _forget_locked(self, path: Path, report: IndexReport) -> None:
+        """A locked book that was listed before this was understood
+        comes off the shelves — excluding it means excluding it, not
+        leaving it there unreadable.
+
+        Its row is created before its metadata is read, so a book found
+        to be locked has already been counted as new. It is not new; it
+        is not anything.
+        """
+        rel = str(path.relative_to(self._library.root))
+        row = self._db.connection.execute(
+            "SELECT id FROM book WHERE path = ?", (rel,)).fetchone()
+        if row:
+            self._delete_book(row["id"])
+        if rel in report.added_names:
+            report.added_names.remove(rel)
+            report.added -= 1
+
+    def _delete_book(self, book_id: int) -> None:
+        """Remove a book row, and free anything pointing at it.
+
+        Two references to a book row have no cascade, and both took the
+        scan down in turn: a copy hidden as a duplicate points at the
+        copy that was kept, and "Also published" links each work to the
+        copy you own. Neither should disappear with the book — the
+        hidden copy comes back into view, and the work stays on its
+        author's shelf as one you no longer own.
+        """
+        cursor = self._db.connection
+        cursor.execute(
+            "UPDATE book SET duplicate_of = NULL WHERE duplicate_of = ?",
+            (book_id,))
+        cursor.execute(
+            "UPDATE author_work SET book_id = NULL WHERE book_id = ?",
+            (book_id,))
+        cursor.execute("DELETE FROM book WHERE id = ?", (book_id,))
 
     def _reader_for(self, path: Path):
         reader = self._readers.get(path.suffix.lower())
