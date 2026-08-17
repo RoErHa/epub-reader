@@ -582,7 +582,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
 | ✅ M8 | Unpacked EPUB directories; book-level dedupe; CBZ | done |
 | 🔄 M9 | Series from filenames ✅; Frank Herbert's Dune and the rest still need a provider | in progress |
-| M10 | Shelves from the browse pane: add and remove a book without opening it | — |
+| ✅ M10 | Shelves from the browse pane: add and remove a book without opening it | done |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 

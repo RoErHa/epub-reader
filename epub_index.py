@@ -415,6 +415,9 @@ class LibraryIndexer:
                     (book_id, author_id, position),
                 )
 
+        if "genres" in spoken_for:
+            return self._finish(book_id, now)
+
         cursor.execute("DELETE FROM book_genre WHERE book_id = ?", (book_id,))
         for position, subject in enumerate(meta.subjects):
             name = subject.strip()
@@ -427,7 +430,10 @@ class LibraryIndexer:
                 (book_id, genre_id, position),
             )
 
-        cursor.execute(
+        self._finish(book_id, now)
+
+    def _finish(self, book_id: int, now: int) -> None:
+        self._db.connection.execute(
             "UPDATE book SET indexed_at = ?, index_error = NULL WHERE id = ?",
             (now, book_id),
         )

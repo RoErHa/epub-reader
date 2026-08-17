@@ -811,3 +811,32 @@ body[data-read-theme="black"]{
   cursor: pointer;
 }
 .mark-annotate:hover { color: var(--amber); }
+
+/* ── Shelving from the list ─────────────────────────────────────────
+ *
+ * The row is a button, so these sit beside it rather than inside it.
+ * They are always visible: hover-only controls are unreachable on the
+ * iPad, which is where most of this library is read.
+ */
+.book-item{position:relative;display:flex;align-items:stretch}
+.book-item .book-row{flex:1;min-width:0}
+
+.row-shelf,.row-unshelf{
+  flex:0 0 auto;
+  width:34px;
+  border:0;
+  border-left:1px solid var(--border);
+  background:transparent;
+  color:var(--ink-dim);
+  font:inherit;
+  font-size:15px;
+  line-height:1;
+  cursor:pointer;
+}
+.row-shelf:hover,.row-unshelf:hover{background:var(--raised);color:var(--amber)}
+.row-unshelf:hover{color:var(--red)}
+
+/* A 44 pt target on touch, where these matter most. */
+@media (max-width:1180px){
+  .row-shelf,.row-unshelf{width:44px}
+}

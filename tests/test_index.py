@@ -354,6 +354,29 @@ class TestRescanningDoesNotUndoCorrections:
             "SELECT language FROM metadata WHERE book_id = ?", (book,)
         ).fetchone()["language"] == "nl"
 
+    def test_genres_you_set_are_kept_too(self, indexer, library, db):
+        # Nothing sets genres by hand yet, but the guard covered title
+        # and authors and not this — an inconsistency waiting for the
+        # first person to correct a genre.
+        add(library, "a.epub", title="Dune", author="Frank Herbert")
+        indexer.run()
+        book = self.book_id(db)
+        db.connection.execute("DELETE FROM book_genre WHERE book_id = ?", (book,))
+        db.connection.execute(
+            "INSERT INTO genre (name, sort_name) VALUES ('Space Opera',"
+            " 'space opera')")
+        db.connection.execute(
+            "INSERT INTO book_genre (book_id, genre_id, position)"
+            " SELECT ?, id, 0 FROM genre WHERE name = 'Space Opera'", (book,))
+        self.owned_by(db, book, "genres", "user")
+
+        self.touch(library / "a.epub")
+        indexer.run()
+        kept = [r["name"] for r in db.connection.execute(
+            "SELECT g.name FROM book_genre bg JOIN genre g ON g.id = bg.genre_id"
+            " WHERE bg.book_id = ?", (book,))]
+        assert kept == ["Space Opera"]
+
     def test_a_field_the_file_still_owns_is_refreshed(self, indexer, library, db):
         # The point of a rescan: an edited EPUB updates the library.
         path = add(library, "a.epub", title="Dune", author="Frank Herbert")

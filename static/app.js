@@ -259,7 +259,10 @@ class BooksApp {
     this.#list = new Browser(
       this.#browserDom,
       book => this.show(book.id),
-      item => this.#showReview(item)
+      item => this.#showReview(item),
+      // Shelving from the list: filing a book you recognise, without
+      // opening it first.
+      book => this.#sheet.show(book.id)
     )
     this.#toc = new TableOfContents(this.dom.toc, item => this.#reader.goTo(item.href))
     this.#marks = new Annotations(this.dom, this.#reader)

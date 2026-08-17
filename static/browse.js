@@ -24,6 +24,7 @@ const json = async url => {
 export class Browser {
   #dom = null
   #onOpenBook = null
+  #onShelveBook = () => {}
   #onReview = null
   #mode = 'titles'
   #letter = null
@@ -31,9 +32,10 @@ export class Browser {
   #query = ''
   #sort = 'title'
 
-  constructor (dom, onOpenBook, onReview = () => {}) {
+  constructor (dom, onOpenBook, onReview = () => {}, onShelveBook = () => {}) {
     this.#dom = dom
     this.#onOpenBook = onOpenBook
+    this.#onShelveBook = onShelveBook
     this.#onReview = onReview
   }
 
@@ -282,7 +284,11 @@ export class Browser {
                 ? (row.smart
                     ? `/api/shelves/smart/${row.key}/books`
                     : `/api/shelves/${row.id}/books`)
-                : `/api/${mode.id}/${row.id}/books`
+                : `/api/${mode.id}/${row.id}/books`,
+          // A stored shelf is the one place a book can be taken *off*
+          // something. A smart shelf is a consequence of reading, so
+          // there is nothing to remove it from.
+          shelfId: mode.id === 'shelves' && !row.smart ? row.id : null
         }
         this.#render()
       })
@@ -300,6 +306,12 @@ export class Browser {
 
   #appendBooks (list, books) {
     for (const book of books) {
+      // The row is a button, so the shelf controls sit beside it rather
+      // than inside it: a button within a button is not a thing.
+      const item = document.createElement('div')
+      item.className = 'book-item'
+      item.dataset.name = book.path
+
       const row = document.createElement('button')
       row.className = 'book-row'
       row.dataset.name = book.path
@@ -324,6 +336,7 @@ export class Browser {
         wrap.textContent = '📕'
       }
 
+      item.append(row, ...this.#shelfControls(book))
       row.querySelector('.book-name').textContent = book.title || book.name
       row.querySelector('.book-author').textContent = book.authors.join(' & ')
       const bits = []
@@ -343,8 +356,45 @@ export class Browser {
         }
         this.#onOpenBook(book)
       })
-      list.append(row)
+      list.append(item)
     }
+  }
+
+  /** Shelving belongs on the row: you recognise a book in the list and
+   *  file it, without opening it first. */
+  #shelfControls (book) {
+    const controls = []
+
+    const shelve = document.createElement('button')
+    shelve.className = 'row-shelf'
+    shelve.type = 'button'
+    shelve.textContent = '＋'
+    shelve.title = `Put "${book.title || book.name}" on a shelf`
+    shelve.setAttribute('aria-label', shelve.title)
+    shelve.addEventListener('click', event => {
+      event.stopPropagation()
+      this.#onShelveBook(book)
+    })
+    controls.push(shelve)
+
+    // Only while looking at a shelf: elsewhere there is no shelf to
+    // take it off.
+    if (this.#drill?.shelfId) {
+      const remove = document.createElement('button')
+      remove.className = 'row-unshelf'
+      remove.type = 'button'
+      remove.textContent = '−'
+      remove.title = `Take "${book.title || book.name}" off ${this.#drill.title}`
+      remove.setAttribute('aria-label', remove.title)
+      remove.addEventListener('click', async event => {
+        event.stopPropagation()
+        await fetch(`/api/shelves/${this.#drill.shelfId}/books/${book.id}`,
+                    { method: 'DELETE' })
+        await this.#render()
+      })
+      controls.push(remove)
+    }
+    return controls
   }
 
   #number (value) {
