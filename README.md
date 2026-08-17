@@ -9,7 +9,7 @@ vanilla front end with no build step. Rendering is
 [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT), pinned as
 a submodule.
 
-**Status:** works and is in daily use on a library of ~2,300 books, but it
+**Status:** works and is in daily use on a library of ~2,200 books, but it
 is a personal project rather than a product.
 
 ## What it reads
@@ -23,6 +23,12 @@ Three rendering models sit behind those six: reflowed text, rasterised
 pages (PDF, via pdf.js), and images page by page (CBZ) — so the
 typography controls apply to the first and not the other two.
 
+**Books the shop locked are excluded**, not listed as titles that fail:
+50 here are Apple Books purchases whose every document is encrypted, and
+no reader outside Apple Books can open them. Encrypted *fonts* are a
+different thing entirely and stay — 8 books here obfuscate their fonts,
+the Earthsea novels among them, and they read perfectly.
+
 ## What it does
 
 - **Browse** by Titles, Authors, Series, Genres, Years or Shelves, with a
@@ -34,11 +40,13 @@ typography controls apply to the first and not the other two.
   whole screen, and an **Aa** button brings the panels in over the page.
 - **Highlight and annotate** — four colours, notes, and a Highlights
   panel that jumps to the passage. Shared across devices, like your place.
+- **Shelve from the list** — put a book on a shelf, or take it off,
+  without opening it.
 - **Remembers your place** server-side, keyed by content hash, so
   renaming or moving a file does not lose it.
 - **Shelves** you make, plus *Reading now* and *Finished*, which are
   derived from reading state rather than maintained by hand.
-- Indexes ~2,300 books in about 7 seconds, and re-scans in under a second.
+- Indexes ~2,200 books in about 7 seconds, and re-scans in under a second.
 
 ## Tidying a library nobody catalogued
 
@@ -52,13 +60,26 @@ deleted** — the library is opened read-only.
 ./run.sh repair --apply     # ...and fix what it can prove
 ./run.sh dedupe [--apply]   # one row per work, spares kept and restorable
 ./run.sh series [--apply]   # read series from filenames
+./run.sh forget [--apply]   # remove books whose files are gone
 ./run.sh refresh [--max N]  # re-ask about the oldest author data
 ```
 
-What that found here: 607 authors became 400 (misspellings and spacing);
-192 books filed under their own title got a real author; 311 titles that
-were really filenames were corrected; 289 spare copies of 253 works are
-now one row each; 297 books were filed under 80 series.
+A scan **notices** a deletion but never acts on one: the row is marked
+missing and kept, so a vanished book leaves the shelves at once while
+your place in it survives an unplugged drive. `forget` is the deliberate
+step, and it refuses when most of the library is missing — that is a
+disk that is not mounted, not a library you emptied.
+
+Where nothing automatic can help, you can say so yourself:
+`PUT /api/books/{id}/authors` fixes a file that is confidently wrong
+about its own author, and what you say is locked against every future
+scan.
+
+What that found here: 607 authors became 576 (misspellings and spacing);
+193 books filed under their own title got a real author; 386 titles that
+were really filenames were corrected; 289 spare copies are now one row
+each; 297 books were filed under 80 series; and 155 series exist where
+there had been 39.
 
 Everything a provider says is cached, so an author is looked up **once,
 ever**. A weekly launchd job re-asks about the ten oldest, which walks
@@ -141,7 +162,7 @@ being true it is a failing test rather than a blank page.
 ## Design notes
 
 `CLAUDE.md` and `design.html` carry the full design, the decisions behind
-it, and what a real 2,300-book library taught us — including several
+it, and what a real 2,200-book library taught us — including several
 defects in the rendering engine, and a few of our own, that no synthetic
 fixture would have produced.
 

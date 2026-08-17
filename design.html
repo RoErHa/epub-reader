@@ -549,6 +549,14 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 
 <p>The note is asked for <em>before</em> the mark is made, so a cancelled note leaves no orphan highlight. It is a composer rather than <code>window.prompt</code>, which blocks the page, cannot be styled, and on iOS reads as the browser asking rather than the app.</p>
 
+<h3>4.6 &nbsp;Shelving without opening the book</h3>
+<p>Putting a book on a shelf used to mean opening it first — the only way in was the reader's <strong>＋ Shelf</strong> button. But shelving is something you do <em>while browsing</em>: you recognise a book in the list and file it. So every row carries <strong>＋</strong>, which opens the same sheet the reader uses — the same sheet, not a second one, since two ways to edit one thing is how they end up disagreeing. Looking at a shelf adds <strong>−</strong>, which takes the book off that shelf.</p>
+<ul>
+<li><strong>A button cannot live inside a button.</strong> The row has been a <code>&lt;button&gt;</code> since M2, so the controls sit beside it in a <code>.book-item</code> wrapper, and every existing test that clicks <code>.book-row</code> still means what it did.</li>
+<li><strong>Always visible, 44 pt on touch.</strong> Hover is unreachable on an iPad, which is where most of this library is read.</li>
+<li><strong>Only a stored shelf offers −.</strong> "Reading now" is a consequence of reading rather than a list.</li>
+</ul>
+
 <h2 id="s5"><span class="n">05</span>Data model</h2>
 
 <p>Two decisions carry the design.</p>
@@ -912,6 +920,16 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Everything in brackets is the scanner talking, and the year among it is the <em>edition</em> — a 2025 scan of a 1985 comic is not a 1985 work. The issue number is worth keeping because it orders a run: <code>Shadowman 004</code> is the fourth Shadowman. The cover is the first page, sorted, because scanners pad their filenames and <code>002</code> really does come before <code>010</code>.</p>
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
+
+<h3>6.13 &nbsp;A scan notices a deletion; it does not act on one</h3>
+<p>A vanished book is marked <code>missing_since</code> and kept — §5 says it in as many words, <em>"vanished; row never auto-deleted"</em>. That is why it leaves the shelves at once while your place in it survives, and it is what makes an unplugged drive a nuisance rather than a disaster. It is the wrong answer for a book deleted on purpose, so <code>./run.sh forget</code> is a separate act, and it says what would be lost before losing it.</p>
+<div class="rule">
+  <span class="eyebrow">Rule</span>
+  <p><strong>A whole library that has vanished has not been deleted.</strong> It is on a disk that is not mounted, and forgetting it would throw away every highlight and reading position in one go. Above half the library missing, this refuses and says why.</p>
+</div>
+
+<h3>6.14 &nbsp;Some files simply lie</h3>
+<p><code>Star Wars - Refugee</code> carries <code>Dave Taylor</code> as its <code>dc:creator</code>; the book is by Sean Williams and Shane Dix. Nothing automatic reaches that — the file is not damaged, the title is not a filename, and two confidently wrong names look exactly like one author who needs merging, which is how they surfaced. <code>PUT /api/books/{id}/authors</code> lets a reader say who wrote it, and what they say is kept as theirs and <strong>locked</strong>, because the file will go on saying Dave Taylor for ever.</p>
 
 <h3>6.5 &nbsp;Asking a provider 1,200 times</h3>
 <p>A library-wide title run asks Open Library about 400 authors, three requests each. Sent flat out that earns <code>503</code>, <code>Connection reset by peer</code>, and SSL handshake timeouts — all three, in one run.</p>

@@ -446,6 +446,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
 | One row per work | `./run.sh dedupe [--apply]` | `epub_duplicates.py` |
 | Say who wrote a book | `PUT /api/books/{id}/authors` | `epub_credits.py` |
+| Remove books whose files are gone | `./run.sh forget [--apply]` | `epub_forget.py` |
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
@@ -483,6 +484,14 @@ Every pass records provenance for what it changes, or the next scan would undo i
 `/api/status` reported **590 authors** while the Browse tab listed 395, and both numbers were honest. A repair leaves an author row behind rather than deleting one another book might still use, and `genres.tsv` is loaded whole at startup whether a book uses a term or not — so counting rows counts things nobody can see.
 
 The status counts now join through to a **present** book, exactly as the browse lists do. A status line that disagrees with the screen below it is wrong however defensible each number is on its own.
+
+### 6.13 A scan notices a deletion; it does not act on one
+
+A vanished book is marked `missing_since` and kept — §5 says it in as many words, "vanished; row never auto-deleted". That is why it leaves the shelves at once while your place in it survives, and it is what makes an unplugged drive a nuisance rather than a disaster. It is also the wrong answer for a book deleted on purpose, so `./run.sh forget` is a separate act. It says what would be lost before losing it, since highlights and reading positions go with the book.
+
+> **A whole library that has vanished has not been deleted.** It is on a disk that is not mounted. Above half the library missing, forgetting refuses and says why; `--force` insists.
+
+Two references to a `book` row have **no cascade** and both took a scan down in turn once books started being removed: `book.duplicate_of`, where a hidden copy points at the copy that was kept, and `author_work.book_id`, where "Also published" links a work to the copy you own. Neither should vanish with the book.
 
 ### 6.6 Running the passes as the library grows
 
@@ -726,6 +735,60 @@ Four things the container change touched:
 - **The parser reads a loader, not a zip.** `ZipContents` and `FolderContents` answer `names()` and `read()`; everything above them is unchanged, and a book cannot name a file outside itself.
 
 **Measured: 264 new books in 4.9 s, no failures.** The library is now 2,271 books.
+
+| # | Decision | Consequence |
+| --- | --- | --- |
+| 1 | **Same stack as dlna-gateway** | FastAPI + hypercorn + SQLite/FTS5 + vanilla static SPA. No framework, no build step, no desktop shell. |
+| 2 | **Separate service** | Own port (8770), own plist (`com.roha.epub-reader`), own `books.db`. No coupling to dlna-gateway beyond shared conventions and TLS cert host. |
+| 3 | **No Calibre interaction at all** | No `metadata.db` import, no `ebook-convert`, no library-folder reading. `origin` enum is `file/provider/user` only. All metadata is built here from providers and embedded file data. |
+| 4 | **Auto-apply at 0.90** | Below it, candidates go to the review queue rather than being written. |
+| 5 | **Standard genre subset** | ~40-term BISAC subset in `genres.tsv`, with `genre_map.tsv` translating provider strings. Unmapped values logged, not guessed. |
+| 6 | **Novels and novellas only** | `author_work.work_type` filters the Also published list; everything fetched is stored, `unknown` is hidden but reachable via `show all`. |
+| 7 | **Server-side reading position** | One shared position per book across all devices, last write wins. No per-device state, no sync conflict UI. |
+
+### 8.6 M8: the same book, twice
+
+A library assembled over thirty years holds the same work more than once: a better scan downloaded years later, a MOBI kept beside the EPUB, a copy somebody unzipped. **199 works, 234 spare copies** — and then filing by series found 53 more that titles alone could not see.
+
+> **No file is ever deleted.** Dedupe means **one row per work on screen**: a spare keeps its row and its path, `duplicate_of` records which copy it belongs to, and `POST /api/books/restore-duplicates` shows them all again. Deleting is the reader's business, and the plan names every path.
+
+Which copy to keep, and what decided this library: **the copy you have been reading** (12 works — your place and highlights hang off one copy); **the format that reads best**, `epub > azw3 > mobi > prc > pdf` (30); **the copy with a cover** (155); then fuller metadata, then size.
+
+> **Apply, then audit.** The rule looked right on a dry run, and the one fault in 235 appeared only by asking a different question afterwards: *which hidden copies have filenames that disagree?* Two different Roman histories had been shown as one book, because a scanner wrote the same list of works into both. Two PDFs now need their filenames to agree as well — and agreement is not similarity: `Dune.pdf` and `Dune (retail).pdf` score barely higher than those two did. What tells a duplicate apart is that one name is **the other plus extras**.
+
+### 8.7 M8: comics
+
+A CBZ is a zip of images and nothing else. **286 indexed**, and only one in 120 carries a `ComicInfo.xml` — so the filename is the metadata, and these filenames are full of the scanner's notes: `Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz`.
+
+Everything in brackets is the scanner talking, and the year among it is the **edition**. The issue number is kept because it orders a run: `Shadowman 004` is the fourth Shadowman. That took the library from 39 series to 77. The cover is the first page, sorted, because scanners pad their filenames and `002` really does come before `010`.
+
+Two files named `.cbz` are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first.
+
+**A gap this found:** `page_count` had been in the schema since M2 and in no code path at all — `BookMetadata` had no such field, so the page counts M7 read out of PDFs were dropped on the floor.
+
+### 8.8 M9: series, read from the filenames
+
+135 books of 2,323 had a series, every one from a `calibre:series` tag inside the file. §6 said series would come from providers; that was never built. The filenames know, and need no provider: **297 books filed under 80 series**, from `Cussler, Clive - Dirk Pitt 01 - Pacific Vortex`.
+
+> **A series of one is a misread.** "10 is Better Than 01 - Heather Jarman" is a book *called* that, not book 1 of "is Better Than". A name is believed only when **two books by the same author agree on it**, which threw out every false positive the real library produced. An author's own name is refused, and a four-digit number is a year rather than a position.
+
+**Then series found duplicates that titles could not.** Filing revealed 46 positions claimed by two books — `Enders Game 4 - Children of the Mind.epub` beside the same file with the author appended. One author cannot have two fourth books in one series.
+
+What it cannot reach: `Chapterhouse Dune` carries no marker, so Frank Herbert's own novels are still loose, while Brian Herbert's are filed — those files were named by someone who cared.
+
+### 8.9 M10: shelving without opening
+
+Putting a book on a shelf used to mean opening it first — the only way in was the reader's **＋ Shelf** button. But shelving is something you do *while browsing*: you recognise a book in the list and file it. So the offer is on the row.
+
+Every book row carries **＋**, which opens the same sheet the reader uses — the same sheet, not a second one, since two ways to edit one thing is how they end up disagreeing. **Looking at a shelf** adds **−** to each row, which takes the book off *that* shelf.
+
+- **A button cannot live inside a button.** The row has been a `<button>` since M2, so the controls sit beside it in a `.book-item` wrapper, and every existing test that clicks `.book-row` still means what it did.
+- **The controls are always visible**, with a 44 pt target on touch: hover is unreachable on an iPad, which is where most of this library is read.
+- **Only a stored shelf offers −.** "Reading now" and "Finished" are consequences of reading rather than lists (§10.9).
+
+Tests pin the point of it: **＋** must not open the book, and clicking the row must still show it.
+
+## 9. Decisions — settled
 
 | # | Decision | Consequence |
 | --- | --- | --- |
