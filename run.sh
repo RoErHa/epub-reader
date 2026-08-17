@@ -30,6 +30,8 @@
 #   ./run.sh dedupe --apply     # ...and show only one copy of each
 #   ./run.sh series             # read series from filenames
 #   ./run.sh series --apply     # ...and file the books under them
+#   ./run.sh forget             # list books whose files are gone
+#   ./run.sh forget --apply     # ...and remove them from the database
 #   ./run.sh --env .env.test start
 # =============================================================================
 set -euo pipefail
@@ -45,6 +47,7 @@ PID_FILE=""   # derived from the env file once arguments are parsed
 FOREGROUND=0
 COMMAND=""
 APPLY=0
+FORCE=0
 MAX=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -52,7 +55,8 @@ while [ $# -gt 0 ]; do
     --foreground|-f) FOREGROUND=1; shift ;;
     --apply)      APPLY=1; shift ;;
     --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|series|help)
+    --force)      FORCE=1; shift ;;
+    start|stop|restart|status|scan|repair|refresh|dedupe|series|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -66,7 +70,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,35p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -123,6 +127,21 @@ do_repair() {
     echo "▶  Checking authors and titles (nothing will be changed)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --repair
   fi
+}
+
+do_forget() {
+  # A scan marks a vanished book; this is what removes it. Looking is
+  # still the default, because what goes with it cannot be brought back.
+  ARGS="--forget"
+  [ "${APPLY}" -eq 1 ] && ARGS="${ARGS} --apply"
+  [ "${FORCE}" -eq 1 ] && ARGS="${ARGS} --force"
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Forgetting books whose files are gone…"
+  else
+    echo "▶  Looking for books whose files are gone (nothing will change)…"
+  fi
+  # shellcheck disable=SC2086
+  "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" ${ARGS}
 }
 
 do_series() {
@@ -236,6 +255,7 @@ case "${COMMAND}" in
   refresh) do_refresh ;;
   dedupe)  do_dedupe ;;
   series)  do_series ;;
+  forget)  do_forget ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
   stop)    do_stop ;;

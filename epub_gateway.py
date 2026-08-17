@@ -116,6 +116,34 @@ class RefreshCommand:
         return 0
 
 
+class ForgetCommand:
+    """`--forget`: remove books whose files are gone.
+
+    A scan only marks them, so that an unplugged drive is a nuisance
+    rather than a disaster. This is the deliberate part, and it refuses
+    when most of the library is missing.
+    """
+
+    def __init__(self, config: Config, apply: bool = False,
+                 force: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+        self._force = force
+
+    def run(self) -> int:
+        from epub_forget import UnpluggedError
+
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.forget_missing(apply=self._apply, force=self._force))
+        except UnpluggedError as exc:
+            print(f"✗  {exc}", file=sys.stderr)
+            return 1
+        finally:
+            gateway.close()
+        return 0
+
+
 class SeriesCommand:
     """`--series`: file books under the series their filenames name.
 
@@ -219,6 +247,17 @@ class GatewayCLI:
             help="Check authors and titles, report, then exit without serving.",
         )
         parser.add_argument(
+            "--forget",
+            action="store_true",
+            help="Remove books whose files are gone, then exit.",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="With --forget: proceed even when most of the library is"
+                 " missing, which usually means an unmounted disk.",
+        )
+        parser.add_argument(
             "--series",
             action="store_true",
             help="File books under the series their names give, then exit.",
@@ -255,6 +294,9 @@ class GatewayCLI:
             print(f"Configuration error: {exc}", file=sys.stderr)
             return 2
         LoggingSetup(config).apply()
+        if args.forget:
+            return ForgetCommand(config, apply=args.apply,
+                                 force=args.force).run()
         if args.series:
             return SeriesCommand(config, apply=args.apply).run()
         if args.dedupe:
