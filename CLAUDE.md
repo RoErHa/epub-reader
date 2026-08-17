@@ -445,6 +445,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Titles that are really filenames | `POST /api/books/repair-titles` | `epub_titles.py` |
 | Merge two authors on your say-so | `POST /api/authors/merge` | `epub_dedupe.py` |
 | One row per work | `./run.sh dedupe [--apply]` | `epub_duplicates.py` |
+| Say who wrote a book | `PUT /api/books/{id}/authors` | `epub_credits.py` |
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
@@ -454,6 +455,8 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 That last rule is the strongest of the four, because it asks what the books *are* rather than how the name is spelled, and it is the only one that settled the Donaldsons: Open Library holds a **second record** for "Stephen Donaldson" (38 works beside the canonical 126), and "Stephan Donaldson" scores 0.87 against "Stephen R. Donaldson" — just under the typo bar. But all four of their books are Thomas Covenant novels, every one in the keeper's works list. One shared title would prove nothing, since two writers can name a book the same, so it asks for all of them. That last rule is what separates `Issac Asimov` from `Isaac Asimov` while leaving `Stephen King` and `Stephen Hawking` alone: both of those are real people, and the provider knows both. Whatever is refused is **reported**, never silently dropped — and `POST /api/authors/merge` is how a reader who knows better overrides the refusal. That is what settled `Anne Rice / Ann Rice`, `Arthur Clarke / Arthur C. Clarke`, and the four spellings of `L. E. Modesitt Jr.`: Open Library holds two records for each of the first two, and none of their books overlap in the library, so nothing could prove it. A hand merge records provenance exactly like an automatic one, so a rescan does not undo it.
 
 The spelling that survives is not simply the one with the most books — that kept `DIANE CAREY` over `Diane Carey` and `Raymond E Feist` over `Raymond E. Feist`. Open Library supplies the spelling, but only when its answer is the same name and better formed: it holds `J.k. Rowling`, which is not an improvement on anything.
+
+**Some files simply lie, and confidently.** `Star Wars - Refugee` carries `Dave Taylor` as its `dc:creator`; the book is by Sean Williams and Shane Dix. `Edge of Victory - Rebirth` carries `David Taylor`; it is Greg Keyes. Nothing automatic reaches that: the file is not damaged, the title is not a filename, and the two wrong names look exactly like one author who needs merging — which is how they surfaced, as the last of three look-alike pairs left for a human. So a reader can say who wrote a book, and it is kept as theirs and **locked**, because the file will go on saying Dave Taylor for ever.
 
 **A book filed under its own title** ("Annihilation" by Annihilation) is looked up by title. The trap is that a bare title is weak evidence — "Second Chance" returned a book James Patterson did not write — so where the filename names its author (`Cussler, Clive - Dirk Pitt 01 - Pacific Vortex`), that name arbitrates, and a candidate contradicting it is refused. The same rule catches authors holding a *fragment* of the title: `Jack And Jill` was split on the "and" and both halves became people.
 
@@ -804,6 +807,8 @@ epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
 epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth having
 epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
 epub_series.py      SeriesFromNames — series read from filenames
+epub_credits.py     BookCredits — who wrote it, when the file is wrong
+epub_forget.py      ForgetMissing — removing books whose files are gone
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
 epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results

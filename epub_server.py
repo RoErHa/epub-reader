@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from epub_annotations import AnnotationError, AnnotationStore
 from epub_browse import BrowseError, BrowseQueries
+from epub_credits import BookCredits
 from epub_duplicates import DuplicateFinder
 from epub_forget import ForgetMissing, UnpluggedError
 from epub_series import SeriesFromNames
@@ -153,6 +154,12 @@ class AnnotationEdit(BaseModel):
     color: str | None = None
 
 
+class BookAuthors(BaseModel):
+    """Who wrote it, when the file is wrong about that."""
+
+    authors: list[str]
+
+
 class ShelfName(BaseModel):
     name: str
 
@@ -205,6 +212,7 @@ class EpubGateway:
         self._duplicates = DuplicateFinder(self._database)
         self._series = SeriesFromNames(self._database)
         self._forget = ForgetMissing(self._database)
+        self._credits = BookCredits(self._database)
         # One fetcher for every provider, so the pacing is the whole
         # service's rather than each caller's: four separate streams is
         # how a library-wide run earns 503s.
@@ -681,6 +689,18 @@ class EpubGateway:
             row = book_or_404(book_id)
             state = reading.set_status(row["content_hash"], update.validated())
             return JSONResponse({"position": state.as_dict()})
+
+        @app.put("/api/books/{book_id}/authors")
+        def put_authors(book_id: int, body: BookAuthors) -> JSONResponse:
+            """Say who wrote a book. Kept as yours and locked: a file
+            that is confidently wrong stays wrong on every rescan."""
+            try:
+                return JSONResponse(
+                    {"authors": self._credits.set(book_id, body.authors)})
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
 
         @app.get("/api/books/{book_id}/annotations")
         def get_annotations(book_id: int) -> JSONResponse:
