@@ -258,6 +258,47 @@ class TestWritingItDown:
         assert book(gateway, "Chthon")["file_title"] == \
             "Anthony, Piers - Aton 01 - Chthon"
 
+    def test_a_hand_filed_series_trims_a_misspelt_shelf(self, client, library,
+                                                        gateway, namer):
+        """Once a person has said what the series is, the words in front
+        of its number are the shelf — however the file spells them.
+
+        Found in the real library: "Geodessey 01 - Isle of Women" is a
+        misspelling of Geodyssey, so nothing corroborated it and it kept
+        its whole name. Filing it by hand settled the series and left
+        the title still reading "Geodessey 01", which is the shelf
+        talking twice and disagreeing with itself.
+        """
+        clear(library)
+        pdf(library, "Anthony, Piers - Geodessey 01 - Isle of Women")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "Isle of Women")["title"] == \
+            "Geodessey 01 - Isle of Women"
+
+        from epub_credits import BookCredits
+        BookCredits(gateway.database).set_series(
+            book(gateway, "Isle of Women")["id"], "Geodyssey", 1)
+        namer.run(apply=True)
+        assert book(gateway, "Isle of Women")["title"] == "Isle of Women"
+        assert book(gateway, "Isle of Women")["series"] == "Geodyssey"
+
+    def test_a_number_that_disagrees_is_not_the_shelf(self, client, library,
+                                                      gateway, namer):
+        """The number is what carries the misspelt name. Without it
+        agreeing there is nothing tying the words to the shelf, so they
+        stay part of the book."""
+        clear(library)
+        pdf(library, "Anthony, Piers - Geodessey 01 - Isle of Women")
+        gateway.reindex()
+        namer.run(apply=True)
+        from epub_credits import BookCredits
+        BookCredits(gateway.database).set_series(
+            book(gateway, "Isle of Women")["id"], "Geodyssey", 4)
+        namer.run(apply=True)
+        assert book(gateway, "Isle of Women")["title"] == \
+            "Geodessey 01 - Isle of Women"
+
     def test_the_summary_says_what_a_later_run_did(self):
         """A run that credits nobody — because everybody is credited
         already — may still file and retitle. Saying "nothing to read"

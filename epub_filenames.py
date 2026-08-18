@@ -89,19 +89,32 @@ class CreditsFromNames:
         return {"author": person.display, "rest": match.group("rest").strip()}
 
     @staticmethod
-    def title_of(rest: str, series: str | None) -> str:
+    def title_of(rest: str, series: str | None,
+                 index: float | None = None) -> str:
         """The words that are the book.
 
         With a series believed, everything up to and including its
         number is the shelf talking. Without one, the words are left
         whole rather than cut at a guess — a number nobody has
         corroborated is not evidence of anything.
+
+        The file need not spell the shelf the way the library does.
+        "Geodessey 01 - Isle of Women" is a misspelling of Geodyssey,
+        which is exactly why nothing corroborated it and why somebody
+        had to file it by hand; once they have, the words in front of
+        the number are the shelf however they are spelt. **The number
+        is what ties them to it**, so it has to agree — without that
+        there is nothing connecting these words to that shelf, and they
+        stay part of the book.
         """
         if not series:
             return rest
         match = SHELF.match(rest)
-        if not match or match.group("series").strip().casefold() != \
-                series.casefold():
+        if not match:
+            return rest
+        named = match.group("series").strip().casefold() == series.casefold()
+        numbered = index is not None and float(match.group("number")) == index
+        if not (named or numbered):
             return rest
         return match.group("title").strip()
 
@@ -196,11 +209,12 @@ class CreditsFromNames:
                 continue
             if author and found["author"] != author:
                 continue
-            series = self._db.connection.execute(
-                "SELECT s.name FROM metadata m LEFT JOIN series s"
-                " ON s.id = m.series_id WHERE m.book_id = ?",
-                (row["id"],)).fetchone()["name"]
-            title = self.title_of(found["rest"], series)
+            filed = self._db.connection.execute(
+                "SELECT s.name, m.series_index FROM metadata m"
+                " LEFT JOIN series s ON s.id = m.series_id"
+                " WHERE m.book_id = ?", (row["id"],)).fetchone()
+            title = self.title_of(found["rest"], filed["name"],
+                                  filed["series_index"])
             if title and title != self._title_of(row["id"]):
                 plan.append({"id": row["id"], "title": title})
         return plan

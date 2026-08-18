@@ -861,11 +861,25 @@ rules that already existed:
 > for ever. The same run reported `nothing to read` while filing a book,
 > because the summary described only the first of its three steps.
 
-Two books are deliberately left run-on, and both are right: `Geodessey 01
-- Isle of Women` is a **misspelling** of Geodyssey, so that spelling has
-one book and nothing corroborates it, and `Bio of a Space Tyrant 06` is
-the only book of its series in the library. Both are what
-`PUT /api/books/{id}/series` is for (§8.10).
+Two books nothing could corroborate were filed by hand, which is what
+`PUT /api/books/{id}/series` is for (§8.10): `Geodessey 01 - Isle of
+Women` is a **misspelling** of Geodyssey, so that spelling had one book
+and nothing to agree with it, and `Bio of a Space Tyrant 06` is the only
+book of its series in the library. **All 45 now read as three facts**,
+24 of them in seven series.
+
+Filing them by hand exposed the last fault, and it is the same shape as
+the other two — a rule that could not see past the run it was in:
+
+> **Once a person has said what the series is, the words in front of its
+> number are the shelf, however the file spells them.** Hand-filing left
+> *Isle of Women* still titled `Geodessey 01 - Isle of Women` — the shelf
+> talking twice and disagreeing with itself — because the trim demanded
+> that the filename spell the series the way the library does. It cannot:
+> the misspelling is precisely why nothing corroborated it and why a
+> person had to file it at all. **The number is what ties the words to
+> the shelf**, so it must agree; a filename saying `01` under a book
+> filed at #4 keeps its words, since nothing then connects them.
 
 **The same shape is waiting on 241 more books across 49 authors** — 235
 PDFs and 6 PRCs — which is what `./run.sh names` reports library-wide.
