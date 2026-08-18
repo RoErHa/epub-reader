@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M9 · SERIES</span>
-  <div class="hdr-right">952 pytest · 422 playwright (chromium + webkit)</div>
+  <div class="hdr-right">970 pytest · 422 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -1060,6 +1060,24 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </div>
 
 <p>A pixel rule was tried and rejected: pale-and-grey would have dropped 16 title pages, but also Stephen King's <em>On Writing</em>, whose real cover is white with handwriting on it. Nothing separates a white cover from a white title page except looking, so the code does not pretend otherwise.</p>
+
+<h3>8.3 &nbsp;Covers: asking a provider for the rest</h3>
+<p>396 books were still showing a letter — text-born PDFs whose first page is a title page, plus EPUBs and PRCs whose files carry no image at all. Their own files have nothing left to give.</p>
+<p><strong>Measured before building it</strong>, on 40 random cover-less books: 70% get an offer from Open Library, and about three in four of those offers are the right book. A dry run over 20 more matched 12. So this closes over half of what is left — and gets some wrong, which shapes the design.</p>
+
+<div class="rule">
+  <span class="eyebrow">The enrichment score is the wrong instrument here</span>
+  <p>It refuses to redistribute weight over fields we do not have, and these books have no ISBN, no year and mostly no author — so a <em>correct</em> match scores 0.19. <code>CoverMatch</code> asks the only question a picture needs: do the titles agree once the filename scaffolding is off both of them. <code>Vampire Files 02 - Lifeblood</code> matches <em>Lifeblood</em>; <code>Mute</code> does not match <em>God on Mute</em>.</p>
+</div>
+
+<p><strong>249 of these books name their author in the filename and nowhere else</strong> — the PDF reader takes the author from the Info dictionary only, so <code>Anthony, Piers - Mute.pdf</code> has none in the database. <code>AuthorHint</code> reads it back off the filename for matching: surname-first at the head is taken as written, and a name at the <em>end</em> counts only when the library already knows that surname, or "The Eagle and the Wolves" acquires a Mr Wolves. It is a hint and nothing more, never written to the database.</p>
+
+<div class="rule">
+  <span class="eyebrow">Asked once, ever — and on its own, much slower clock</span>
+  <p>A miss is recorded exactly like a hit, so the next run does not ask again; a lookup that <em>failed</em> is not recorded, so an outage costs nothing but time. And a sweep of 400 lookups in one sitting is closer to bulk than to browsing, which Open Library asks people to do from the data dumps — so <code>COVER_FETCH_INTERVAL</code> (default 60 seconds) paces the search API alone, while the pictures, static files on another host, keep the ordinary pace. An overnight job rather than a ten-minute one, resumable at any point.</p>
+</div>
+
+<p>Open Library answers a cover it does not have with <strong>a one-pixel image rather than a 404</strong>, so anything under 100 px is refused and recorded as a miss.</p>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s9"><span class="n">09</span>Decisions — settled</h2>

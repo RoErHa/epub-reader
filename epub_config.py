@@ -131,6 +131,22 @@ class Config:
             return self.PROVIDER_RPS_DEFAULT
         return min(rate, self.PROVIDER_RPS_CEILING)
 
+    # A cover sweep is 400 lookups in one sitting, which is closer to
+    # bulk than to browsing however politely it is paced — so it gets its
+    # own, far slower clock: one request a minute, walking the library
+    # overnight rather than in ten minutes.
+    COVER_INTERVAL_DEFAULT = 60.0
+
+    @property
+    def cover_fetch_interval(self) -> float:
+        """Seconds between provider requests while fetching covers."""
+        raw = self._values.get("COVER_FETCH_INTERVAL", "").strip()
+        try:
+            seconds = float(raw)
+        except ValueError:
+            return self.COVER_INTERVAL_DEFAULT
+        return seconds if seconds > 0 else self.COVER_INTERVAL_DEFAULT
+
     @property
     def cert_host(self) -> str | None:
         return self._values.get("TAILSCALE_CERT_HOST") or None

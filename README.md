@@ -66,6 +66,7 @@ deleted** — the library is opened read-only.
 ./run.sh dedupe [--apply]   # one row per work, spares kept and restorable
 ./run.sh series [--apply]   # read series from filenames
 ./run.sh covers [--apply]   # a cover for books showing a lettered tile
+./run.sh covers --online    # ...and ask a provider for the rest, slowly
 ./run.sh forget [--apply]   # remove books whose files are gone
 ./run.sh refresh [--max N]  # re-ask about the oldest author data
 ```
@@ -76,6 +77,14 @@ is a worse tile than the letter it would replace. That is 144 of this
 library's PDFs; the audit that followed found 14 title pages among 159,
 and `DELETE /api/books/{id}/cover` is how you say so. What you drop stays
 dropped.
+
+For the books whose files hold no image at all, `--online` asks Open
+Library — **one request a minute**, so a full sweep is an overnight job
+rather than a ten-minute one, and it is resumable. Each book is asked
+about once ever, whether or not there was an answer. About 70% get an
+offer and roughly three in four of those are the right book, so this
+trades a few wrong covers for several hundred right ones; a wrong one
+goes with the same endpoint.
 
 A scan **notices** a deletion but never acts on one: the row is marked
 missing and kept, so a vanished book leaves the shelves at once while

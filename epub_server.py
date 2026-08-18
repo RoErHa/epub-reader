@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from epub_annotations import AnnotationError, AnnotationStore
 from epub_browse import BrowseError, BrowseQueries
-from epub_covers import CoverBackfill
+from epub_covers import CoverBackfill, ProviderCovers
 from epub_credits import BookCredits
 from epub_duplicates import DuplicateFinder
 from epub_forget import ForgetMissing, UnpluggedError
@@ -34,7 +34,7 @@ from epub_repair import TitleAsAuthorRepair
 from epub_titles import TitleFromWorks
 from epub_enrich import AuthorEnricher
 from epub_providers import (GoogleBooksProvider, OpenLibraryProvider,
-                            PoliteFetcher)
+                            PoliteFetcher, http_bytes)
 from epub_search import SearchQueries
 from epub_shelves import SMART, ShelfError, ShelfExists, ShelfStore
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
@@ -290,12 +290,38 @@ class EpubGateway:
         """Remove books whose files are gone, and say what that cost."""
         return ForgetMissing.summary(self._forget.run(apply=apply, force=force))
 
-    def find_covers(self, apply: bool = False, limit: int | None = None) -> str:
+    def find_covers(self, apply: bool = False, limit: int | None = None,
+                    online: bool = False) -> str:
         """Give a cover to books showing a lettered tile, and say how
-        many took one."""
+        many took one.
+
+        Offline by default — page one of a PDF, when page one is the
+        cover. `online` asks Open Library about the books whose files
+        hold no image at all, one request a minute.
+        """
+        if online:
+            return ProviderCovers.summary(
+                self._provider_covers().run(apply=apply, limit=limit))
         backfill = CoverBackfill(self._database, self._indexer.covers,
                                  self._config.library_root)
         return CoverBackfill.summary(backfill.run(apply=apply, limit=limit))
+
+    def _provider_covers(self) -> ProviderCovers:
+        """Its own fetcher, on its own clock: a sweep of 400 lookups is
+        closer to bulk than to browsing, so it goes far slower than the
+        service's shared one (§6.5)."""
+        interval = self._config.cover_fetch_interval
+        slow = PoliteFetcher(self._fetch, interval=interval)
+        provider = OpenLibraryProvider(
+            slow, contact=self._config.provider_key("OPENLIBRARY_CONTACT_EMAIL"))
+        # The pictures come off a different host and are static files,
+        # with a published allowance of about 100 every five minutes —
+        # so they keep the service's ordinary pace. Only the search API
+        # gets the slow clock, and it is the one doing the asking.
+        images = PoliteFetcher(http_bytes, rps=self._config.provider_max_rps)
+        return ProviderCovers(
+            self._database, self._indexer.covers, self._config.library_root,
+            provider, fetch_image=lambda url: images(url))
 
     def name_series(self, apply: bool = False) -> str:
         """File books under the series their names give, in one line."""

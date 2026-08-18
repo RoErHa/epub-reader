@@ -39,6 +39,13 @@ def http_json(url: str, headers: dict | None = None) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+def http_bytes(url: str, headers: dict | None = None) -> bytes:
+    """For cover images, which are pictures rather than answers."""
+    request = urllib.request.Request(url, headers=headers or {})
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        return response.read()
+
+
 # Open Library speaks MARC; the library speaks BCP 47.
 MARC_TO_BCP47 = {
     "eng": "en", "ger": "de", "deu": "de", "fre": "fr", "fra": "fr",

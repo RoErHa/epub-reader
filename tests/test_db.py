@@ -113,3 +113,19 @@ class TestMigrations:
             runner.run(database.connection)
         assert runner.current_version(database.connection) == 0
         database.close()
+
+
+class TestTwoWriters:
+    """The cover sweep runs for hours beside the live service, so a
+    write that arrives mid-transaction must wait rather than fail.
+
+    Python's sqlite3 gives five seconds by default and always has; this
+    pins it, because a background pass now depends on it.
+    """
+
+    def test_a_busy_database_is_waited_for(self, tmp_path):
+        from epub_db import Database
+
+        db = Database(tmp_path / "books.db")
+        waited = db.connection.execute("PRAGMA busy_timeout").fetchone()[0]
+        assert waited >= 5000

@@ -202,3 +202,168 @@ class TestThrowingACoverAway:
 
     def test_an_unknown_book_is_a_404(self, library_of_pdfs, client):
         assert client.delete("/api/books/99999/cover").status_code == 404
+
+
+# ── the provider half ─────────────────────────────────────────────────
+from epub_covers import AuthorHint, CoverMatch, ProviderCovers  # noqa: E402
+from epub_match import Candidate  # noqa: E402
+
+
+class FakeProvider:
+    """Answers from a script. No test may touch the network."""
+
+    def __init__(self, answers=None):
+        self.answers = answers or {}
+        self.asked = []
+
+    def find_books(self, title, author=None, limit=8):
+        self.asked.append((title, author))
+        return self.answers.get(title, [])
+
+
+def candidate(title, authors=("Test Author",), cover=True):
+    return Candidate(title=title, authors=list(authors),
+                     cover_url="https://covers/x-M.jpg" if cover else None,
+                     source="openlibrary")
+
+
+class TestWhoWroteIt:
+    """A cover is matched on the words we have, and 249 of these books
+    name their author in the filename and nowhere else."""
+
+    def test_a_name_written_surname_first_is_taken(self):
+        assert AuthorHint().surname("Anthony, Piers - Mute") == "anthony"
+
+    def test_a_name_at_the_end_is_taken_when_the_library_knows_it(self):
+        hint = AuthorHint({"scarrow"})
+        assert hint.surname("Cato 02 - The Eagles Conquest - Simon Scarrow") \
+            == "scarrow"
+
+    def test_a_name_at_the_end_nobody_knows_is_not_a_name(self):
+        # "The Eagle and the Wolves" must not become a Mr Wolves.
+        assert AuthorHint(set()).surname(
+            "Cato 04 - The Eagle and the Wolves") is None
+
+    def test_a_title_with_no_name_in_it(self):
+        assert AuthorHint().surname("Graph_Databases_2e_Neo4j") is None
+
+
+class TestWhichCandidateIsTheBook:
+    """The enrichment score is deliberately conservative about fields we
+    do not have (§10.12), so it rejects nearly every one of these. A
+    cover needs its own bar: the titles must actually agree."""
+
+    def test_the_same_title_is_the_book(self):
+        assert CoverMatch().accepts({"title": "Midnight's Mask"},
+                                    candidate("Midnight's Mask"))
+
+    def test_a_different_title_is_not(self):
+        # "Anthony, Piers - Mute" answered with "God on Mute", which is a
+        # book about prayer.
+        assert not CoverMatch().accepts({"title": "Mute"},
+                                        candidate("God on Mute"))
+
+    def test_scaffolding_in_our_title_is_ignored(self):
+        assert CoverMatch().accepts(
+            {"title": "Elrod, P. N. - Vampire Files 02 - Lifeblood"},
+            candidate("Lifeblood"))
+
+    def test_a_candidate_with_no_cover_is_no_use(self):
+        assert not CoverMatch().accepts({"title": "Lifeblood"},
+                                        candidate("Lifeblood", cover=False))
+
+    def test_the_author_must_agree_when_we_know_one(self):
+        book = {"title": "Blood River", "author_surname": "tilley"}
+        assert not CoverMatch().accepts(book, candidate("Blood River",
+                                                        ["Someone Else"]))
+        assert CoverMatch().accepts(book, candidate("Blood River",
+                                                    ["Patrick Tilley"]))
+
+
+class TestFetchingThem:
+    def _pass(self, gateway, provider, image=None):
+        return ProviderCovers(gateway.database, gateway.covers,
+                              gateway.library_root, provider,
+                              fetch_image=image or (lambda url: jpeg()))
+
+    def test_a_matching_cover_is_stored(self, library_of_pdfs):
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({"wordy book": [candidate("Wordy Book")]})
+        report = self._pass(gateway, provider).run(apply=True)
+
+        assert report["covered"] >= 1
+        assert cover_of(gateway, "Wordy Book")
+
+    def test_a_dry_run_asks_but_writes_nothing(self, library_of_pdfs):
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({"wordy book": [candidate("Wordy Book")]})
+        report = self._pass(gateway, provider).run(apply=False)
+
+        assert report["would_cover"] >= 1
+        assert cover_of(gateway, "Wordy Book") is None
+
+    def test_a_book_is_asked_about_once_ever(self, library_of_pdfs):
+        # §6.6: everything a provider says is written down, including
+        # that it said nothing. At one request every two minutes, asking
+        # twice is a day of somebody's afternoon.
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({})
+        self._pass(gateway, provider).run(apply=True)
+        asked_first = len(provider.asked)
+        self._pass(gateway, provider).run(apply=True)
+        assert len(provider.asked) == asked_first
+
+    def test_a_wrong_answer_leaves_the_letter(self, library_of_pdfs):
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({"wordy book": [candidate("Something Else")]})
+        report = self._pass(gateway, provider).run(apply=True)
+        assert report["covered"] == 0
+        assert cover_of(gateway, "Wordy Book") is None
+
+    def test_a_cover_a_reader_threw_away_is_not_replaced(self, library_of_pdfs,
+                                                        client):
+        gateway = library_of_pdfs
+        book_id = gateway.database.connection.execute(
+            "SELECT book_id FROM metadata WHERE title = 'Scanned Book'"
+        ).fetchone()["book_id"]
+        client.delete(f"/api/books/{book_id}/cover")
+
+        provider = FakeProvider({"scanned book": [candidate("Scanned Book")]})
+        self._pass(gateway, provider).run(apply=True)
+        assert cover_of(gateway, "Scanned Book") is None
+
+    def test_a_picture_too_small_to_be_one_is_refused(self, library_of_pdfs):
+        # Open Library answers a missing cover with a 1-pixel image
+        # rather than a 404.
+        from PIL import Image
+        tiny = io.BytesIO()
+        Image.new("RGB", (1, 1), "white").save(tiny, "JPEG")
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({"wordy book": [candidate("Wordy Book")]})
+        report = self._pass(gateway, provider,
+                            image=lambda url: tiny.getvalue()).run(apply=True)
+        assert report["covered"] == 0
+
+    def test_a_provider_that_fails_does_not_stop_the_run(self, library_of_pdfs):
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+
+        class Broken(FakeProvider):
+            def find_books(self, title, author=None, limit=8):
+                raise OSError("Open Library is having a bad day")
+
+        report = self._pass(gateway, Broken()).run(apply=True)
+        assert report["failed"] >= 1
+
+    def test_only_so_many_at_a_time(self, library_of_pdfs):
+        # The whole point of --max: a day's run is resumable.
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({})
+        self._pass(gateway, provider).run(apply=True, limit=1)
+        assert len(provider.asked) == 1

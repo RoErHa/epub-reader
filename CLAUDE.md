@@ -452,6 +452,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 | A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
+| ...and asking a provider for the rest | `./run.sh covers --online [--apply]` | `epub_covers.py` |
 | Say a cover is wrong | `DELETE /api/books/{id}/cover` | `epub_server.py` |
 
 **Merging authors is destructive, so the bar is high.** A group merges only when the names are identical once spacing and punctuation are removed, when Open Library resolves both to the same author, when one spelling is *unknown to Open Library* while a near-identical one is well known — the signature of a typo — or when **everything the other name is credited with is in the keeper's bibliography**.
@@ -837,6 +838,22 @@ A pixel rule was tried and rejected: pale-and-grey would have dropped 16 title p
 
 `./run.sh covers` reports, `--apply` writes, and a library without `pypdfium2` installed simply indexes as before — the import is where it is used.
 
+### 8.13 Covers: asking a provider for the rest
+
+396 books were left showing a letter — 356 text-born PDFs whose first page is a title page, 26 EPUBs and 15 PRCs whose files carry no image at all. Their own files have nothing to give, so the only remaining source is a provider.
+
+**Measured before building it**, on 40 random cover-less books: **70% get an offer from Open Library**, and roughly three in four of those offers are the right book. A later dry run over 20 more matched 12. So this closes over half of what is left — and gets some of them wrong, which shapes everything below.
+
+> **The enrichment score is the wrong instrument here.** It refuses to redistribute weight over fields we do not have (§10.12), and these books have no ISBN, no year and mostly no author — so a *correct* match scores 0.19. `CoverMatch` asks the only question a picture needs: **do the titles agree** once the filename scaffolding is off both of them. `Vampire Files 02 - Lifeblood` matches *Lifeblood*; `Mute` does not match *God on Mute*.
+
+**249 of these books name their author in the filename and nowhere else** — `epub_pdf` reads the author from the Info dictionary only, so `Anthony, Piers - Mute.pdf` has no author at all in the database. `AuthorHint` reads it back off the filename for matching: surname-first at the head is taken as written, and a name at the *end* only counts when the library already knows that surname, or "The Eagle and the Wolves" acquires a Mr Wolves. It is a hint and nothing more — never written to the database, because deciding who wrote a book is what §6.3's passes are for.
+
+> **Asked once, ever.** A miss is recorded exactly like a hit (`openlibrary-none`), so the next run does not ask again — §6.6's rule, and at one request a minute asking twice is somebody's whole afternoon. A lookup that *failed* is not recorded, so an outage costs nothing but time.
+
+**The pace is its own, and much slower than the service's.** `PROVIDER_MAX_RPS` governs browsing-shaped traffic; a sweep of 400 lookups in one sitting is closer to bulk, which Open Library asks people to do from the data dumps instead. So `COVER_FETCH_INTERVAL` (default **60 seconds**) paces the search API alone, and the pictures — static files on a different host with a published allowance of about 100 every five minutes — keep the ordinary pace. That makes a full sweep an overnight job rather than a ten-minute one, and it is resumable: stop it whenever, and the next run picks up where it left off.
+
+Open Library answers a cover it does not have with **a one-pixel image rather than a 404**, so anything under 100 px is refused and recorded as a miss.
+
 ## 9. Decisions — settled
 
 | # | Decision | Consequence |
@@ -918,7 +935,9 @@ epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
 epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth
                     having; PdfCoverRenderer — page one, when it is a cover
-epub_covers.py      CoverBackfill — a cover for the books showing a letter
+epub_covers.py      CoverBackfill — a cover from the book's own first page;
+                    ProviderCovers, CoverMatch, AuthorHint — and from
+                    Open Library for the files that hold no image
 epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
 epub_series.py      SeriesFromNames — series read from filenames
 epub_credits.py     BookCredits — who wrote it and where in a series,

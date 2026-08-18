@@ -32,6 +32,7 @@
 #   ./run.sh series --apply     # ...and file the books under them
 #   ./run.sh covers             # find books whose own first page is their cover
 #   ./run.sh covers --apply     # ...and give them it
+#   ./run.sh covers --online --apply   # ...and ask a provider for the rest
 #   ./run.sh forget             # list books whose files are gone
 #   ./run.sh forget --apply     # ...and remove them from the database
 #   ./run.sh --env .env.test start
@@ -51,6 +52,7 @@ COMMAND=""
 APPLY=0
 FORCE=0
 MAX=""
+ONLINE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --env)        ENV_FILE="${2:?--env needs a path}"; shift 2 ;;
@@ -58,6 +60,7 @@ while [ $# -gt 0 ]; do
     --apply)      APPLY=1; shift ;;
     --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
     --force)      FORCE=1; shift ;;
+    --online)     ONLINE=1; shift ;;
     start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
@@ -72,7 +75,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,37p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,38p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -159,7 +162,19 @@ do_series() {
 
 do_covers() {
   # Page one of a PDF, but only where page one is the cover. Nothing is
-  # fetched and no book file is touched.
+  # fetched and no book file is touched. --online asks Open Library about
+  # the books whose files hold no image at all, one request a minute —
+  # a sweep that takes hours on purpose.
+  ARGS="--covers"
+  [ "${ONLINE}" -eq 1 ] && ARGS="${ARGS} --online"
+  [ "${APPLY}" -eq 1 ] && ARGS="${ARGS} --apply"
+  [ -n "${MAX}" ] && ARGS="${ARGS} --max ${MAX}"
+  if [ "${ONLINE}" -eq 1 ]; then
+    echo "▶  Asking Open Library about books with no cover, slowly…"
+    # shellcheck disable=SC2086
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" ${ARGS}
+    return
+  fi
   if [ "${APPLY}" -eq 1 ]; then
     echo "▶  Taking covers from page one where page one is one…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --covers --apply

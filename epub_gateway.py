@@ -173,15 +173,17 @@ class CoversCommand:
     """
 
     def __init__(self, config: Config, apply: bool = False,
-                 limit: int | None = None) -> None:
+                 limit: int | None = None, online: bool = False) -> None:
         self._config = config
         self._apply = apply
         self._limit = limit
+        self._online = online
 
     def run(self) -> int:
         gateway = EpubGateway(self._config)
         try:
-            print(gateway.find_covers(apply=self._apply, limit=self._limit))
+            print(gateway.find_covers(apply=self._apply, limit=self._limit,
+                                      online=self._online))
         finally:
             gateway.close()
         return 0
@@ -296,6 +298,12 @@ class GatewayCLI:
             help="Give a cover to books that show a lettered tile, then exit.",
         )
         parser.add_argument(
+            "--online",
+            action="store_true",
+            help="With --covers: ask Open Library about the books whose files"
+                 " hold no image, one request a minute.",
+        )
+        parser.add_argument(
             "--refresh",
             action="store_true",
             help="Re-ask about the oldest author data, then exit without serving.",
@@ -331,8 +339,8 @@ class GatewayCLI:
             return DedupeCommand(config, apply=args.apply).run()
         if args.covers:
             return CoversCommand(config, apply=args.apply,
-                                 limit=args.max if args.max != BATCH else None
-                                 ).run()
+                                 limit=args.max if args.max != BATCH else None,
+                                 online=args.online).run()
         if args.refresh:
             return RefreshCommand(config, limit=args.max).run()
         if args.repair:
