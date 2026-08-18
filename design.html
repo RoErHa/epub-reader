@@ -111,6 +111,7 @@ h2{
 }
 h2 .n{color:var(--amber);font-family:var(--fm);font-size:15px;font-weight:400;margin-right:10px}
 h3{font-family:var(--fh);font-weight:600;font-size:17px;margin:32px 0 6px;color:var(--ink);text-wrap:balance}
+h4{font-family:var(--fh);font-weight:600;font-size:15px;margin:26px 0 6px;color:var(--ink);text-wrap:balance}
 p{margin:0 0 14px;max-width:70ch}
 main ul,main ol{margin:0 0 14px;padding-left:20px;max-width:70ch}
 main li{margin-bottom:5px}
@@ -1051,11 +1052,11 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. <strong>Both are now settled facts</strong> — see §3.1.</p>
 
 <h3>8.1 &nbsp;Open actions</h3>
-<p>Measured against the real library on 17 August 2026, in the order they are worth doing. What is <em>done</em> is everything above.</p>
+<p>Measured against the real library on 19 August 2026, in the order they are worth doing. What is <em>done</em> is everything above. <strong>Item 2 is next</strong>, and item 3 is the same provider call it needs.</p>
 
 <div class="rule">
-  <span class="eyebrow">1 — Cover art ✅ half done: 144 PDFs now carry their own first page</span>
-  <p>See §8.2 below for what that took and what the audit found. What is left is the 411 books whose files hold no image at all — the provider half of the same job.</p>
+  <span class="eyebrow">1 — Cover art ✅ 90%: 1,969 of 2,176 books carry one</span>
+  <p>159 PDFs took their cover from their own first page (§8.2) and Open Library answered for 219 more (§8.3). <strong>207 books still show a lettered tile</strong> — files holding no image whose titles Open Library could not match, every one recorded <code>openlibrary-none</code> so no run asks twice. A recorded miss is worth <em>clearing</em> whenever the thing that produced it changes: correcting Piers Anthony's titles turned 16 unanswerable books into 9 covers on the next ask, which says the misses are about our questions as much as their catalogue.</p>
 </div>
 
 <div class="rule">
@@ -1075,13 +1076,47 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </table>
 </div>
 
-<p><strong>2 — Fetch each matched work's own record.</strong> Open Library's <em>search</em> results carry no synopsis and no publisher, so auto-apply writes almost nothing: 1,912 books have no synopsis, 1,873 no genre, 1,585 no first-published year. One extra request per book fixes all three — and it is the same call that would answer the next item, so they are one piece of work rather than two.</p>
+<h4>2 — The names that are clear to a person and not to the code</h4>
+<p><strong>This is the next piece of work.</strong> Piers Anthony's filenames were obvious to a reader and opaque to the code, and closing that gap is the job. It is deliberately <em>not</em> a general enrichment sweep: <code>Dune - Frank Herbert</code> needs nothing from anybody, and asking about it would be an afternoon spent confirming what we already hold.</p>
 
-<p><strong>3 — M9's other half: series from a provider.</strong> 1,558 books have no series. Filenames gave 297 of them one and hand-filing reached what could be proved; the rest either genuinely stand alone or need the works data above.</p>
+<div class="rule">
+  <span class="eyebrow">The gate comes first, and most books never pass it</span>
+  <p>A name goes to a provider only when nothing here can already read it. Three kinds of certainty, all local and all free: one side of the name is an author we already hold (573 of them); the shape is one §6.11b already reads; or the file's own metadata agrees with its name. Only what survives all three is asked about.</p>
+</div>
 
-<p><strong>4 — Waiting on a person:</strong> 278 hidden duplicate copies (audited twice, no file ever deleted, all restorable); <code>GOOGLE_BOOKS_API_KEY</code> unset, so Google Books answers 429 to everything and contributes nothing; 17 authors never asked about and 375 unknown to Open Library, which the Sunday job walks at ten a week.</p>
+<div class="rule">
+  <span class="eyebrow">The filename stops being the answer and becomes a hypothesis</span>
+  <p>§6.11b believes one rigid shape outright, which is why it needs a comma at the head, why it fires on 241 books and no others, and why <code>10 is Better Than 01 - Heather Jarman</code> had to be <em>refused</em> rather than understood. The new pass cuts a name every plausible way, asks Open Library which reading is real, and keeps the one that comes back corroborated.</p>
+</div>
 
-<p><strong>5 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out because it is RAR; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
+<ol>
+<li><strong>Split into candidates, not into an answer</strong> — both orderings, every separator, with and without a leading number.</li>
+<li><strong>Anchor on whichever end confirms.</strong> Ask whether the candidate author exists, or whether the candidate title does. A name where neither end confirms is left alone and said so.</li>
+<li><strong>Find the other end through the anchor</strong> — a known author's works, never a global title search. "Second Chance" matches hundreds of books; <em>this author's</em> Second Chance is one question with one answer.</li>
+<li><strong>Score into the bands that already exist</strong> — decision 4's ≥0.90 / 0.60–0.90 and the review queue, which already stores why it scored that and which fields would change. A second queue would only disagree with the first.</li>
+</ol>
+
+<div class="rule">
+  <span class="eyebrow">Here a provider's answer wins, because nothing else is offering</span>
+  <p>Everywhere else the file leads and enrichment fills silence. The gate has already established that neither the file nor its name can be read, so a confirmed reading is the only evidence in the room. That also settles <code>title</code>: outside the enrichment writable set for every book whose name we <em>can</em> read, writable for the ones we cannot.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Every question asked is written down, hits and misses alike</span>
+  <p>Several hypotheses per book is where "asked once, ever" stops being enough: <code>author.fetched_at</code> records that we asked about a <em>person</em>, and this asks about a <em>string</em>. It needs a query → answer cache keyed on the question, or the second run costs what the first did.</p>
+</div>
+
+<p><strong>Measure before building it</strong>, as the cover work did twice: 30 real unreadable filenames through the splitter, counting how many anchor at all. If the answer is 20% this is a different piece of work, and better to know that on the first morning.</p>
+
+<p><strong>3 — Fetch each matched work's own record.</strong> Open Library's <em>search</em> results carry no synopsis and no publisher, so auto-apply writes almost nothing: 1,912 books have no synopsis, 1,873 no genre, 1,585 no first-published year. One extra request per book fixes all three — and it is the same call that confirms a candidate above, so they are one piece of work rather than two.</p>
+
+<h4>4 — Editing a book's metadata</h4>
+<p><strong>Series is not coming from a provider.</strong> §6 said it would and it was never built; Open Library's search results are thin enough that its series data is unproven, and nothing measured here says it can tell Xanth #8 from Xanth #9. The answer is the reader's own hand. Hand-editing today is <strong>authors and series only</strong>; it should be the whole record — title, series and number, synopsis, genre — because that is the only thing that reaches a book the machinery cannot: the truncated <code>Bamboo Bloodbath &amp; Ninj</code>, the clipped <code>The Caterpillars Questi</code>, a series nobody else has heard of. It costs no requests, and the machinery exists already: what a person says is <code>origin = 'user'</code>, locked, and no pass overrules it.</p>
+<p>1,558 books have no series; 241 more can still be read straight off their filenames by the pass that exists.</p>
+
+<p><strong>5 — Waiting on a person:</strong> 280 hidden duplicate copies (audited twice, no file ever deleted, all restorable); <code>GOOGLE_BOOKS_API_KEY</code> unset, so Google Books answers 429 to everything and contributes nothing; 17 authors never asked about and 375 unknown to Open Library, which the Sunday job walks at ten a week.</p>
+
+<p><strong>6 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out because it is RAR; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
 
 <h3>8.2 &nbsp;Covers: page one, when page one is the cover</h3>
 <p>555 books of 2,179 showed a lettered tile, and <strong>514 of them were PDFs — every PDF in the library</strong>. M7 skipped this because rasterising a page was a heavy dependency for a proof-of-concept; at 514 blank books that reasoning expired. pdfium is BSD, ships as a wheel with the binary in it, and needs no network.</p>

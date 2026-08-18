@@ -1435,15 +1435,23 @@ authors, 34 series, 258 genres.
 
 ## 12. Open actions
 
-Measured against the real library on 2026-08-17, in the order they are
+Measured against the real library on 2026-08-19, in the order they are
 worth doing. Everything here is either not built or a decision waiting
-to be taken — what is *done* is §8.
+to be taken — what is *done* is §8. **§2 is next**, and §3 is the same
+call it needs.
 
-### 1. Cover art ✅ half done — page one, where page one is the cover
+### 1. Cover art ✅ 90% — 1,969 of 2,176 books carry one
 
-**Done: 144 PDFs took their cover from their own first page.** See §8.12.
-What remains is the 411 books whose files hold no image at all, which is
-the provider half of the same job.
+**Done.** 159 PDFs took their cover from their own first page (§8.12) and
+Open Library answered for 219 more (§8.13). **207 books still show a
+lettered tile** — the ones whose own file holds no image and whose title
+Open Library could not match, all of them now recorded `openlibrary-none`
+so no run asks twice.
+
+A recorded miss is worth *clearing* whenever the thing that produced it
+changes. Correcting Piers Anthony's titles (§8.13a) turned 16 previously
+unanswerable books into 9 covers on the next ask — proof that the misses
+are about our questions as much as about their catalogue.
 
 ### 1a. What it looked like before
 
@@ -1476,7 +1484,69 @@ Two routes, and they are not exclusive:
 Whatever is fetched goes through `CoverStore` and lands on disk keyed by
 hash, like every other cover — not in SQLite.
 
-### 2. Fetch each matched work's own record
+### 2. The names that are clear to a person and not to the code
+
+**This is the next piece of work.** Piers Anthony's filenames were
+obvious to a reader and opaque to the code, and closing that gap is the
+job. It is deliberately **not** a general enrichment sweep: `Dune - Frank
+Herbert` needs nothing from anybody, and asking about it would be
+spending an afternoon confirming what we already hold.
+
+> **The gate comes first, and most books never pass it.** A name goes to
+> a provider only when nothing here can already read it. Three kinds of
+> certainty, all local and all free: one side of the name is an author we
+> already hold (573 of them); the shape is one §8.13a already reads; or
+> the file's own metadata agrees with its name. Only what survives all
+> three is asked about.
+
+Then the inversion that makes the rest work:
+
+> **The filename stops being the answer and becomes a hypothesis.**
+> §8.13a believes one rigid shape outright, which is why it needs a comma
+> at the head, why it fires on 241 books and no others, and why
+> `10 is Better Than 01 - Heather Jarman` had to be *refused* rather than
+> understood. The new pass cuts a name every plausible way, asks Open
+> Library which reading is real, and keeps the one that comes back
+> corroborated.
+
+1. **Split into candidates, not into an answer.** Both orderings of a
+   two-part name, every separator, with and without a leading number —
+   `Heather Jarman - 10 is Better Than 01` yields the reading §8.13a
+   cannot reach.
+2. **Anchor on whichever end confirms.** Ask whether the candidate author
+   exists, or whether the candidate title does. One confirmed end is the
+   anchor; a name where neither end confirms is left alone and said so.
+3. **Find the other end through the anchor.** A known author's works, not
+   a global title search — §6.3's rule, and the reason titles worked at
+   all: "Second Chance" matches hundreds of books, but *this author's*
+   Second Chance is one question with one answer.
+4. **Score into the bands that already exist.** Decision 4's ≥0.90 /
+   0.60–0.90 and `epub_book_enrich.py`'s queue, which already stores why
+   it scored that and which fields would change. A pipeline choosing
+   between competing readings is precisely what a review queue is for,
+   and a second one would only end up disagreeing with the first.
+
+> **Here a provider's answer wins, because nothing else is offering.**
+> Everywhere else the file leads and enrichment fills silence (§6.4). The
+> gate has already established that neither the file nor its name can be
+> read, so a confirmed reading is the only evidence in the room. That
+> also settles `title`: it stays outside the enrichment writable set
+> (§10.13) for every book whose name we *can* read, and is writable for
+> the ones we cannot.
+
+> **Every question asked is written down, hits and misses alike.**
+> Several hypotheses per book is where §6.6's "asked once, ever" stops
+> being enough — `author.fetched_at` records that we asked about a
+> *person*, and this asks about a *string*. It needs a query → answer
+> cache keyed on the question, or the second run costs what the first
+> did.
+
+**Measure before building it**, as §8.13 did for covers and §8.12 for
+first pages: 30 real unreadable filenames through the splitter, counting
+how many anchor at all. If the answer is 20% this is a different piece of
+work, and better to know that on the first morning.
+
+### 3. Fetch each matched work's own record
 
 §10.13 recorded this and left it undone. Open Library's *search* results
 carry title, author, year, ISBN, language and a cover but **no synopsis
@@ -1488,24 +1558,37 @@ and no publisher**, so auto-apply writes almost nothing:
 | no genre | 1,873 |
 | no first-published year | 1,585 |
 
-One extra request per book fixes all three, and it is the same call that
-would answer §3 below — so they are one piece of work, not two.
+One extra request per book fixes all three — and it is the same call that
+confirms a candidate in §2, so they are one piece of work rather than
+two.
 
-### 3. M9's other half: series from a provider
+### 4. Editing a book's metadata
+
+**Series is not coming from a provider.** §6 said it would and it was
+never built; Open Library's search results are thin enough (§10.13) that
+its series data is unproven, and nothing measured here says it can tell
+Xanth #8 from Xanth #9. The answer is the reader's own hand.
+
+Hand-editing today is **authors and series only** (§8.10). It should be
+the whole record — title, series and number, synopsis, genre — because
+that is the only thing that can reach a book the machinery cannot: the
+truncated `Bamboo Bloodbath & Ninj`, the clipped `The Caterpillars
+Questi`, a series nobody else has heard of. It costs no requests, and the
+machinery for it already exists: what a person says is `origin = 'user'`,
+locked, and no pass overrules it (§6.4).
+
+**1,558 books have no series.** Filenames gave 297 of them one and
+hand-filing reached those that could be proved; most of the rest either
+genuinely stand alone or need a person. `PUT /api/books/{id}/series` is
+the answer today, one book at a time.
 
 **241 books can still be read straight off their filenames** — 235 PDFs
-and 6 PRCs, across 49 authors, in the `Surname, First - Series NN -
-Title` shape §8.13a handles. `./run.sh names` reports them and
-`--author`/`--format` aims it. Piers Anthony's 45 PDFs are done; the
-rest want an audit apiece, since the pass writes an author and a title.
+and 6 PRCs, across 49 authors, in the shape §8.13a already handles.
+`./run.sh names` reports them and `--author`/`--format` aims it. Piers
+Anthony's 45 are done; the rest want an audit apiece, since the pass
+writes an author and a title.
 
-**1,558 books have no series.** Filenames gave 297 of them one and hand
--filing reached the rest that could be proved (§8.10); most of what is
-left either genuinely stands alone or needs the works data from §2.
-Until then, `PUT /api/books/{id}/series` is the answer for any book you
-care about.
-
-### 4. Decisions waiting on a person
+### 5. Decisions waiting on a person
 
 - **278 hidden duplicate copies.** Audited twice, and both audits found
   real faults (§8.6, §8.10). No file was ever deleted;
@@ -1517,7 +1600,7 @@ care about.
   unknown to Open Library** — mostly series names and scanner handles.
   The Sunday job walks ten a week and needs no help.
 
-### 5. Known gaps, deliberately
+### 6. Known gaps, deliberately
 
 - **Hand-editing is authors and series only** (§8.10). Title, synopsis
   and genres are provider-or-file; `title` is outside even the
