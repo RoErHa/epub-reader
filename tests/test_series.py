@@ -149,6 +149,42 @@ class TestNotReadingTooMuchIntoIt:
 
 
 class TestWhatIsAlreadyKnown:
+    def test_a_book_already_filed_is_corroboration(self, client, library,
+                                                   gateway, namer):
+        """A sibling that is already on the shelf agrees just as well as
+        one that is not.
+
+        Found in the real library: Piers Anthony's Geodyssey 02 and 04
+        were filed by an earlier run, so when 03 came along it was the
+        only *unfiled* book claiming the name and was refused as a
+        series of one — with two of its own siblings already filed under
+        it. Agreement is about the library, not about this run.
+        """
+        clear(library)
+        book(library, "Geodyssey 02 - Shame of Man", "Shame of Man",
+             "Piers Anthony")
+        book(library, "Geodyssey 04 - Muse of Art", "Muse of Art",
+             "Piers Anthony")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert series_of(gateway, "Shame of Man") == ("Geodyssey", 2)
+
+        book(library, "Geodyssey 03 - Hope of Earth", "Hope of Earth",
+             "Piers Anthony")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert series_of(gateway, "Hope of Earth") == ("Geodyssey", 3)
+
+    def test_one_filed_book_is_still_not_enough_for_a_stranger(
+            self, client, library, gateway, namer):
+        """Corroboration is still corroboration: one book, however it
+        was filed, does not make "is Better Than" a series."""
+        clear(library)
+        book(library, "10 is Better Than 01 - Heather Jarman",
+             "10 is Better Than 01", "Heather Jarman")
+        gateway.reindex()
+        assert namer.run(apply=True)["named"] == 0
+
     def test_a_series_from_the_file_is_not_overwritten(self, client, library,
                                                        gateway, namer):
         clear(library)

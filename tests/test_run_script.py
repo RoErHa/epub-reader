@@ -201,3 +201,28 @@ class TestTheWeeklyJob:
         with self.PLIST.open("rb") as handle:
             args = plistlib.load(handle)["ProgramArguments"]
         assert "--refresh" in args
+
+
+class TestNames:
+    """`run.sh names` reads author, series and title off one filename.
+
+    The scope flags are optional, and an empty bash array under
+    `set -u` is an *unbound variable*, not an empty list — so the
+    unscoped form died with "scope[@]: unbound variable" while the
+    scoped one worked perfectly. A pass nobody can run library-wide is
+    not much of a pass.
+    """
+
+    def test_names_runs_without_a_scope(self, env_file):
+        result = run("names", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+        assert "unbound variable" not in result.stderr
+
+    def test_names_runs_with_a_scope(self, env_file):
+        result = run("names", "--author", "Piers Anthony", "--format", "pdf",
+                     env_file=env_file)
+        assert result.returncode == 0, result.stderr
+
+    def test_names_is_listed_in_the_help(self):
+        result = run("help")
+        assert "names" in result.stdout + result.stderr

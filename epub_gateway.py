@@ -164,6 +164,33 @@ class SeriesCommand:
         return 0
 
 
+class NamesCommand:
+    """`--names`: author, series and title, read from one filename.
+
+    "Anthony, Piers - Xanth 08 - Crewel Lye" is three facts written as
+    one. §8.4 made the filename lead for PDFs but only for the title,
+    so these books have no author — and with no author, the series rule
+    has nobody to agree with and never fires.
+    """
+
+    def __init__(self, config: Config, apply: bool = False,
+                 author: str | None = None,
+                 formats: list[str] | None = None) -> None:
+        self._config = config
+        self._apply = apply
+        self._author = author
+        self._formats = formats
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.read_names(apply=self._apply, author=self._author,
+                                     formats=self._formats))
+        finally:
+            gateway.close()
+        return 0
+
+
 class CoversCommand:
     """`--covers`: a cover for books that show a lettered tile.
 
@@ -288,6 +315,21 @@ class GatewayCLI:
             help="File books under the series their names give, then exit.",
         )
         parser.add_argument(
+            "--names",
+            action="store_true",
+            help="Read author, series and title from filenames, then exit.",
+        )
+        parser.add_argument(
+            "--author",
+            help="With --names: only books this filename credits to them.",
+        )
+        parser.add_argument(
+            "--format",
+            action="append",
+            dest="formats",
+            help="With --names: only this format (repeatable), e.g. --format pdf.",
+        )
+        parser.add_argument(
             "--dedupe",
             action="store_true",
             help="Report works held more than once, then exit without serving.",
@@ -335,6 +377,9 @@ class GatewayCLI:
                                  force=args.force).run()
         if args.series:
             return SeriesCommand(config, apply=args.apply).run()
+        if args.names:
+            return NamesCommand(config, apply=args.apply, author=args.author,
+                                formats=args.formats).run()
         if args.dedupe:
             return DedupeCommand(config, apply=args.apply).run()
         if args.covers:

@@ -946,6 +946,40 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <p>Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.</p>
 
+<h3>6.11b &nbsp;Three facts written as one name</h3>
+<p><code>Anthony, Piers - Xanth 08 - Crewel Lye</code> browsed as a single run-on title, credited to nobody — or to <code>harry</code>, which is whoever ran the scanner. 45 of Piers Anthony's PDFs looked like that, and the cause was one missing step rather than three.</p>
+<p>§8.4 made the filename lead for PDFs, but only for the <strong>title</strong>: <code>epub_pdf</code> reads the author from the Info dictionary alone, so 35 of the 45 had no author at all. §6.6 runs its passes <strong>authors → books → titles</strong> because everything else is asked <em>of</em> an author — and <code>SeriesFromNames</code> says so in as many words, refusing a name when there is nobody to agree with. The Xanth novels could never have become a series either. The first domino had never fallen.</p>
+
+<div class="rule">
+  <span class="eyebrow">A file that named itself is not this pass's business</span>
+  <p>It acts only where the title the database holds <em>is</em> the filename, which is the mark of a file that said nothing. An EPUB whose OPF gives a real title is left alone even when its filename would parse — <code>Anthony, Piers - Cluster 2 - Chaining The Lady.epub</code> already knows it is <em>Chaining the Lady</em>.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">The author leads, or nothing happens</span>
+  <p><code>Surname, First - …</code> at the head is the shape this library uses, and the comma is what makes it a name rather than two words that happen to lead. A filename with its author at the <em>end</em> — <code>10 is Better Than 01 - Heather Jarman</code> — is a book called that, and is refused.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">The series is not judged here</span>
+  <p><code>SeriesFromNames</code> already decides that, and its rule — two books by one author must agree — is what keeps "is Better Than" out of the library. This pass credits the author first so that rule can finally run, then asks it, then reads the title in the light of its answer. Two implementations of one judgement is how they come to disagree.</p>
+</div>
+
+<p><strong>Measured: 45 books credited, 17 filed under six series, 45 retitled</strong> — Xanth, Mode, Aton, ChroMagic, Jason Striker and Geodyssey. Every one of the 45 was then read, and the audit found two faults, both in rules that already existed.</p>
+
+<div class="rule">
+  <span class="eyebrow">A book already on the shelf is corroboration too</span>
+  <p><code>SeriesFromNames</code> counted agreement only among <em>unfiled</em> books. Geodyssey 02 and 04 had been filed by an earlier run, so when 03 arrived it was the only unfiled book claiming the name and was refused as a series of one — with two of its own siblings already filed under it. Agreement is about the library, not about this run.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A title this pass wrote is still its own to refine</span>
+  <p><em>Hope of Earth</em> then got its series and kept its run-on title, because it no longer looked like a filename and so fell out of the pass's own scope. A book alone on its shelf keeps its number; when a sibling turns up, that number becomes the shelf talking. The same run reported <code>nothing to read</code> while filing a book, because the summary described only the first of its three steps.</p>
+</div>
+
+<p>Two books are deliberately left run-on, and both are right: <code>Geodessey 01 - Isle of Women</code> is a <strong>misspelling</strong> of Geodyssey, so that spelling has one book and nothing corroborates it, and <code>Bio of a Space Tyrant 06</code> is the only book of its series in the library. Both are what <code>PUT /api/books/{id}/series</code> is for.</p>
+<p><strong>241 more books across 49 authors</strong> — 235 PDFs and 6 PRCs — carry the same shape and are not done, because a pass this sharp should be aimed rather than loosed: <code>./run.sh names --author "Piers Anthony" --format pdf --apply</code>. A scope narrows <em>which</em> books are read, never how they are judged.</p>
+
 <h3>6.12 &nbsp;Comics</h3>
 <p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
 <pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>

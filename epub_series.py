@@ -55,28 +55,58 @@ class SeriesFromNames:
         self._db = database
 
     # ── reading the names ─────────────────────────────────────────────
-    def plan(self) -> list[dict]:
-        """What each book would be filed under. Changes nothing."""
+    def plan(self, author: str | None = None,
+             formats: list[str] | None = None) -> list[dict]:
+        """What each book would be filed under. Changes nothing.
+
+        A scope narrows *which* books are read, never how they are
+        judged: agreement is still counted within the scope, so asking
+        about one author's PDFs cannot borrow corroboration from books
+        the caller did not ask about.
+        """
         candidates: dict[tuple, list[dict]] = {}
-        for row in self._books():
+        for row in self._books(author, formats):
             found = self._read(row)
             if found:
                 candidates.setdefault(found["key"], []).append(found)
 
+        filed = self._already_filed()
         named = []
-        for group in candidates.values():
+        for key, group in candidates.items():
             # A series of one is a misread: "10 is Better Than 01" is a
-            # book, not book 1 of "is Better Than".
-            if len(group) < AGREEMENT:
+            # book, not book 1 of "is Better Than". A sibling already on
+            # the shelf agrees just as well as one that is not, though —
+            # Geodyssey 02 and 04 were filed by an earlier run, and
+            # without this 03 was refused as a series of one.
+            if len(group) + filed.get(key, 0) < AGREEMENT:
                 LOG.info("only one book claims %r; leaving it alone",
                          group[0]["series"])
                 continue
             named.extend(group)
         return named
 
-    def _books(self):
-        return self._db.connection.execute(
+    def _already_filed(self) -> dict[tuple, int]:
+        """How many books each author already has under each series
+        name. Agreement is about the library, not about this run."""
+        counts: dict[tuple, int] = {}
+        for row in self._db.connection.execute(
             """
+            SELECT s.name AS series, a.sort_name AS author_sort, COUNT(*) n
+              FROM book b
+              JOIN metadata m ON m.book_id = b.id
+              JOIN series s ON s.id = m.series_id
+              LEFT JOIN book_author ba ON ba.book_id = b.id AND ba.position = 0
+              LEFT JOIN author a ON a.id = ba.author_id
+             WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
+             GROUP BY s.name, a.sort_name
+            """
+        ):
+            counts[(fold(row["series"]), fold(row["author_sort"] or ""))] = row["n"]
+        return counts
+
+    def _books(self, author: str | None = None,
+               formats: list[str] | None = None):
+        sql = """
             SELECT b.id, b.path, m.series_id, a.name AS author,
                    a.sort_name AS author_sort
               FROM book b
@@ -88,8 +118,15 @@ class SeriesFromNames:
                AND NOT EXISTS (
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id AND f.field = 'series')
-            """
-        ).fetchall()
+        """
+        params: list = []
+        if author:
+            sql += " AND a.name = ?"
+            params.append(author)
+        if formats:
+            sql += f" AND b.format IN ({','.join('?' * len(formats))})"
+            params.extend(formats)
+        return self._db.connection.execute(sql, params).fetchall()
 
     def _read(self, row) -> dict | None:
         match = PATTERN.search(Path(row["path"]).stem)
@@ -125,8 +162,9 @@ class SeriesFromNames:
         return folded not in (author, surname)
 
     # ── writing it down ───────────────────────────────────────────────
-    def run(self, apply: bool = False) -> dict:
-        plan = self.plan()
+    def run(self, apply: bool = False, author: str | None = None,
+            formats: list[str] | None = None) -> dict:
+        plan = self.plan(author, formats)
         report = {"named": 0, "would_name": len(plan),
                   "series": len({p["series"] for p in plan}), "plan": plan}
         if not apply:

@@ -449,6 +449,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Say where it sits in a series | `PUT /api/books/{id}/series` | `epub_credits.py` |
 | Remove books whose files are gone | `./run.sh forget [--apply]` | `epub_forget.py` |
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
+| Author, series and title from one filename | `./run.sh names [--apply]` | `epub_filenames.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 | A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
@@ -794,6 +795,90 @@ That is the whole of hand-editing today: **who wrote it, and where it sits in a 
 
 Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.
 
+### 8.13a Three facts written as one name
+
+`Anthony, Piers - Xanth 08 - Crewel Lye` browsed as a single run-on
+title, credited to nobody — or to `harry`, which is whoever ran the
+scanner. 45 of Piers Anthony's PDFs looked like that, and the cause was
+one missing step rather than three.
+
+§8.4 made the filename lead for PDFs, but only for the **title**:
+`epub_pdf` reads the author from the Info dictionary alone, so 35 of the
+45 had no author at all. §6.6 runs its passes **authors → books →
+titles** because everything else is asked *of* an author — and
+`SeriesFromNames` says so in as many words, refusing a name when
+`not row["author_sort"]`, because there is nobody to agree with. So the
+Xanth novels could never have become a series either. The first domino
+had never fallen.
+
+The name says all three things and needs no provider. `epub_filenames.py`
+reads it, narrow by construction:
+
+> **A file that named itself is not this pass's business.** It acts only
+> where the title the database holds *is* the filename, which is the mark
+> of a file that said nothing. An EPUB whose OPF gives a real title is
+> left alone even when its filename would parse — `Anthony, Piers -
+> Cluster 2 - Chaining The Lady.epub` already knows it is *Chaining the
+> Lady*.
+
+> **The author leads, or nothing happens.** `Surname, First - …` at the
+> head is the shape this library uses, and the comma is what makes it a
+> name rather than two words that happen to lead. A filename with its
+> author at the *end* — `10 is Better Than 01 - Heather Jarman` — is a
+> book called that, and is refused. `AuthorHint` (§8.13) already reads
+> names this way for cover matching; the difference is that here it is
+> written down, which is why it is narrower.
+
+> **The series is not judged here.** `SeriesFromNames` already decides
+> that, and its rule — two books by one author must agree — is what keeps
+> "is Better Than" out of the library. This pass credits the author first
+> so that rule can finally run, then asks it, then reads the title in the
+> light of its answer. Two implementations of one judgement is how they
+> come to disagree.
+
+Without a series believed, the words are left whole rather than cut at a
+guess: `Aton 01 - Chthon` stays as it is, because a number nobody has
+corroborated is not evidence of anything.
+
+**Measured: 45 books credited, 17 filed under six series, 45 retitled** —
+Xanth, Mode, Aton, ChroMagic, Jason Striker and Geodyssey. Every one of
+the 45 was then read, and the audit found two faults, both of them in
+rules that already existed:
+
+> **A book already on the shelf is corroboration too.** `SeriesFromNames`
+> counted agreement only among *unfiled* books, because `_books()` asks
+> for `series_id IS NULL`. Geodyssey 02 and 04 had been filed by an
+> earlier run, so when 03 arrived it was the only unfiled book claiming
+> the name and was refused as a series of one — with two of its own
+> siblings already filed under it. Agreement is about the library, not
+> about this run.
+
+> **A title this pass wrote is still its own to refine.** `Hope of Earth`
+> then got its series and kept its run-on title, because it no longer
+> looked like a filename and so fell out of the pass's own scope. A book
+> alone on its shelf keeps its number; when a sibling turns up, that
+> number becomes the shelf talking. Without this the first answer stood
+> for ever. The same run reported `nothing to read` while filing a book,
+> because the summary described only the first of its three steps.
+
+Two books are deliberately left run-on, and both are right: `Geodessey 01
+- Isle of Women` is a **misspelling** of Geodyssey, so that spelling has
+one book and nothing corroborates it, and `Bio of a Space Tyrant 06` is
+the only book of its series in the library. Both are what
+`PUT /api/books/{id}/series` is for (§8.10).
+
+**The same shape is waiting on 241 more books across 49 authors** — 235
+PDFs and 6 PRCs — which is what `./run.sh names` reports library-wide.
+They are not done, because a pass this sharp should be aimed rather than
+loosed, and because each author is worth an audit of its own: 13 books
+are still credited to `harry`.
+
+The pass is scoped for that reason:
+`./run.sh names --author "Piers Anthony" --format pdf --apply`.
+A scope narrows *which* books are read, never how they are judged —
+agreement is still counted within it, so asking about one author's PDFs
+cannot borrow corroboration from books the caller did not ask about.
+
 ### 8.9 M10: shelving without opening
 
 Putting a book on a shelf used to mean opening it first — the only way in was the reader's **＋ Shelf** button. But shelving is something you do *while browsing*: you recognise a book in the list and file it. So the offer is on the row.
@@ -900,6 +985,7 @@ cp .env.example .env            # then set LIBRARY_ROOT
 ./run.sh start                  # scan the library, then start in the background
 ./run.sh restart                # stop, scan, start again
 ./run.sh stop | status | scan
+./run.sh names --author "Piers Anthony" --format pdf   # read the filenames
 ./run.sh start --foreground     # run in this terminal, Ctrl-C to quit
 
 .venv/bin/python -m pytest      # code tests
@@ -948,6 +1034,8 @@ epub_covers.py      CoverBackfill — a cover from the book's own first page;
                     Open Library for the files that hold no image
 epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
 epub_series.py      SeriesFromNames — series read from filenames
+epub_filenames.py   CreditsFromNames — author, series and title, read from
+                    one filename, in §6.6's order
 epub_credits.py     BookCredits — who wrote it and where in a series,
                     when neither the file nor its name says
 epub_forget.py      ForgetMissing — removing books whose files are gone
@@ -1390,6 +1478,12 @@ One extra request per book fixes all three, and it is the same call that
 would answer §3 below — so they are one piece of work, not two.
 
 ### 3. M9's other half: series from a provider
+
+**241 books can still be read straight off their filenames** — 235 PDFs
+and 6 PRCs, across 49 authors, in the `Surname, First - Series NN -
+Title` shape §8.13a handles. `./run.sh names` reports them and
+`--author`/`--format` aims it. Piers Anthony's 45 PDFs are done; the
+rest want an audit apiece, since the pass writes an author and a title.
 
 **1,558 books have no series.** Filenames gave 297 of them one and hand
 -filing reached the rest that could be proved (§8.10); most of what is

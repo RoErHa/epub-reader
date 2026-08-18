@@ -30,6 +30,9 @@
 #   ./run.sh dedupe --apply     # ...and show only one copy of each
 #   ./run.sh series             # read series from filenames
 #   ./run.sh series --apply     # ...and file the books under them
+#   ./run.sh names              # read author, series and title from filenames
+#   ./run.sh names --apply      # ...and write what the name says
+#   ./run.sh names --author "Piers Anthony" --format pdf --apply
 #   ./run.sh covers             # find books whose own first page is their cover
 #   ./run.sh covers --apply     # ...and give them it
 #   ./run.sh covers --online --apply   # ...and ask a provider for the rest
@@ -53,6 +56,8 @@ APPLY=0
 FORCE=0
 MAX=""
 ONLINE=0
+AUTHOR=""
+FORMAT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --env)        ENV_FILE="${2:?--env needs a path}"; shift 2 ;;
@@ -61,7 +66,9 @@ while [ $# -gt 0 ]; do
     --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
     --force)      FORCE=1; shift ;;
     --online)     ONLINE=1; shift ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|forget|help)
+    --author)     AUTHOR="${2:?--author needs a name}"; shift 2 ;;
+    --format)     FORMAT="${2:?--format needs a format}"; shift 2 ;;
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -157,6 +164,24 @@ do_series() {
   else
     echo "▶  Reading series from filenames (nothing will change)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --series
+  fi
+}
+
+do_names() {
+  # "Anthony, Piers - Xanth 08 - Crewel Lye" is three facts written as one.
+  # Needs no provider, touches no file, and only ever acts on a book whose
+  # title is still its filename.
+  # An empty array under `set -u` is an unbound variable, not an empty
+  # list, so the expansion has to survive having nothing in it.
+  local scope=()
+  [ -n "${AUTHOR}" ] && scope+=(--author "${AUTHOR}")
+  [ -n "${FORMAT}" ] && scope+=(--format "${FORMAT}")
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Reading author, series and title from filenames…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --names ${scope[@]+"${scope[@]}"} --apply
+  else
+    echo "▶  Reading filenames (nothing will change)…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --names ${scope[@]+"${scope[@]}"}
   fi
 }
 
@@ -285,6 +310,7 @@ case "${COMMAND}" in
   dedupe)  do_dedupe ;;
   covers)  do_covers ;;
   series)  do_series ;;
+  names)   do_names ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
