@@ -164,6 +164,29 @@ class SeriesCommand:
         return 0
 
 
+class CoversCommand:
+    """`--covers`: a cover for books that show a lettered tile.
+
+    Page one of a PDF, but only when page one is the cover — a raster
+    image covering the page with no text over it. A title page is a
+    worse tile than the letter it would replace.
+    """
+
+    def __init__(self, config: Config, apply: bool = False,
+                 limit: int | None = None) -> None:
+        self._config = config
+        self._apply = apply
+        self._limit = limit
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.find_covers(apply=self._apply, limit=self._limit))
+        finally:
+            gateway.close()
+        return 0
+
+
 class DedupeCommand:
     """`--dedupe`: one row per work, and say what that took.
 
@@ -268,6 +291,11 @@ class GatewayCLI:
             help="Report works held more than once, then exit without serving.",
         )
         parser.add_argument(
+            "--covers",
+            action="store_true",
+            help="Give a cover to books that show a lettered tile, then exit.",
+        )
+        parser.add_argument(
             "--refresh",
             action="store_true",
             help="Re-ask about the oldest author data, then exit without serving.",
@@ -301,6 +329,10 @@ class GatewayCLI:
             return SeriesCommand(config, apply=args.apply).run()
         if args.dedupe:
             return DedupeCommand(config, apply=args.apply).run()
+        if args.covers:
+            return CoversCommand(config, apply=args.apply,
+                                 limit=args.max if args.max != BATCH else None
+                                 ).run()
         if args.refresh:
             return RefreshCommand(config, limit=args.max).run()
         if args.repair:

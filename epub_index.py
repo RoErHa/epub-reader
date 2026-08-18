@@ -139,6 +139,11 @@ class LibraryIndexer:
         self._search = SearchIndex(database)
         self.hashed = 0  # observable so tests can assert we skip work
 
+    @property
+    def covers(self) -> CoverStore:
+        """Shared with the backfill pass, so covers land in one place."""
+        return self._covers
+
     # ── public ────────────────────────────────────────────────────────
     def run(self) -> IndexReport:
         started = time.time()

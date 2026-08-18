@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M9 · SERIES</span>
-  <div class="hdr-right">925 pytest · 422 playwright (chromium + webkit)</div>
+  <div class="hdr-right">952 pytest · 422 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -1015,7 +1015,12 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Measured against the real library on 17 August 2026, in the order they are worth doing. What is <em>done</em> is everything above.</p>
 
 <div class="rule">
-  <span class="eyebrow">1 — Cover art, the quarter of the library with none</span>
+  <span class="eyebrow">1 — Cover art ✅ half done: 144 PDFs now carry their own first page</span>
+  <p>See §8.2 below for what that took and what the audit found. What is left is the 411 books whose files hold no image at all — the provider half of the same job.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">1a — what it looked like before</span>
   <p><strong>555 of 2,179 books show a lettered tile</strong>, and a browse list is mostly covers. 514 of them are PDFs, every single one; the rest are 26 EPUBs and 15 PRCs whose files carry no image at all. M7 skipped this deliberately — "rasterising the first page needs a PDF renderer, a heavy dependency for a proof-of-concept reader" — and that reasoning has expired at 514 blank books. Two routes, not exclusive: render page one at scan time with a rasteriser (pdfium is BSD, MuPDF is AGPL — check before choosing), or ask a provider, which is the only hope for the files with no image in them. Either way the result goes through <code>CoverStore</code>, on disk keyed by hash.</p>
 </div>
 
@@ -1038,6 +1043,23 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p><strong>4 — Waiting on a person:</strong> 278 hidden duplicate copies (audited twice, no file ever deleted, all restorable); <code>GOOGLE_BOOKS_API_KEY</code> unset, so Google Books answers 429 to everything and contributes nothing; 17 authors never asked about and 375 unknown to Open Library, which the Sunday job walks at ten a week.</p>
 
 <p><strong>5 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out because it is RAR; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
+
+<h3>8.2 &nbsp;Covers: page one, when page one is the cover</h3>
+<p>555 books of 2,179 showed a lettered tile, and <strong>514 of them were PDFs — every PDF in the library</strong>. M7 skipped this because rasterising a page was a heavy dependency for a proof-of-concept; at 514 blank books that reasoning expired. pdfium is BSD, ships as a wheel with the binary in it, and needs no network.</p>
+
+<div class="rule">
+  <span class="eyebrow">The question is not "is this a scan?" but "is page one a cover?"</span>
+  <p>A cover is one raster image covering the page with no text over it; a title page is text. That rule keeps the text-born books whose first page is a proper cover image, and it asks what page one <em>is</em> rather than what the file is. Measured first: of 514 PDFs, 34% open on a full-page image and 61% are text-born — so this was always going to close part of the gap, not all of it.</p>
+</div>
+
+<p><strong>Apply, then audit — and the audit was the point.</strong> 159 books took a cover; all 159 were rendered as contact sheets and looked at. <strong>145 were genuine cover art and 14 were not</strong>: twelve academic title pages (Routledge's, with <em>"Also available as a printed book"</em> across the foot), Neil Gaiman's <em>A Study in Emerald</em>, which is a facsimile Victorian newspaper page, and a page of <em>Calvin and Hobbes</em> strips. <strong>91% right, and the 9% could only be seen.</strong></p>
+
+<div class="rule">
+  <span class="eyebrow">A wrong cover is worse than no cover, so saying so is a feature</span>
+  <p><code>DELETE /api/books/{id}/cover</code> drops the picture and records <code>origin = 'user'</code> on the <code>cover</code> field — the same rule as a corrected author, so no later pass fetches another. The 14 went through that endpoint rather than a script.</p>
+</div>
+
+<p>A pixel rule was tried and rejected: pale-and-grey would have dropped 16 title pages, but also Stephen King's <em>On Writing</em>, whose real cover is white with handwriting on it. Nothing separates a white cover from a white title page except looking, so the code does not pretend otherwise.</p>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s9"><span class="n">09</span>Decisions — settled</h2>

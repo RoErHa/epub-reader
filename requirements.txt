@@ -4,3 +4,7 @@ hypercorn>=0.16.0
 python-dotenv>=1.0.0
 python-json-logger>=2.0.7
 Pillow>=10.0
+# Renders page one of a PDF, for the 514 books that show a lettered tile.
+# BSD-licensed, ships as a wheel with the pdfium binary in it — no build
+# step, no network. Absent, PDFs simply keep their tiles.
+pypdfium2>=4.30

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from epub_annotations import AnnotationError, AnnotationStore
 from epub_browse import BrowseError, BrowseQueries
+from epub_covers import CoverBackfill
 from epub_credits import BookCredits
 from epub_duplicates import DuplicateFinder
 from epub_forget import ForgetMissing, UnpluggedError
@@ -269,6 +270,14 @@ class EpubGateway:
     def indexer(self) -> LibraryIndexer:
         return self._indexer
 
+    @property
+    def covers(self):
+        return self._indexer.covers
+
+    @property
+    def library_root(self) -> Path:
+        return self._config.library_root
+
     def reindex(self):
         return self._indexer.run()
 
@@ -280,6 +289,13 @@ class EpubGateway:
     def forget_missing(self, apply: bool = False, force: bool = False) -> str:
         """Remove books whose files are gone, and say what that cost."""
         return ForgetMissing.summary(self._forget.run(apply=apply, force=force))
+
+    def find_covers(self, apply: bool = False, limit: int | None = None) -> str:
+        """Give a cover to books showing a lettered tile, and say how
+        many took one."""
+        backfill = CoverBackfill(self._database, self._indexer.covers,
+                                 self._config.library_root)
+        return CoverBackfill.summary(backfill.run(apply=apply, limit=limit))
 
     def name_series(self, apply: bool = False) -> str:
         """File books under the series their names give, in one line."""
@@ -697,6 +713,28 @@ class EpubGateway:
             row = book_or_404(book_id)
             state = reading.set_status(row["content_hash"], update.validated())
             return JSONResponse({"position": state.as_dict()})
+
+        @app.delete("/api/books/{book_id}/cover")
+        def drop_cover(book_id: int) -> JSONResponse:
+            """Say a cover is wrong. Page one of a PDF is the book's own
+            cover nine times in ten; the tenth is a title page, and a
+            lettered tile says more than that does. Kept as yours and
+            locked, so no pass ever fetches another."""
+            book_or_404(book_id)
+            row = self._database.connection.execute(
+                "SELECT cover_path FROM metadata WHERE book_id = ?",
+                (book_id,)).fetchone()
+            stored = row["cover_path"] if row else None
+            self._database.connection.execute(
+                "UPDATE metadata SET cover_path = NULL WHERE book_id = ?",
+                (book_id,))
+            self._credits.record(book_id, "cover")
+            if stored:
+                # The picture itself goes too: it is derived, and keeping
+                # it would only confuse the next person to look in there.
+                file = Path(self._config.cover_cache) / stored
+                file.unlink(missing_ok=True)
+            return JSONResponse({"dropped": book_id, "cover": None})
 
         @app.put("/api/books/{book_id}/authors")
         def put_authors(book_id: int, body: BookAuthors) -> JSONResponse:

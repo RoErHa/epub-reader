@@ -451,6 +451,8 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
+| A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
+| Say a cover is wrong | `DELETE /api/books/{id}/cover` | `epub_server.py` |
 
 **Merging authors is destructive, so the bar is high.** A group merges only when the names are identical once spacing and punctuation are removed, when Open Library resolves both to the same author, when one spelling is *unknown to Open Library* while a near-identical one is well known — the signature of a typo — or when **everything the other name is credited with is in the keeper's bibliography**.
 
@@ -819,6 +821,22 @@ The same gesture lives on the book detail, as a **toggle** rather than a one-way
 
 **A bug this uncovered:** `＋ New shelf` was hidden on some render paths and not others, so leaving Shelves for Titles left the button behind, offering to make a shelf on a screen with no shelves on it. Its visibility is now decided once, on every path.
 
+### 8.12 Covers: page one, when page one is the cover
+
+555 books of 2,179 showed a lettered tile, and **514 of them were PDFs — every PDF in the library.** M7 skipped this on the grounds that rasterising a page is a heavy dependency for a proof-of-concept (§8.4); at 514 blank books that reasoning expired. pdfium is BSD, ships as a wheel with the binary in it, and needs no network — so a cover costs nothing but the reading of one page.
+
+> **The question is not "is this a scan?" but "is page one a cover?"** A cover is one raster image covering the page with no text over it. A title page is text. That rule keeps the text-born books whose first page is a proper cover image — *Rebel Angels 2*, *Fires of the Faithful* — and it is what page one *is*, not what the file is.
+
+Measured before writing any of it: of 514 PDFs, **34% open on a full-page image and 61% are text-born**, which is why this only ever closes part of the gap. The detection reads page one's object list and costs about a second for the whole library; only the books that qualify are rendered.
+
+**Apply, then audit — and the audit was the point.** 159 books took a cover; all 159 were then rendered as contact sheets and looked at. **145 were genuine cover art and 14 were not**: twelve academic title pages (Routledge's, with *"Also available as a printed book"* across the foot), Neil Gaiman's *A Study in Emerald*, which is a facsimile Victorian newspaper page, and a page of *Calvin and Hobbes* strips. **91% right, and the 9% could only be seen.**
+
+> **A wrong cover is worse than no cover, so saying so is a feature.** `DELETE /api/books/{id}/cover` drops the picture and records `origin = 'user'` on the `cover` field — the same rule as a corrected author, so no later pass fetches another. That is what the 14 went through, rather than a script.
+
+A pixel rule was tried and rejected: pale-and-grey would have dropped 16 title pages but also Stephen King's *On Writing*, whose real cover is white with handwriting on it. Nothing separates a white cover from a white title page except looking, so the code does not pretend otherwise.
+
+`./run.sh covers` reports, `--apply` writes, and a library without `pypdfium2` installed simply indexes as before — the import is where it is used.
+
 ## 9. Decisions — settled
 
 | # | Decision | Consequence |
@@ -898,7 +916,9 @@ epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
 epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
 epub_mobi.py        MobiMetadataReader — PalmDB/EXTH, for MOBI/AZW3/PRC
-epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth having
+epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth
+                    having; PdfCoverRenderer — page one, when it is a cover
+epub_covers.py      CoverBackfill — a cover for the books showing a letter
 epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
 epub_series.py      SeriesFromNames — series read from filenames
 epub_credits.py     BookCredits — who wrote it and where in a series,
@@ -1290,7 +1310,13 @@ Measured against the real library on 2026-08-17, in the order they are
 worth doing. Everything here is either not built or a decision waiting
 to be taken — what is *done* is §8.
 
-### 1. Cover art — the quarter of the library with none
+### 1. Cover art ✅ half done — page one, where page one is the cover
+
+**Done: 144 PDFs took their cover from their own first page.** See §8.12.
+What remains is the 411 books whose files hold no image at all, which is
+the provider half of the same job.
+
+### 1a. What it looked like before
 
 **555 of 2,179 books show a lettered tile instead of a cover**, and a
 browse list is mostly covers:

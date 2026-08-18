@@ -30,6 +30,8 @@
 #   ./run.sh dedupe --apply     # ...and show only one copy of each
 #   ./run.sh series             # read series from filenames
 #   ./run.sh series --apply     # ...and file the books under them
+#   ./run.sh covers             # find books whose own first page is their cover
+#   ./run.sh covers --apply     # ...and give them it
 #   ./run.sh forget             # list books whose files are gone
 #   ./run.sh forget --apply     # ...and remove them from the database
 #   ./run.sh --env .env.test start
@@ -56,7 +58,7 @@ while [ $# -gt 0 ]; do
     --apply)      APPLY=1; shift ;;
     --max)        MAX="${2:?--max needs a number}"; shift 2 ;;
     --force)      FORCE=1; shift ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|series|forget|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -70,7 +72,7 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,35p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,37p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -152,6 +154,18 @@ do_series() {
   else
     echo "▶  Reading series from filenames (nothing will change)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --series
+  fi
+}
+
+do_covers() {
+  # Page one of a PDF, but only where page one is the cover. Nothing is
+  # fetched and no book file is touched.
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Taking covers from page one where page one is one…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --covers --apply
+  else
+    echo "▶  Looking for books whose own first page is their cover…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --covers
   fi
 }
 
@@ -254,6 +268,7 @@ case "${COMMAND}" in
   repair)  do_repair ;;
   refresh) do_refresh ;;
   dedupe)  do_dedupe ;;
+  covers)  do_covers ;;
   series)  do_series ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;

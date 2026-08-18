@@ -56,7 +56,7 @@ class BookCredits:
                 (book_id, author_id, position))
 
         shown = [p.display for p in people]
-        self._record(book_id, "authors")
+        self.record(book_id, "authors")
         LOG.info("book %s credited to %s", book_id, ", ".join(shown))
         return shown
 
@@ -95,13 +95,18 @@ class BookCredits:
         cursor.execute(
             "UPDATE metadata SET series_id = ?, series_index = ? WHERE book_id = ?",
             (series_id, position, book_id))
-        self._record(book_id, "series")
+        self.record(book_id, "series")
         LOG.info("book %s filed under %s %s", book_id, name, position or "")
         return {"series": name, "index": position}
 
-    def _record(self, book_id: int, field: str) -> None:
+    def record(self, book_id: int, field: str) -> None:
         """Kept as the reader's, and locked: a scan would otherwise take
-        the file's word for it again the moment the file is touched."""
+        the file's word for it again the moment the file is touched.
+
+        Public because saying a *cover* is wrong is the same act — the
+        reader has decided something about this book, and no pass gets
+        to overrule it.
+        """
         self._db.connection.execute(
             """
             INSERT INTO field_provenance (book_id, field, origin, source,

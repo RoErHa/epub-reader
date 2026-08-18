@@ -65,9 +65,17 @@ deleted** — the library is opened read-only.
 ./run.sh repair --apply     # ...and fix what it can prove
 ./run.sh dedupe [--apply]   # one row per work, spares kept and restorable
 ./run.sh series [--apply]   # read series from filenames
+./run.sh covers [--apply]   # a cover for books showing a lettered tile
 ./run.sh forget [--apply]   # remove books whose files are gone
 ./run.sh refresh [--max N]  # re-ask about the oldest author data
 ```
+
+**Covers come from the book's own first page**, but only where that page
+*is* a cover — one image covering it, with no text over it. A title page
+is a worse tile than the letter it would replace. That is 144 of this
+library's PDFs; the audit that followed found 14 title pages among 159,
+and `DELETE /api/books/{id}/cover` is how you say so. What you drop stays
+dropped.
 
 A scan **notices** a deletion but never acts on one: the row is marked
 missing and kept, so a vanished book leaves the shelves at once while
