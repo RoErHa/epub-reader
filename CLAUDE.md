@@ -854,6 +854,14 @@ A pixel rule was tried and rejected: pale-and-grey would have dropped 16 title p
 
 Open Library answers a cover it does not have with **a one-pixel image rather than a 404**, so anything under 100 px is refused and recorded as a miss.
 
+**Measured over the whole library: 396 asked, 210 covers, 53%.** With the pdfium pass that took covers from 1,624 books to 1,978 of 2,179 — **90%**.
+
+**The audit found 15 wrong in 210 — 93% right.** Two were the wrong book: *Hadrian's Wall* (ours is Osprey's, the cover is a 1922 book of the same name) and **Star Wars: Edge of Victory I — Conquest, which matched Jude Deveraux's *The Conquest***, because the scaffolding-stripper left the word `conquest` and nothing else. The other thirteen were the right book wearing the wrong picture: title pages, two blank Oz placeholders with the title typed on them, and a maroon library binding with a barcode. All went out through `DELETE /api/books/{id}/cover`.
+
+> **An author is corroboration, not a veto.** The library holds *The Art of War* by **Sunzi**; Open Library files it under **Sun Tzu**. Both are that man, and refusing on the spelling cost a cover for nothing. The author now *ranks* answers — a candidate whose author agrees beats one whose does not, and the best is taken rather than the first — and a title-only match is recorded as `openlibrary-title`, so an audit can look hardest at exactly the ones that were least sure. The title remains the guard: `Mute` still does not match *God on Mute*.
+
+That change made the 186 misses worth asking about again, which is what a recorded miss is for — it can be cleared deliberately when the rule that produced it changes.
+
 ## 9. Decisions — settled
 
 | # | Decision | Consequence |

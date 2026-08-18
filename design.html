@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">M9 · SERIES</span>
-  <div class="hdr-right">970 pytest · 422 playwright (chromium + webkit)</div>
+  <div class="hdr-right">975 pytest · 422 playwright (chromium + webkit)</div>
 </header>
 
 <div class="wrap">
@@ -1078,6 +1078,15 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </div>
 
 <p>Open Library answers a cover it does not have with <strong>a one-pixel image rather than a 404</strong>, so anything under 100 px is refused and recorded as a miss.</p>
+
+<p><strong>Measured over the whole library: 396 asked, 210 covers, 53%</strong> — which with the pdfium pass took the library from 1,624 covers to 1,978 of 2,179, or 90%.</p>
+
+<p><strong>The audit found 15 wrong in 210 — 93% right.</strong> Two were the wrong book: <em>Hadrian's Wall</em> (ours is Osprey's; the cover is a 1922 book of the same name) and <em>Star Wars: Edge of Victory I — Conquest</em>, which matched Jude Deveraux's <em>The Conquest</em> because stripping the scaffolding left the word <code>conquest</code> and nothing else. The other thirteen were the right book wearing the wrong picture — title pages, two blank Oz placeholders with the title typed on them, and a maroon library binding with a barcode.</p>
+
+<div class="rule">
+  <span class="eyebrow">An author is corroboration, not a veto</span>
+  <p>The library holds <em>The Art of War</em> by <strong>Sunzi</strong>; Open Library files it under <strong>Sun Tzu</strong>. Both are that man, and refusing on the spelling cost a cover for nothing. The author now <em>ranks</em> answers rather than vetoing them — agreement beats disagreement, and the best is taken rather than the first — while a title-only match is recorded as <code>openlibrary-title</code>, so an audit can look hardest at the ones that were least sure. The title stays the guard: <code>Mute</code> still does not match <em>God on Mute</em>.</p>
+</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s9"><span class="n">09</span>Decisions — settled</h2>

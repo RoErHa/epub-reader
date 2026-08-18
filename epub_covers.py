@@ -200,21 +200,38 @@ class CoverMatch:
     shelf. So this errs towards the lettered tile.
     """
 
-    def accepts(self, book: dict, candidate) -> bool:
+    # What a match is worth. The title is the guard; the author is
+    # corroboration, and its absence is not proof of anything.
+    TITLE_AND_AUTHOR = 2
+    TITLE_ONLY = 1
+    NO = 0
+
+    def rank(self, book: dict, candidate) -> int:
+        """How good an answer this is: agreeing on the author as well as
+        the title is better, but a name can be spelt more than one way.
+
+        The library holds *The Art of War* by Sunzi and Open Library
+        files it under Sun Tzu — both are that man, and vetoing on the
+        spelling costs a cover for nothing. So the author ranks answers
+        rather than refusing them, and a title-only match is recorded as
+        one so an audit can look harder at exactly those.
+        """
         if not getattr(candidate, "cover_url", None):
-            return False
+            return self.NO
         ours = fold(search_title(book.get("title") or ""))
         theirs = fold(normalise_title(candidate.title or ""))
         if not ours or not theirs or ours != theirs:
-            return False
+            return self.NO
 
-        surname = book.get("author_surname")
+        surname = fold(book.get("author_surname") or "")
         if not surname:
-            return True
-        # We know who wrote it, so the answer has to be by them.
-        theirs_authors = " ".join(candidate.authors or [])
-        return fold(surname) in fold(theirs_authors).split() or \
-            fold(surname) in fold(theirs_authors)
+            return self.TITLE_ONLY
+        written = fold(" ".join(candidate.authors or []))
+        agrees = surname in written.split() or surname in written
+        return self.TITLE_AND_AUTHOR if agrees else self.TITLE_ONLY
+
+    def accepts(self, book: dict, candidate) -> bool:
+        return self.rank(book, candidate) > self.NO
 
 
 class ProviderCovers:
@@ -288,8 +305,13 @@ class ProviderCovers:
                 report["failed"] += 1
                 continue
 
-            chosen = next((c for c in found if self._match.accepts(book, c)),
-                          None)
+            # The best answer, not the first: an edition by the author we
+            # know beats one by a name we do not recognise.
+            ranked = sorted(((self._match.rank(book, c), i, c)
+                             for i, c in enumerate(found)),
+                            key=lambda t: (-t[0], t[1]))
+            best = ranked[0] if ranked and ranked[0][0] > CoverMatch.NO else None
+            chosen = best[2] if best else None
             if chosen is None:
                 report["nothing"] += 1
                 if apply:
@@ -301,13 +323,13 @@ class ProviderCovers:
                                    "matched": chosen.title})
             if not apply:
                 continue
-            if self._store(book, chosen):
+            if self._store(book, chosen, best[0]):
                 report["covered"] += 1
             else:
                 report["failed"] += 1
         return report
 
-    def _store(self, book: dict, chosen) -> bool:
+    def _store(self, book: dict, chosen, rank: int) -> bool:
         try:
             data = self._fetch_image(chosen.cover_url)
         except Exception as exc:                  # noqa: BLE001
@@ -323,8 +345,13 @@ class ProviderCovers:
         self._db.connection.execute(
             "UPDATE metadata SET cover_path = ? WHERE book_id = ?",
             (stored, book["id"]))
-        self._record(book["id"], "provider", "openlibrary")
-        LOG.info("cover for %r from %r", book["title"], chosen.title)
+        # How sure we were is part of the record, so a wrong cover can
+        # be looked for where wrong covers live.
+        self._record(book["id"], "provider",
+                     "openlibrary" if rank == CoverMatch.TITLE_AND_AUTHOR
+                     else "openlibrary-title")
+        LOG.info("cover for %r from %r%s", book["title"], chosen.title,
+                 "" if rank == CoverMatch.TITLE_AND_AUTHOR else " (title only)")
         return True
 
     @staticmethod

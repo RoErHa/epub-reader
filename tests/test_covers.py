@@ -272,12 +272,17 @@ class TestWhichCandidateIsTheBook:
         assert not CoverMatch().accepts({"title": "Lifeblood"},
                                         candidate("Lifeblood", cover=False))
 
-    def test_the_author_must_agree_when_we_know_one(self):
+    def test_the_author_corroborates_rather_than_vetoes(self):
+        # This once refused a candidate whose author disagreed, which
+        # cost us "The Art of War": we hold it under Sunzi and Open
+        # Library files it under Sun Tzu. Agreement now ranks an answer
+        # above a title-only one instead of throwing it away.
         book = {"title": "Blood River", "author_surname": "tilley"}
-        assert not CoverMatch().accepts(book, candidate("Blood River",
-                                                        ["Someone Else"]))
-        assert CoverMatch().accepts(book, candidate("Blood River",
-                                                    ["Patrick Tilley"]))
+        theirs = CoverMatch().rank(book, candidate("Blood River",
+                                                   ["Someone Else"]))
+        ours = CoverMatch().rank(book, candidate("Blood River",
+                                                 ["Patrick Tilley"]))
+        assert ours > theirs > CoverMatch.NO
 
 
 class TestFetchingThem:
@@ -367,3 +372,61 @@ class TestFetchingThem:
         provider = FakeProvider({})
         self._pass(gateway, provider).run(apply=True, limit=1)
         assert len(provider.asked) == 1
+
+
+class TestWhenTheAuthorIsSpeltAnotherWay:
+    """The library holds "The Art of War" by Sunzi; Open Library files it
+    under Sun Tzu. Both are that man, and a veto on the spelling costs a
+    cover we could have had.
+
+    So the author is a *strength*, not a veto: a candidate whose author
+    agrees is preferred, and a title-only match is taken when nothing
+    better is on offer — recorded as such, so an audit can look harder
+    at exactly those.
+    """
+
+    def test_agreement_ranks_above_the_title_alone(self):
+        book = {"title": "The Art of War", "author_surname": "sunzi"}
+        agrees = candidate("The Art of War", ["Sunzi"])
+        differs = candidate("The Art of War", ["Sun Tzu"])
+        assert CoverMatch().rank(book, agrees) > CoverMatch().rank(book, differs)
+
+    def test_a_title_only_match_is_still_a_match(self):
+        book = {"title": "The Art of War", "author_surname": "sunzi"}
+        assert CoverMatch().rank(book, candidate("The Art of War", ["Sun Tzu"]))
+
+    def test_a_different_book_is_still_refused(self):
+        # The guard that matters is the title: "God on Mute" is a book
+        # about prayer, whoever wrote it.
+        book = {"title": "Mute", "author_surname": "anthony"}
+        assert CoverMatch().rank(book, candidate("God on Mute")) == 0
+
+    def test_the_best_answer_wins_not_the_first(self, library_of_pdfs):
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({"wordy book": [
+            candidate("Wordy Book", ["Someone Else"]),
+            candidate("Wordy Book", ["Test Author"]),
+        ]})
+        pass_ = ProviderCovers(gateway.database, gateway.covers,
+                               gateway.library_root, provider,
+                               fetch_image=lambda url: jpeg())
+        pass_.run(apply=True)
+        source = gateway.database.connection.execute(
+            "SELECT source FROM field_provenance WHERE field = 'cover'"
+            " ORDER BY book_id DESC LIMIT 1").fetchone()["source"]
+        assert source == "openlibrary"
+
+    def test_a_title_only_match_says_so(self, library_of_pdfs):
+        gateway = library_of_pdfs
+        strip_covers(gateway)
+        provider = FakeProvider({"wordy book": [
+            candidate("Wordy Book", ["Someone Else"])]})
+        pass_ = ProviderCovers(gateway.database, gateway.covers,
+                               gateway.library_root, provider,
+                               fetch_image=lambda url: jpeg())
+        report = pass_.run(apply=True)
+        assert report["covered"] == 1
+        sources = {r["source"] for r in gateway.database.connection.execute(
+            "SELECT source FROM field_provenance WHERE field = 'cover'")}
+        assert "openlibrary-title" in sources
