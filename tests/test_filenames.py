@@ -338,6 +338,43 @@ class TestWhatItRefuses:
         assert row["series"] == "Tyrant"
         assert row["series_index"] == 1
 
+    def test_a_shelf_label_is_not_a_name(self, client, library, gateway,
+                                         namer):
+        """When the file's own name gives only a shelf — a series and a
+        number and no book — the path is the better name.
+
+        `Lackey, Mercedes - Elemental Masters 02` is what one EPUB calls
+        itself, and it names no book at all; the file on disk is
+        `… - The Gates Of Sleep.epub`. Preferring the file's word left
+        the title as `Elemental Masters 02`, and since a sibling was
+        *also* filed as Elemental Masters 02, dedupe took them for one
+        book and offered to hide *The Serpent's Shadow*. A wrong title
+        hides a book as surely as a wrong position does (§8.10).
+        """
+        clear(library)
+        for n, name in ((1, "The Serpents Shadow"), (2, "The Gates Of Sleep")):
+            EpubBuilder(title=f"Lackey, Mercedes - Elemental Masters {n:02d}",
+                        author="Mercedes Lackey").build(
+                library / f"Lackey, Mercedes - Elemental Masters {n:02d} - {name}.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "Gates Of Sleep")["title"] == "The Gates Of Sleep"
+        assert book(gateway, "Serpents Shadow")["title"] == "The Serpents Shadow"
+
+    def test_a_file_that_named_a_book_is_still_believed(self, client, library,
+                                                        gateway, namer):
+        """The other half of the same rule, and the case that made
+        `file_title` the source in the first place: where the file names
+        a *book*, the path's extra words are somebody's signature, not a
+        title."""
+        clear(library)
+        EpubBuilder(title="Roberts, Nora - A World Apart",
+                    author="Emily").build(
+            library / "Roberts, Nora - A World Apart - Emily & Jane.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "World Apart")["title"] == "A World Apart"
+
     def test_a_real_title_is_still_not_a_filename(self, client, library,
                                                   gateway, namer):
         """The widening must not reach a book that named itself

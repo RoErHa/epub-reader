@@ -94,6 +94,11 @@ EXTENSION = re.compile(
 SHELF = re.compile(r"^(?P<series>.{2,48}?)\s+(?P<number>\d{1,3}(?:\.\d)?)"
                    r"\s*-\s*(?P<title>\S.*)$")
 
+# The same shape with the book missing: "Elemental Masters 02", and
+# nothing after it. A name like that says which shelf and not which
+# book, so it is not a name at all.
+SHELF_ONLY = re.compile(r"^(?P<series>.{2,48}?)\s+\d{1,3}(?:\.\d)?$")
+
 
 class CreditsFromNames:
     def __init__(self, database, series: SeriesFromNames | None = None) -> None:
@@ -253,33 +258,54 @@ class CreditsFromNames:
     def source_name(self, row) -> str | None:
         """The string to read the book's facts out of.
 
-        Usually the filename, because usually the title *is* the
-        filename. When the stored title is itself filename-shaped it
-        wins, though: the Tyrant EPUBs carry a clean
-        `Anthony, Piers - Tyrant 1 - Refugee` in their OPF while the file
-        on disk has the author appended a second time, and reading the
-        file would leave "Refugee - Anthony, Piers" as the title. Take
-        the tidier of the two names for the same book.
+        Three names describe the same book — what the file calls itself
+        (`file_title`), what the library shows now, and the file on disk
+        — and they disagree in both directions:
 
-        **And once this pass has written a title, `file_title` is the
-        source.** By then the title is a real title and no longer looks
-        like a filename, so a second run used to fall back to the path —
-        which for `Roberts, Nora - A World Apart - Emily & Jane.epub` is
-        *longer* than the file's own name, a scanner having signed it. So
-        `A World Apart` became `A World Apart - Emily & Jane` on the
-        second pass and again on the third. What the file said does not
-        change between runs; nothing else here can be relied on not to.
+        - `Roberts, Nora - A World Apart - Emily & Jane.epub` holds
+          `Roberts, Nora - A World Apart` in its OPF: the **path** has a
+          scanner's signature appended, so the file's word is better.
+        - `Lackey, Mercedes - Elemental Masters 02 - The Gates Of
+          Sleep.epub` calls itself `Lackey, Mercedes - Elemental Masters
+          02`: the file's word names a shelf and **no book**, so the path
+          is better.
+
+        So they are tried in order of trust, and **a name that gives only
+        a shelf and a number is not a name** — it is skipped for the next
+        one. Preferring the file's word blindly left two different novels
+        both called "Elemental Masters 02", and dedupe offered to hide
+        the second (§8.17).
         """
-        original = self._file_title_of(row["id"])
-        if original and AUTHOR.match(ScannerTags.spaces(original)):
-            return original
         title = self._title_of(row["id"])
         stem = Path(row["path"]).stem
-        if title and AUTHOR.match(ScannerTags.spaces(title)):
-            return title
-        if title and title == stem:
-            return stem
-        return None
+        original = self._file_title_of(row["id"])
+
+        # The book has to qualify on its own showing first: what the
+        # library displays is either the filename or shaped like one.
+        # Otherwise the file named itself and this pass has no business
+        # with it, however its path reads.
+        # ...or the name it *arrived* with was, which is how a title
+        # this pass has already written stays its own to refine.
+        if not title or not (title == stem
+                             or AUTHOR.match(ScannerTags.spaces(title))
+                             or (original
+                                 and AUTHOR.match(ScannerTags.spaces(original)))):
+            return None
+
+        shaped = [name for name in (original, title, stem)
+                  if name and AUTHOR.match(ScannerTags.spaces(name))]
+        seen, ordered = set(), []
+        for name in shaped:
+            if name not in seen:
+                seen.add(name)
+                ordered.append(name)
+        shaped = ordered or ([stem] if title == stem else [])
+
+        for name in shaped:
+            found = self.read(name)
+            if found and not SHELF_ONLY.match(found["rest"]):
+                return name          # this one names a book
+        return shaped[0] if shaped else None
 
     def _file_title_of(self, book_id: int) -> str | None:
         row = self._db.connection.execute(

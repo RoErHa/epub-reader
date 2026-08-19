@@ -1110,6 +1110,18 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11h &nbsp;A shelf label is not a name, and dedupe found out</h3>
+<p>Running dedupe proposed nine works, and <strong>the ninth would have hidden a book</strong>: <em>The Serpent's Shadow</em> behind <em>The Gates of Sleep</em>, both Mercedes Lackey's Elemental Masters and both real novels. Two faults, one on top of the other, and the first was ours.</p>
+<div class="rule">
+  <span class="eyebrow">A name that gives only a shelf and a number is not a name</span>
+  <p>One EPUB calls itself <code>Lackey, Mercedes - Elemental Masters 02</code> in its own OPF — a series, a position, no book — while the file on disk is <code>… - The Gates Of Sleep.epub</code>. §6.11g had made <code>file_title</code> the source because it does not change between runs, which is right; preferring it blindly took a shelf label as a title. The three names for a book are now tried <strong>in order of trust, skipping any that names no book</strong>. Eight titles came right, among them <em>Violets Are Blue</em> (from <code>Alex Cross 07</code>).</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">A wrong position hides a book as surely as a wrong title</span>
+  <p>Dedupe never looked at the title: its key is <code>(series, index, author)</code>, both <em>files</em> claim <code>02</code>, and one author cannot have two second books. The rule found a real fault and could only blame the wrong book. <em>The Serpent's Shadow</em> is Elemental Masters #1; filed by hand, and the ninth group disappeared.</p>
+</div>
+<p><strong>Applied: 8 spare copies hidden of 8 works</strong> — two Farseer novels and a Nora Roberts filed twice, and five books held as both an EPUB and a PDF, where the EPUB is the book and the PDF a picture of one. No file was deleted. The library: <strong>2,374 books, 288 hidden, 577 authors, 235 series.</strong></p>
+
 <h3>6.11g &nbsp;A book dropped in is a book filed</h3>
 <p>§6.6 said dropping books into <code>LIBRARY_ROOT</code> and restarting was the whole workflow. It was half true: <code>REPAIR_ON_SCAN</code> runs the three passes that <strong>ask Open Library</strong> and is off by default for exactly that reason — while everything built since is local, free, and <strong>ran on nothing at all</strong>. A book added yesterday browsed as <code>Anthony, Piers - Xanth 12 - Man From Mundania</code>, credited to nobody, exactly as the first forty-five did.</p>
 

@@ -814,6 +814,50 @@ joins through to a present book, so an empty series cannot show (§6.8).
 #5 is genuinely missing rather than misfiled: *Statesman* is not in the
 library, which is the gap-finder working.
 
+### 8.17 A shelf label is not a name, and dedupe found out
+
+Running `dedupe` proposed nine works, and **the ninth would have hidden a
+book**: *The Serpent's Shadow* behind *The Gates of Sleep*. Both are
+Mercedes Lackey's Elemental Masters and both are real novels.
+
+Two separate faults, one on top of the other, and the first was mine.
+
+> **A name that gives only a shelf and a number is not a name.** One of
+> those EPUBs calls itself `Lackey, Mercedes - Elemental Masters 02` in
+> its own OPF — a series and a position and no book at all — while the
+> file on disk is `… - The Gates Of Sleep.epub`. §8.16 had made
+> `file_title` the source *because* it does not change between runs, and
+> that is right; but preferring it blindly took a shelf label as a title.
+> The three names for a book — what the file calls itself, what the
+> library shows, and the file on disk — are now tried **in order of
+> trust, skipping any that names no book**. Eight titles came right,
+> among them `Violets Are Blue` (from `Alex Cross 07`) and `Prince of
+> Dogs`.
+
+That was not enough, because dedupe never looked at the title:
+
+> **A wrong position hides a book as surely as a wrong title.** §8.10
+> said so about *Interview with the Vampire*, and here it is again: the
+> key is `(series, index, author)`, both **files** claim `02`, and one
+> author cannot have two second books. The rule found a real fault and
+> could only blame the wrong book. *The Serpent's Shadow* is Elemental
+> Masters #1; filed by hand, `origin = 'user'`, and the ninth group
+> disappeared.
+
+**Applied: 8 spare copies hidden of 8 works** — two Farseer novels and a
+Nora Roberts filed twice, and five books held as both an EPUB and a PDF,
+where the EPUB is the book and the PDF a picture of one. No file was
+deleted; `POST /api/books/restore-duplicates` shows them all again.
+
+The library: **2,374 books, 288 hidden, 577 authors, 235 series.**
+
+**A measurement of my own that was worthless.** I twice reported a count
+of "titles that are only a shelf label" — 31, then 45 — from a regex
+matching anything ending in a number. It counts `Fahrenheit 451`,
+`Collective Hindsight Book 1` and `Archaic 002`, which are titles. The
+eight books that actually changed are the measurement; the number never
+was.
+
 ### 8.16 A book dropped in is a book filed
 
 §6.6 said dropping books into `LIBRARY_ROOT` and restarting was the whole
