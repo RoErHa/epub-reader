@@ -65,11 +65,40 @@ deleted** — the library is opened read-only.
 ./run.sh repair --apply     # ...and fix what it can prove
 ./run.sh dedupe [--apply]   # one row per work, spares kept and restorable
 ./run.sh series [--apply]   # read series from filenames
+./run.sh names [--apply]    # author, series and title from one filename
+./run.sh coauthors [--apply]  # "(with Roberto Fuentes)" is a second author
+./run.sh tags [--apply]     # "(v2.1)", "(not ocr)", underscores-for-spaces
+./run.sh fragments [--apply]  # finish a title that was cut off, via a provider
 ./run.sh covers [--apply]   # a cover for books showing a lettered tile
 ./run.sh covers --online    # ...and ask a provider for the rest, slowly
 ./run.sh forget [--apply]   # remove books whose files are gone
 ./run.sh refresh [--max N]  # re-ask about the oldest author data
 ```
+
+`names` and `fragments` take `--author "Name"` and `--format pdf` so a
+run can be **aimed and then read** — `coauthors` and `tags` are cheap,
+local and library-wide. Aiming matters:
+every one of these passes was improved by looking at what a dry run
+proposed before applying it, and the library-wide `names` run was caught
+proposing four wrong authors that way.
+
+```sh
+./run.sh names --author "Piers Anthony" --format pdf --apply
+```
+
+**One filename can hold three facts.** `Anthony, Piers - Xanth 08 -
+Crewel Lye.pdf` is an author, a series with a number, and a title, and
+until `names` read it the book browsed as one run-on line credited to
+nobody. The rules are narrow on purpose: the author must lead in
+`Surname, First` form, a series is believed only where two books by that
+author agree on it, and where nothing corroborates a series the words are
+left whole rather than cut at a guess.
+
+**A provider can finish a title the filesystem cut off.** `The
+Caterpillars Questi` matches nothing anywhere, for ever; trimmed to the
+last whole word it finds *The Caterpillar's Question*. The answer must
+**complete** the fragment word for word, so the rule can only ever
+lengthen a name — it cannot swap in a different book.
 
 **Covers come from the book's own first page**, but only where that page
 *is* a cover — one image covering it, with no text over it. A title page

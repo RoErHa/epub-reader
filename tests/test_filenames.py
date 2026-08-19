@@ -119,6 +119,66 @@ class TestReadingTheName:
         assert book(gateway, "A Novella")["series_index"] == 8.5
 
 
+class TestUnderscores:
+    """A filesystem that never learned about spaces.
+
+    `Hamilton,_Laurell_K._-_Anita_Blake_04_-_The_Lunatic_Cafe` is a
+    perfectly ordinary name with every space replaced. Read as it stands
+    it parses as nothing, so the book kept a scanner called "Lee Hughes"
+    as its author and its whole filename as its title.
+    """
+
+    def test_a_name_written_with_underscores_is_still_a_name(
+            self, client, library, gateway, namer):
+        clear(library)
+        for n, name in ((4, "The_Lunatic_Cafe"), (5, "Bloody_Bones")):
+            stem = f"Hamilton,_Laurell_K._-_Anita_Blake_{n:02d}_-_{name}"
+            # The real file carries the scanner's name after it, which is
+            # why the title and the filename differ.
+            EpubBuilder(title=stem, author="Lee Hughes").build(
+                library / f"{stem} - Lee Hughes.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        row = book(gateway, "Lunatic")
+        assert row["authors"] == "Laurell K. Hamilton"
+        assert row["series"] == "Anita Blake"
+        assert row["series_index"] == 4
+        assert row["title"] == "The Lunatic Cafe"
+
+    def test_a_name_that_merely_contains_one_is_left_alone(self, client,
+                                                           library, gateway,
+                                                           namer):
+        """One underscore among words is somebody's punctuation, not a
+        filesystem standing in for every space."""
+        clear(library)
+        EpubBuilder(title="Anthony, Piers - Chthon_Phthor Omnibus",
+                    author="Piers Anthony").build(library / "omni.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "omni")["title"] == "Chthon_Phthor Omnibus"
+
+
+class TestTheRulesCompose:
+    """`names` derives a title from `file_title`, which is the file's
+    own words — scanner tags and all.
+
+    So the two passes fought: `tags` took `(v2.1)` off, and the next
+    `names` run put it straight back, because that is what the file said.
+    A title this pass writes goes through §8.13d on the way out.
+    """
+
+    def test_a_scanner_tag_does_not_come_back(self, client, library, gateway,
+                                              namer):
+        clear(library)
+        EpubBuilder(title="Hamilton, Laurell K. - The Lunatic Cafe(v2.1)",
+                    author="Lee Hughes").build(library / "cafe.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "cafe")["title"] == "The Lunatic Cafe"
+        namer.run(apply=True)
+        assert book(gateway, "cafe")["title"] == "The Lunatic Cafe"
+
+
 class TestNamesThatAreNotNames:
     """What a library-wide dry run caught before it wrote anything.
 
@@ -196,6 +256,8 @@ class TestTheNameIsNotAFile:
 
     @pytest.mark.parametrize("stem,expected", [
         ("Anthony, Piers - Volk.doc", "Volk"),
+        ("Goodkind, Terry - Wizard's First Rule.jpg", "Wizard's First Rule"),
+        ("Anthony, Piers - Something.jpeg", "Something"),
         ("Anthony, Piers - Novel - Ghost.doc", "Novel - Ghost"),
         ("Anthony, Piers - Something.TXT", "Something"),
         ("Anthony, Piers - Krondor The Assassins.htm", "Krondor The Assassins"),
@@ -208,7 +270,7 @@ class TestTheNameIsNotAFile:
             library / f"{stem}.epub")
         gateway.reindex()
         namer.run(apply=True)
-        assert book(gateway, "Anthony")["title"] == expected
+        assert book(gateway, expected.split()[0])["title"] == expected
 
     def test_a_title_that_merely_has_a_dot_is_kept(self, client, library,
                                                    gateway, namer):
@@ -437,6 +499,33 @@ class TestWritingItDown:
         namer.run(apply=True)
         assert book(gateway, "Isle of Women")["title"] == \
             "Geodessey 01 - Isle of Women"
+
+    def test_running_again_does_not_undo_the_first_answer(self, client,
+                                                          library, gateway,
+                                                          namer):
+        """A second run must read the name the FILE gave, not the title
+        this pass wrote and not the path.
+
+        `Roberts, Nora - A World Apart - Emily & Jane.epub` holds
+        `Roberts, Nora - A World Apart` in its OPF — the file is
+        *shorter* than its own filename, because a scanner appended their
+        name. Once the title is `A World Apart` it no longer looks like a
+        filename, so a second pass fell back to the path and produced
+        `A World Apart - Emily & Jane`. `file_title` is what the file
+        said, and it is the only stable source.
+        """
+        clear(library)
+        EpubBuilder(title="Roberts, Nora - A World Apart",
+                    author="Emily").build(
+            library / "Roberts, Nora - A World Apart - Emily & Jane.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        first = book(gateway, "World Apart")["title"]
+        assert first == "A World Apart"
+        namer.run(apply=True)
+        assert book(gateway, "World Apart")["title"] == first
+        namer.run(apply=True)
+        assert book(gateway, "World Apart")["title"] == first
 
     def test_the_summary_says_what_a_later_run_did(self):
         """A run that credits nobody — because everybody is credited

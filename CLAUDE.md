@@ -834,7 +834,49 @@ scanner's may go; and **a title is never emptied** — a book called
 `(v1.0)` is absurd, but a book called nothing falls out of every list
 that sorts by title.
 
-**Measured: 18 cleaned, 0 left.** `./run.sh tags`.
+**Measured: 18 cleaned, then 6 more once underscores were added.**
+`./run.sh tags`.
+
+> **Underscores stand in for spaces, where they have replaced them.**
+> `Hamilton,_Laurell_K._-_Anita_Blake_04_-_The_Lunatic_Cafe` is an
+> ordinary name from a filesystem that never learned about spaces, and
+> read as it stands it parses as nothing at all — so that book kept a
+> scanner called "Lee Hughes" as its author and its whole filename as its
+> title. Put back, it is **The Lunatic Cafe · Laurell K. Hamilton · Anita
+> Blake #4**. Only where they *outnumber* the spaces, though: one
+> underscore among real words is somebody's punctuation, and
+> `Chthon_Phthor Omnibus` keeps it.
+
+The same normalisation runs wherever a name is read — `SeriesFromNames`
+and `CreditsFromNames` both — because a series hidden inside
+`Anita_Blake_04` matches nothing either.
+
+**Three faults this uncovered, all mine, none of which a test had
+caught:**
+
+> **A pass must read the same source on every run.** `CreditsFromNames`
+> took its facts from the stored title when that looked like a filename,
+> and from the path otherwise. But once the pass has written a title the
+> title is a real title, so a *second* run fell through to the path — and
+> `Roberts, Nora - A World Apart - Emily & Jane.epub` is **longer** than
+> the file's own name, a scanner having signed it. `A World Apart` became
+> `A World Apart - Emily & Jane`, and would have grown again on the next
+> run. **`file_title` is what the file said and does not change between
+> runs**; nothing else here can be relied on not to. 35 books had already
+> drifted, and re-running with the fix restored every one, because the
+> original was still in `file_title` — which is the whole reason it is
+> kept (§6.3).
+
+> **Two passes can undo each other for ever.** `tags` took `(v2.1)` off a
+> title; `names` derived that title afresh from `file_title`, which is
+> the file's own words, tags and all, and put it straight back. A title
+> `names` writes now goes through §8.13d on its way out, and the pair
+> settle: two runs in a row report nothing to do.
+
+> **The candidate query has to match the whole rule.** `tags` looked for
+> a bracket, so the underscore half could never fire on a title without
+> one. And `_` is a LIKE wildcard: asking for it needs an `ESCAPE`, or
+> the query matches every title in the library.
 
 **The tests passed the first time they were run, which is not the same as
 passing.** They were written before the module but not *run* before it,

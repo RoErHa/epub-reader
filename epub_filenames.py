@@ -52,6 +52,7 @@ from pathlib import Path
 
 from epub_names import PersonName
 from epub_series import SeriesFromNames
+from epub_tags import ScannerTags
 
 LOG = logging.getLogger("epub-reader.filenames")
 
@@ -81,7 +82,8 @@ GIVEN = re.compile(r"^(?:[^\W\d_][\w.'\u2019-]*)(?:\s+[^\W\d_][\w.'\u2019-]*){0,
 # old name. Named formats only: a closed list cannot mistake `Mr. Norrell`
 # or a title ending in an initial for a file.
 EXTENSION = re.compile(
-    r"\.(?:doc|docx|txt|rtf|lit|pdb|htm|html|pdf|epub|mobi|prc|azw3?|zip)$",
+    r"\.(?:doc|docx|txt|rtf|lit|pdb|htm|html|pdf|epub|mobi|prc|azw3?|zip"
+    r"|jpg|jpeg|png|gif)$",
     re.I)
 
 # What is left once the author is off the front, when it names a shelf:
@@ -100,7 +102,14 @@ class CreditsFromNames:
     @classmethod
     def read(cls, stem: str) -> dict | None:
         """What a filename says, or nothing if it does not lead with a
-        name written surname-first."""
+        name written surname-first.
+
+        Underscores are put back as spaces first (§8.13d), because
+        `Hamilton,_Laurell_K._-_Anita_Blake_04_-_The_Lunatic_Cafe` is a
+        perfectly ordinary name from a filesystem that never learned
+        about them — and read as it stands it parses as nothing at all.
+        """
+        stem = ScannerTags.spaces(stem or "")
         match = AUTHOR.match(stem)
         if not match:
             return None
@@ -154,7 +163,10 @@ class CreditsFromNames:
         there is nothing connecting these words to that shelf, and they
         stay part of the book.
         """
-        rest = EXTENSION.sub("", rest).strip()
+        # Through §8.13d on the way out: `file_title` is the file's own
+        # words, scanner tags and all, so without this `tags` and this
+        # pass undo one another for ever.
+        rest = ScannerTags.strip(EXTENSION.sub("", rest).strip())
         if not series:
             return rest
         match = SHELF.match(rest)
@@ -243,14 +255,32 @@ class CreditsFromNames:
         on disk has the author appended a second time, and reading the
         file would leave "Refugee - Anthony, Piers" as the title. Take
         the tidier of the two names for the same book.
+
+        **And once this pass has written a title, `file_title` is the
+        source.** By then the title is a real title and no longer looks
+        like a filename, so a second run used to fall back to the path —
+        which for `Roberts, Nora - A World Apart - Emily & Jane.epub` is
+        *longer* than the file's own name, a scanner having signed it. So
+        `A World Apart` became `A World Apart - Emily & Jane` on the
+        second pass and again on the third. What the file said does not
+        change between runs; nothing else here can be relied on not to.
         """
+        original = self._file_title_of(row["id"])
+        if original and AUTHOR.match(ScannerTags.spaces(original)):
+            return original
         title = self._title_of(row["id"])
         stem = Path(row["path"]).stem
-        if title and AUTHOR.match(title):
+        if title and AUTHOR.match(ScannerTags.spaces(title)):
             return title
         if title and title == stem:
             return stem
         return None
+
+    def _file_title_of(self, book_id: int) -> str | None:
+        row = self._db.connection.execute(
+            "SELECT file_title FROM metadata WHERE book_id = ?", (book_id,)
+        ).fetchone()
+        return row["file_title"] if row else None
 
     def _wrote_title(self, book_id: int) -> bool:
         return self._db.connection.execute(
@@ -293,7 +323,10 @@ class CreditsFromNames:
         to be a shelf can come off and one that did not stays put."""
         plan = []
         for row in self._nameless(author, formats, ours=True):
-            found = self.read(self.source_name(row) or Path(row["path"]).stem)
+            # No falling back to the path: for a book this pass has
+            # already answered, the path is the one name that can be
+            # worse than what we have.
+            found = self.read(self.source_name(row) or "")
             if not found:
                 continue
             if author and found["author"] != author:

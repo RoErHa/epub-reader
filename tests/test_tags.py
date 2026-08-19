@@ -137,3 +137,46 @@ class TestOnTheShelves:
         gateway.reindex()
         tagger.run(apply=True)
         assert tagger.run(apply=True)["cleaned"] == 0
+
+
+class TestUnderscores:
+    """A title the filesystem wrote, with every space replaced.
+
+    `Spotlight_Blues_Guitar_LessonBook` names a book nobody wrote that
+    way. It is the same family as `(txt)`: something the *file* carries
+    that the *book* does not.
+    """
+
+    @pytest.mark.parametrize("title,expected", [
+        ("Spotlight_Blues_Guitar_LessonBook", "Spotlight Blues Guitar LessonBook"),
+        ("Book_of_Ruby", "Book of Ruby"),
+        ("lood_en_whisky__rosan_hollak", "lood en whisky rosan hollak"),
+    ])
+    def test_underscores_stand_in_for_spaces(self, title, expected):
+        assert ScannerTags.strip(title) == expected
+
+    @pytest.mark.parametrize("title", [
+        "Chthon_Phthor Omnibus",          # one, among real spaces
+        "Blue Moon",                       # none at all
+        "Fifty_Fifty",                     # one, and no spaces to compare with
+    ])
+    def test_a_title_that_merely_contains_one_is_left_alone(self, title):
+        assert ScannerTags.strip(title) == title
+
+    def test_a_title_with_no_bracket_at_all_is_still_reached(
+            self, client, library, gateway, tagger):
+        """The candidate query looked for a bracket, which is half the
+        rule. An underscored title has none — and `_` is a LIKE wildcard,
+        so asking for one needs an ESCAPE or it matches every title in
+        the library."""
+        clear(library)
+        book(library, "Spotlight_Blues_Guitar_LessonBook")
+        gateway.reindex()
+        assert tagger.run(apply=True)["cleaned"] == 1
+        assert shelf(gateway, "Spotlight")["title"] == \
+            "Spotlight Blues Guitar LessonBook"
+
+    def test_both_rules_at_once(self):
+        assert ScannerTags.strip(
+            "Hamilton,_Laurell_K._-_The_Lunatic_Cafe(v2.1)"
+        ) == "Hamilton, Laurell K. - The Lunatic Cafe"

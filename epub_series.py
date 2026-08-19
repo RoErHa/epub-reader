@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 
 from epub_names import fold, title_sort_key
+from epub_tags import ScannerTags
 
 LOG = logging.getLogger("epub-reader.series")
 
@@ -129,7 +130,10 @@ class SeriesFromNames:
         return self._db.connection.execute(sql, params).fetchall()
 
     def _read(self, row) -> dict | None:
-        match = PATTERN.search(Path(row["path"]).stem)
+        # Underscores put back as spaces first (§8.13d): a filesystem
+        # that never learned about them hides "Anita Blake 04" inside
+        # "Anita_Blake_04", where nothing matches.
+        match = PATTERN.search(ScannerTags.spaces(Path(row["path"]).stem))
         if not match:
             return None
         series = match.group("series").strip(" -–—_")

@@ -1059,7 +1059,22 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
   <p>The same 66 bracketed titles hold <code>(The Murderbot Diaries)</code>, <code>(Osprey, Men at Arms #121)</code>, <code>(PhD, 1998)</code> and <code>(Mysterious Creatures)</code> — every one part of the book or of its shelf. Guessing would cost more than it cleared. Known values only, the rule §6.1 follows for genres.</p>
 </div>
 
-<p>Two shapes the real titles forced: <strong>two brackets with no space between them</strong>, <code>Rome and Her Enemies (Osprey)(not ocr)</code>, where only the scanner's may go; and <strong>a title is never emptied</strong> — a book called <code>(v1.0)</code> is absurd, but a book called nothing falls out of every list that sorts by title. <strong>Measured: 18 cleaned, 0 left.</strong></p>
+<p>Two shapes the real titles forced: <strong>two brackets with no space between them</strong>, <code>Rome and Her Enemies (Osprey)(not ocr)</code>, where only the scanner's may go; and <strong>a title is never emptied</strong> — a book called <code>(v1.0)</code> is absurd, but a book called nothing falls out of every list that sorts by title. <strong>Measured: 18 cleaned, then 6 more once underscores were added.</strong></p>
+
+<div class="rule">
+  <span class="eyebrow">Underscores stand in for spaces, where they have replaced them</span>
+  <p><code>Hamilton,_Laurell_K._-_Anita_Blake_04_-_The_Lunatic_Cafe</code> is an ordinary name from a filesystem that never learned about spaces, and read as it stands it parses as nothing — so that book kept a scanner called "Lee Hughes" as its author and its whole filename as its title. Put back, it is <strong>The Lunatic Cafe · Laurell K. Hamilton · Anita Blake #4</strong>. Only where they <em>outnumber</em> the spaces: one underscore among real words is punctuation, and <code>Chthon_Phthor Omnibus</code> keeps it.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A pass must read the same source on every run</span>
+  <p><code>CreditsFromNames</code> took its facts from the stored title when that looked like a filename, and from the path otherwise. Once the pass has written a title, though, the title is a real title — so a <em>second</em> run fell through to the path, and <code>Roberts, Nora - A World Apart - Emily &amp; Jane.epub</code> is <strong>longer</strong> than the file's own name, a scanner having signed it. <code>A World Apart</code> became <code>A World Apart - Emily &amp; Jane</code>, and would have grown again. <code>file_title</code> is what the file said and does not change between runs. 35 books had drifted; re-running with the fix restored every one, because the original was still in <code>file_title</code> — the whole reason it is kept.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Two passes can undo each other for ever</span>
+  <p><code>tags</code> took <code>(v2.1)</code> off a title; <code>names</code> derived that title afresh from <code>file_title</code>, which is the file's own words, tags and all, and put it straight back. A title <code>names</code> writes now goes through this rule on the way out, and the pair settle.</p>
+</div>
 
 <div class="rule">
   <span class="eyebrow">Passing the first time is not the same as passing</span>

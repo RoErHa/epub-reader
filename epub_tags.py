@@ -50,15 +50,34 @@ class ScannerTags:
 
     @classmethod
     def strip(cls, title: str) -> str:
-        """The title without the scanner's notes.
+        """The title without what the file wrote into it.
 
         A title is never emptied: a book called "(v1.0)" is absurd, but a
         book called nothing is worse — it falls out of every list that
         sorts by title.
         """
-        cleaned = TAG.sub("", title or "").strip()
+        cleaned = cls.spaces(title or "")
+        cleaned = TAG.sub("", cleaned).strip()
         cleaned = re.sub(r"\s{2,}", " ", cleaned)
         return cleaned or title
+
+    @staticmethod
+    def spaces(title: str) -> str:
+        """Underscores put back as the spaces they stand for.
+
+        `Spotlight_Blues_Guitar_LessonBook` names a book nobody wrote
+        that way — it is the same family as `(txt)`, something the *file*
+        carries that the *book* does not.
+
+        **Only where they have replaced the spaces**, which is what
+        outnumbering them means. One underscore among real words is
+        somebody's punctuation: `Chthon_Phthor Omnibus` keeps it, and so
+        would a band called Fifty_Fifty.
+        """
+        unders = title.count("_")
+        if unders < 2 or unders <= title.count(" "):
+            return title
+        return re.sub(r"\s{2,}", " ", title.replace("_", " ")).strip()
 
     def plan(self) -> list[dict]:
         plan = []
@@ -76,7 +95,12 @@ class ScannerTags:
               FROM book b
               JOIN metadata m ON m.book_id = b.id
              WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
-               AND m.title LIKE '%(%'
+               -- A bracket OR an underscore: leaving the second out
+               -- meant half the rule could never fire. `_` is a LIKE
+               -- wildcard, so it needs an ESCAPE, and `#` is used
+               -- rather than a backslash because a backslash has to
+               -- survive Python's string layer as well as SQLite's.
+               AND (m.title LIKE '%(%' OR m.title LIKE '%#_%' ESCAPE '#')
                AND NOT EXISTS (
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id AND f.field = 'title'
