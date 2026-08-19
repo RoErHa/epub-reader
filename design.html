@@ -221,6 +221,7 @@ footer{
     <li><a href="#s9"><span class="n">9</span><span>Decisions settled</span></a></li>
     <li><a href="#s10"><span class="n">10</span><span>Way of working</span></a></li>
     <li><a href="#s11"><span class="n">11</span><span>Conventions</span></a></li>
+    <li><a href="#s12"><span class="n">12</span><span>Open actions</span></a></li>
   </ol>
 </nav>
 
@@ -987,6 +988,28 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </div>
 <p><strong>241 more books across 49 authors</strong> — 235 PDFs and 6 PRCs — carry the same shape and are not done, because a pass this sharp should be aimed rather than loosed: <code>./run.sh names --author "Piers Anthony" --format pdf --apply</code>. A scope narrows <em>which</em> books are read, never how they are judged.</p>
 
+<h3>6.11c &nbsp;A co-author written into the title</h3>
+<p><strong>§12's tier 0, and it needs nothing but a rule</strong> — no provider, no key, no network. <code>Dead Morn (with Roberto Fuentes)</code> is a book by two people whose filename had room for one, so the second went in brackets and every pass since read it as part of the book's name.</p>
+<p>Measured over the whole library rather than the two examples that prompted it: <strong>13 books carry it</strong> — nine of Piers Anthony's, two of P. N. Elrod's, one each from Robert Asprin and Andre Norton. Every other parenthetical is the scanner talking (<code>(not ocr)</code>, <code>(v2.1)</code>, <code>(txt)</code>, <code>(9781982156176)</code>, <code>(1946)</code>), and the word <code>with</code> is what tells them apart.</p>
+
+<div class="rule">
+  <span class="eyebrow">A co-author is a second author, so there must be a first</span>
+  <p>Two P. N. Elrod PDFs credit nobody, because their filenames name him and <code>epub_pdf</code> reads only the Info dictionary. Crediting Nigel Bennett alone would promote the collaborator to author, which is worse than the bracket. They are left for <code>./run.sh names</code>.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Only the <code>with</code> bracket goes</span>
+  <p><code>Elvenblood (With Mercedes Lackey) (v1.0)</code> keeps its version tag — somebody else's rubbish to clear, and a pass that tidies more than it was asked to is one nobody can predict.</p>
+</div>
+
+<p><strong>Measured: 11 titles freed, 12 people credited, 2 deferred.</strong></p>
+
+<div class="rule">
+  <span class="eyebrow">ORDER BY belongs inside the aggregate</span>
+  <p>This uncovered a bug present since M2. §5 says credit order matters, which is why <code>book_author</code> carries a <code>position</code> — and the browse query asked for it and did not get it. Outside the aggregate, <code>ORDER BY</code> orders the single row the aggregate returns, which is no order at all: <code>GROUP_CONCAT</code> kept whatever the join handed it, in <code>author_id</code> order, so <strong>Mercedes Lackey came out ahead of Andre Norton on her own collaboration</strong> — she was already in this library, and her row is older than his. Invisible for as long as almost every book had one author.</p>
+  <p>The first version of the test <strong>passed against the broken query</strong>: a fixture that creates authors in credit order cannot fail. It only became a test once it built the collaborator first, so her id is lower — the actual library, and the only shape that fails.</p>
+</div>
+
 <h3>6.12 &nbsp;Comics</h3>
 <p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
 <pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>
@@ -1051,138 +1074,6 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </div>
 
 <p>M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. <strong>Both are now settled facts</strong> — see §3.1.</p>
-
-<h3>8.1 &nbsp;Open actions</h3>
-<p>Measured against the real library on 19 August 2026, in the order they are worth doing. What is <em>done</em> is everything above. <strong>Items 2 and 3 are next</strong>; item 4 is the same provider call they both need.</p>
-
-<div class="rule">
-  <span class="eyebrow">1 — Cover art ✅ 90%: 1,969 of 2,176 books carry one</span>
-  <p>159 PDFs took their cover from their own first page (§8.2) and Open Library answered for 219 more (§8.3). <strong>207 books still show a lettered tile</strong> — files holding no image whose titles Open Library could not match, every one recorded <code>openlibrary-none</code> so no run asks twice. A recorded miss is worth <em>clearing</em> whenever the thing that produced it changes: correcting Piers Anthony's titles turned 16 unanswerable books into 9 covers on the next ask, which says the misses are about our questions as much as their catalogue.</p>
-</div>
-
-<div class="rule">
-  <span class="eyebrow">1a — what it looked like before</span>
-  <p><strong>555 of 2,179 books show a lettered tile</strong>, and a browse list is mostly covers. 514 of them are PDFs, every single one; the rest are 26 EPUBs and 15 PRCs whose files carry no image at all. M7 skipped this deliberately — "rasterising the first page needs a PDF renderer, a heavy dependency for a proof-of-concept reader" — and that reasoning has expired at 514 blank books. Two routes, not exclusive: render page one at scan time with a rasteriser (pdfium is BSD, MuPDF is AGPL — check before choosing), or ask a provider, which is the only hope for the files with no image in them. Either way the result goes through <code>CoverStore</code>, on disk keyed by hash.</p>
-</div>
-
-<div class="tablewrap">
-<table>
-<thead><tr><th>Format</th><th class="num">Books</th><th class="num">Without a cover</th></tr></thead>
-<tbody>
-<tr><td>PDF</td><td class="num">514</td><td class="num lose">514</td></tr>
-<tr><td>EPUB</td><td class="num">1,326</td><td class="num">26</td></tr>
-<tr><td>PRC</td><td class="num">46</td><td class="num">15</td></tr>
-<tr><td>MOBI · AZW3 · CBZ</td><td class="num">293</td><td class="num win">0</td></tr>
-</tbody>
-</table>
-</div>
-
-<h4>2 — The names that are clear to a person and not to the code</h4>
-<p><strong>This is the next piece of work.</strong> Piers Anthony's filenames were obvious to a reader and opaque to the code, and closing that gap is the job. It is deliberately <em>not</em> a general enrichment sweep: <code>Dune - Frank Herbert</code> needs nothing from anybody, and asking about it would be an afternoon spent confirming what we already hold.</p>
-
-<div class="rule">
-  <span class="eyebrow">The gate comes first, and most books never pass it</span>
-  <p>A name goes to a provider only when nothing here can already read it. Three kinds of certainty, all local and all free: one side of the name is an author we already hold (573 of them); the shape is one §6.11b already reads; or the file's own metadata agrees with its name. Only what survives all three is asked about.</p>
-</div>
-
-<div class="rule">
-  <span class="eyebrow">The filename stops being the answer and becomes a hypothesis</span>
-  <p>§6.11b believes one rigid shape outright, which is why it needs a comma at the head, why it fires on 241 books and no others, and why <code>10 is Better Than 01 - Heather Jarman</code> had to be <em>refused</em> rather than understood. The new pass cuts a name every plausible way, asks Open Library which reading is real, and keeps the one that comes back corroborated.</p>
-</div>
-
-<ol>
-<li><strong>Split into candidates, not into an answer</strong> — both orderings, every separator, with and without a leading number.</li>
-<li><strong>Anchor on whichever end confirms.</strong> Ask whether the candidate author exists, or whether the candidate title does. A name where neither end confirms is left alone and said so.</li>
-<li><strong>Find the other end through the anchor</strong> — a known author's works, never a global title search. "Second Chance" matches hundreds of books; <em>this author's</em> Second Chance is one question with one answer.</li>
-<li><strong>Score into the bands that already exist</strong> — decision 4's ≥0.90 / 0.60–0.90 and the review queue, which already stores why it scored that and which fields would change. A second queue would only disagree with the first.</li>
-</ol>
-
-<div class="rule">
-  <span class="eyebrow">Here a provider's answer wins, because nothing else is offering</span>
-  <p>Everywhere else the file leads and enrichment fills silence. The gate has already established that neither the file nor its name can be read, so a confirmed reading is the only evidence in the room. That also settles <code>title</code>: outside the enrichment writable set for every book whose name we <em>can</em> read, writable for the ones we cannot.</p>
-</div>
-
-<div class="rule">
-  <span class="eyebrow">Every question asked is written down, hits and misses alike</span>
-  <p>Several hypotheses per book is where "asked once, ever" stops being enough: <code>author.fetched_at</code> records that we asked about a <em>person</em>, and this asks about a <em>string</em>. It needs a query → answer cache keyed on the question, or the second run costs what the first did.</p>
-</div>
-
-<p><strong>Measure before building it</strong>, as the cover work did twice: 30 real unreadable filenames through the splitter, counting how many anchor at all. If the answer is 20% this is a different piece of work, and better to know that on the first morning.</p>
-
-<h4>3 — Names that are damaged, not merely unclear</h4>
-<p>Item 2 is about names that are <em>ambiguous</em> — which half is the author? This one is about names that are <strong>broken</strong>, and they need a different answer because there is nothing to disambiguate: the words themselves are wrong.</p>
-
-<pre><code>Anthony, Piers - Jason Striker 02 - Bamboo Bloodbath &amp; Ninj.pdf
-Anthony, Piers - The Caterpillars Questi (with Philip Jose Farmer).pdf
-Anthony, Piers - Dead Morn (with Roberto Fuentes).pdf</code></pre>
-
-<p>The first two are <strong>truncated on disk</strong> — somebody's filesystem or unzipper cut them off years ago — and the third has <strong>authorship glued into the title</strong>. No amount of matching fixes a fragment: Open Library holds <em>The Bamboo Bloodbath</em>, and <code>Bamboo Bloodbath &amp; Ninj</code> matches nothing at all, for ever.</p>
-
-<p>Three tiers, cheapest first, and <strong>nothing reaches a tier it did not need</strong>.</p>
-
-<h5>Tier 0 — <code>(with X)</code> is authorship, not a title</h5>
-<p>No network, no provider, no key. <code>Dead Morn (with Roberto Fuentes)</code> is <em>Dead Morn</em> by Piers Anthony <strong>and Roberto Fuentes</strong> — the parenthetical is a second author somebody wrote into the filename because a file has only one name. Strip it from the title, add the person at position 1. <strong>9 books on the Piers Anthony shelf alone.</strong> Built first because it costs nothing and because it makes the strings in tier 1 shorter and cleaner before they are sent anywhere.</p>
-<div class="rule">
-  <span class="eyebrow">Only a name-shaped parenthetical counts</span>
-  <p><code>(with Roberto Fuentes)</code> is a person. <code>(retail)</code>, <code>(v1.5)</code>, <code>(digital) (Salem-Empire)</code> are the scanner talking — a shape §6.12 already learned from the comics.</p>
-</div>
-
-<h5>Tier 1 — trim the fragment back to a word boundary and re-ask</h5>
-<p><strong>Measured 19 August 2026, and it answers both examples for nothing:</strong></p>
-<div class="tablewrap">
-<table>
-<thead><tr><th>Asked</th><th>Answer</th></tr></thead>
-<tbody>
-<tr><td><code>Bamboo Bloodbath &amp; Ninj</code></td><td class="lose">nothing found</td></tr>
-<tr><td><code>Bamboo Bloodbath</code></td><td class="win"><strong>The Bamboo Bloodbath</strong> — Piers Anthony, 1974</td></tr>
-<tr><td><code>The Caterpillars Questi</code></td><td class="lose">nothing found</td></tr>
-<tr><td><code>The Caterpillars</code> + author</td><td class="win"><strong>The caterpillar's question</strong> — 1992</td></tr>
-</tbody>
-</table>
-</div>
-<ol>
-<li><strong>Notice the damage.</strong> A title whose last word is not a word — cut mid-syllable — or that no provider has ever matched. <code>Ninj</code>, <code>Questi</code>.</li>
-<li><strong>Trim to the last complete word and ask again</strong>, with the author as a filter, since §6.11b has already settled who wrote it. That filter is what makes a two-word query safe.</li>
-<li><strong>Demand that our fragment be a PREFIX of their answer.</strong> This rule can only ever <em>lengthen</em> a name, so it structurally cannot swap in a different book — §6.3's containment logic pointed the other way.</li>
-<li><strong>Strip the provider's marketing.</strong> Open Library returned <em>"The Bamboo Bloodbath (#3 in the violent new series featuring Jason Striker, Master of Martial Arts)"</em>; a trailing bracket is the shelf talking, and <code>TitlePolish</code> already removes it.</li>
-<li><strong>Write it and record it</strong> — <code>origin = 'provider'</code>, with <code>file_title</code> keeping what the file said, so every repair is reversible.</li>
-</ol>
-<div class="rule">
-  <span class="eyebrow">A provider's series number is not necessarily ours</span>
-  <p>Open Library calls <em>The Bamboo Bloodbath</em> Jason Striker <strong>#3</strong>; our file calls it <strong>02</strong>, and both are right — the file is an <em>omnibus</em> of novels 3 and 4, and it is the second such volume. Take the title from the provider and leave the number alone unless the book is a single work. Caught in the first probe, before any code existed.</p>
-</div>
-
-<h5>Tier 2 — the open web, only for what tiers 0 and 1 could not reach</h5>
-<p>A catalogue can only match what it holds; a search engine indexes the long tail, which is why searching the raw string answers in one go where a catalogue returns nothing. <strong>A real search API, never scraping</strong> — scraping Google/Bing/DDG HTML is against their terms, gets blocked and rots. <strong>Result titles and snippets only</strong>, never page bodies: a bookseller's result title has the shape <code>Title by Author</code>, and parsing eBay's HTML is not something to depend on. The same prefix rule as tier 1 applies, plus the author appearing in the same result, and two independent results must agree before anything is written. One query per string, ever, cached like every other answer.</p>
-<p><strong>Do not build tier 2 until tiers 0 and 1 are measured</strong> — today's probe suggests they may leave very little behind, and tier 2 is the only part of this that costs money.</p>
-
-<h5>Then, and only then, the cover</h5>
-<p>A repaired name goes back on the cover queue if the book has none — evidence-backed rather than hoped for: correcting Piers Anthony's titles turned 16 books Open Library had refused into <strong>9 covers</strong> on the very next ask.</p>
-
-<h5>Free and open-source, before anything paid</h5>
-<div class="tablewrap">
-<table>
-<thead><tr><th>Source</th><th>Cost</th><th>What it gives</th></tr></thead>
-<tbody>
-<tr><td>Trim-and-retry on Open Library</td><td>free, no key</td><td>proven above on both examples — try before anything else</td></tr>
-<tr><td><strong>ISFDB database dumps</strong></td><td>free, CC BY-SA</td><td>exhaustive SF/F coverage down to obscure paperbacks, <strong>and the series data Open Library lacks</strong>; downloadable in full, so queried locally at zero requests</td></tr>
-<tr><td>Open Library monthly dumps</td><td>free</td><td>what Open Library themselves ask bulk users to use instead of the API (§6.5); local matching with no pacing at all</td></tr>
-<tr><td>Wikidata SPARQL</td><td>free, no key</td><td>works, authors and series via <code>P179</code>/<code>P1545</code></td></tr>
-<tr><td>SearxNG, self-hosted</td><td>free, AGPL</td><td>a genuine open-source route to tier 2 — a metasearch server you run yourself; no key, no account, but it rides on upstream engines and can break</td></tr>
-</tbody>
-</table>
-</div>
-<p><strong>ISFDB is worth a look on its own merits</strong>, independently of damaged names: it would answer item 5's series question for a library that is mostly science fiction and fantasy, offline and for nothing, where Open Library has never been shown able to.</p>
-
-<p><strong>4 — Fetch each matched work's own record.</strong> Open Library's <em>search</em> results carry no synopsis and no publisher, so auto-apply writes almost nothing: 1,912 books have no synopsis, 1,873 no genre, 1,585 no first-published year. One extra request per book fixes all three — and it is the same call that confirms a candidate above, so they are one piece of work rather than two.</p>
-
-<h4>5 — Editing a book's metadata</h4>
-<p><strong>Series is not coming from a provider.</strong> §6 said it would and it was never built; Open Library's search results are thin enough that its series data is unproven, and nothing measured here says it can tell Xanth #8 from Xanth #9. The answer is the reader's own hand. Hand-editing today is <strong>authors and series only</strong>; it should be the whole record — title, series and number, synopsis, genre — because that is the only thing that reaches a book the machinery cannot: the truncated <code>Bamboo Bloodbath &amp; Ninj</code>, the clipped <code>The Caterpillars Questi</code>, a series nobody else has heard of. It costs no requests, and the machinery exists already: what a person says is <code>origin = 'user'</code>, locked, and no pass overrules it.</p>
-<p>1,558 books have no series; 241 more can still be read straight off their filenames by the pass that exists.</p>
-
-<p><strong>6 — Waiting on a person:</strong> 280 hidden duplicate copies (audited twice, no file ever deleted, all restorable); <code>GOOGLE_BOOKS_API_KEY</code> unset, so Google Books answers 429 to everything and contributes nothing; 17 authors never asked about and 375 unknown to Open Library, which the Sunday job walks at ten a week.</p>
-
-<p><strong>7 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out because it is RAR; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
 
 <h3>8.2 &nbsp;Covers: page one, when page one is the cover</h3>
 <p>555 books of 2,179 showed a lettered tile, and <strong>514 of them were PDFs — every PDF in the library</strong>. M7 skipped this because rasterising a page was a heavy dependency for a proof-of-concept; at 514 blank books that reasoning expired. pdfium is BSD, ships as a wheel with the binary in it, and needs no network.</p>
@@ -1415,10 +1306,144 @@ tools/              <span class="c">make_test_library.py</span></code></pre>
 <li>foliate-js is a pinned submodule, never edited in place; differences go in <code>reader.js</code></li>
 <li>All SQLite access server-side; the frontend only sees JSON</li>
 <li>Migrations forward-only and numbered</li>
+<li><strong>Track current SQLite, and use it.</strong> <code>Database.NEEDS</code> is checked on the way in and says what to do if it is not met. Writing round old versions costs clarity for nothing — the workaround is always less obvious than the feature, which is how <code>GROUP_CONCAT</code>'s ordering came to be silently wrong (§6.11c). This supersedes the older "the same on any SQLite" rule; the <code>COALESCE</code> it produced still works and is left alone.</li>
 <li><code>Intl.Collator</code> / <code>Intl.Segmenter</code> over hand-rolled string logic — the library is multilingual</li>
 <li>Never modify the user's book files — read-only, always</li>
 <li>Every user-facing string is written from the reader's point of view, not the system's</li>
 </ul>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s12"><span class="n">12</span>Open actions</h2>
+<p>Measured against the real library on 19 August 2026, in the order they are worth doing. What is <em>done</em> is everything above. <strong>Items 2 and 3 are next</strong>; item 4 is the same provider call they both need.</p>
+
+<div class="rule">
+  <span class="eyebrow">1 — Cover art ✅ 90%: 1,969 of 2,176 books carry one</span>
+  <p>159 PDFs took their cover from their own first page (§8.2) and Open Library answered for 219 more (§8.3). <strong>207 books still show a lettered tile</strong> — files holding no image whose titles Open Library could not match, every one recorded <code>openlibrary-none</code> so no run asks twice. A recorded miss is worth <em>clearing</em> whenever the thing that produced it changes: correcting Piers Anthony's titles turned 16 unanswerable books into 9 covers on the next ask, which says the misses are about our questions as much as their catalogue.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">1a — what it looked like before</span>
+  <p><strong>555 of 2,179 books show a lettered tile</strong>, and a browse list is mostly covers. 514 of them are PDFs, every single one; the rest are 26 EPUBs and 15 PRCs whose files carry no image at all. M7 skipped this deliberately — "rasterising the first page needs a PDF renderer, a heavy dependency for a proof-of-concept reader" — and that reasoning has expired at 514 blank books. Two routes, not exclusive: render page one at scan time with a rasteriser (pdfium is BSD, MuPDF is AGPL — check before choosing), or ask a provider, which is the only hope for the files with no image in them. Either way the result goes through <code>CoverStore</code>, on disk keyed by hash.</p>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Format</th><th class="num">Books</th><th class="num">Without a cover</th></tr></thead>
+<tbody>
+<tr><td>PDF</td><td class="num">514</td><td class="num lose">514</td></tr>
+<tr><td>EPUB</td><td class="num">1,326</td><td class="num">26</td></tr>
+<tr><td>PRC</td><td class="num">46</td><td class="num">15</td></tr>
+<tr><td>MOBI · AZW3 · CBZ</td><td class="num">293</td><td class="num win">0</td></tr>
+</tbody>
+</table>
+</div>
+
+<h4>2 — The names that are clear to a person and not to the code</h4>
+<p><strong>This is the next piece of work.</strong> Piers Anthony's filenames were obvious to a reader and opaque to the code, and closing that gap is the job. It is deliberately <em>not</em> a general enrichment sweep: <code>Dune - Frank Herbert</code> needs nothing from anybody, and asking about it would be an afternoon spent confirming what we already hold.</p>
+
+<div class="rule">
+  <span class="eyebrow">The gate comes first, and most books never pass it</span>
+  <p>A name goes to a provider only when nothing here can already read it. Three kinds of certainty, all local and all free: one side of the name is an author we already hold (573 of them); the shape is one §6.11b already reads; or the file's own metadata agrees with its name. Only what survives all three is asked about.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">The filename stops being the answer and becomes a hypothesis</span>
+  <p>§6.11b believes one rigid shape outright, which is why it needs a comma at the head, why it fires on 241 books and no others, and why <code>10 is Better Than 01 - Heather Jarman</code> had to be <em>refused</em> rather than understood. The new pass cuts a name every plausible way, asks Open Library which reading is real, and keeps the one that comes back corroborated.</p>
+</div>
+
+<ol>
+<li><strong>Split into candidates, not into an answer</strong> — both orderings, every separator, with and without a leading number.</li>
+<li><strong>Anchor on whichever end confirms.</strong> Ask whether the candidate author exists, or whether the candidate title does. A name where neither end confirms is left alone and said so.</li>
+<li><strong>Find the other end through the anchor</strong> — a known author's works, never a global title search. "Second Chance" matches hundreds of books; <em>this author's</em> Second Chance is one question with one answer.</li>
+<li><strong>Score into the bands that already exist</strong> — decision 4's ≥0.90 / 0.60–0.90 and the review queue, which already stores why it scored that and which fields would change. A second queue would only disagree with the first.</li>
+</ol>
+
+<div class="rule">
+  <span class="eyebrow">Here a provider's answer wins, because nothing else is offering</span>
+  <p>Everywhere else the file leads and enrichment fills silence. The gate has already established that neither the file nor its name can be read, so a confirmed reading is the only evidence in the room. That also settles <code>title</code>: outside the enrichment writable set for every book whose name we <em>can</em> read, writable for the ones we cannot.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Every question asked is written down, hits and misses alike</span>
+  <p>Several hypotheses per book is where "asked once, ever" stops being enough: <code>author.fetched_at</code> records that we asked about a <em>person</em>, and this asks about a <em>string</em>. It needs a query → answer cache keyed on the question, or the second run costs what the first did.</p>
+</div>
+
+<p><strong>Measure before building it</strong>, as the cover work did twice: 30 real unreadable filenames through the splitter, counting how many anchor at all. If the answer is 20% this is a different piece of work, and better to know that on the first morning.</p>
+
+<h4>3 — Names that are damaged, not merely unclear</h4>
+<p>Item 2 is about names that are <em>ambiguous</em> — which half is the author? This one is about names that are <strong>broken</strong>, and they need a different answer because there is nothing to disambiguate: the words themselves are wrong.</p>
+
+<pre><code>Anthony, Piers - Jason Striker 02 - Bamboo Bloodbath &amp; Ninj.pdf
+Anthony, Piers - The Caterpillars Questi (with Philip Jose Farmer).pdf
+Anthony, Piers - Dead Morn (with Roberto Fuentes).pdf</code></pre>
+
+<p>The first two are <strong>truncated on disk</strong> — somebody's filesystem or unzipper cut them off years ago — and the third has <strong>authorship glued into the title</strong>. No amount of matching fixes a fragment: Open Library holds <em>The Bamboo Bloodbath</em>, and <code>Bamboo Bloodbath &amp; Ninj</code> matches nothing at all, for ever.</p>
+
+<p>Three tiers, cheapest first, and <strong>nothing reaches a tier it did not need</strong>.</p>
+
+<h5>Tier 0 ✅ — <code>(with X)</code> is authorship, not a title (§6.11c)</h5>
+<p>No network, no provider, no key. <code>Dead Morn (with Roberto Fuentes)</code> is <em>Dead Morn</em> by Piers Anthony <strong>and Roberto Fuentes</strong> — the parenthetical is a second author somebody wrote into the filename because a file has only one name. Strip it from the title, add the person at position 1. <strong>Done — 11 titles freed and 12 people credited</strong>, of 13 found library-wide; the two crediting nobody wait on <code>./run.sh names</code>. See §6.11c, including the credit-order bug it exposed.</p>
+<div class="rule">
+  <span class="eyebrow">Only a name-shaped parenthetical counts</span>
+  <p><code>(with Roberto Fuentes)</code> is a person. <code>(retail)</code>, <code>(v1.5)</code>, <code>(digital) (Salem-Empire)</code> are the scanner talking — a shape §6.12 already learned from the comics.</p>
+</div>
+
+<h5>Tier 1 — trim the fragment back to a word boundary and re-ask</h5>
+<p><strong>Measured 19 August 2026, and it answers both examples for nothing:</strong></p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Asked</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td><code>Bamboo Bloodbath &amp; Ninj</code></td><td class="lose">nothing found</td></tr>
+<tr><td><code>Bamboo Bloodbath</code></td><td class="win"><strong>The Bamboo Bloodbath</strong> — Piers Anthony, 1974</td></tr>
+<tr><td><code>The Caterpillars Questi</code></td><td class="lose">nothing found</td></tr>
+<tr><td><code>The Caterpillars</code> + author</td><td class="win"><strong>The caterpillar's question</strong> — 1992</td></tr>
+</tbody>
+</table>
+</div>
+<ol>
+<li><strong>Notice the damage.</strong> A title whose last word is not a word — cut mid-syllable — or that no provider has ever matched. <code>Ninj</code>, <code>Questi</code>.</li>
+<li><strong>Trim to the last complete word and ask again</strong>, with the author as a filter, since §6.11b has already settled who wrote it. That filter is what makes a two-word query safe.</li>
+<li><strong>Demand that our fragment be a PREFIX of their answer.</strong> This rule can only ever <em>lengthen</em> a name, so it structurally cannot swap in a different book — §6.3's containment logic pointed the other way.</li>
+<li><strong>Strip the provider's marketing.</strong> Open Library returned <em>"The Bamboo Bloodbath (#3 in the violent new series featuring Jason Striker, Master of Martial Arts)"</em>; a trailing bracket is the shelf talking, and <code>TitlePolish</code> already removes it.</li>
+<li><strong>Write it and record it</strong> — <code>origin = 'provider'</code>, with <code>file_title</code> keeping what the file said, so every repair is reversible.</li>
+</ol>
+<div class="rule">
+  <span class="eyebrow">A provider's series number is not necessarily ours</span>
+  <p>Open Library calls <em>The Bamboo Bloodbath</em> Jason Striker <strong>#3</strong>; our file calls it <strong>02</strong>, and both are right — the file is an <em>omnibus</em> of novels 3 and 4, and it is the second such volume. Take the title from the provider and leave the number alone unless the book is a single work. Caught in the first probe, before any code existed.</p>
+</div>
+
+<h5>Tier 2 — the open web, only for what tiers 0 and 1 could not reach</h5>
+<p>A catalogue can only match what it holds; a search engine indexes the long tail, which is why searching the raw string answers in one go where a catalogue returns nothing. <strong>A real search API, never scraping</strong> — scraping Google/Bing/DDG HTML is against their terms, gets blocked and rots. <strong>Result titles and snippets only</strong>, never page bodies: a bookseller's result title has the shape <code>Title by Author</code>, and parsing eBay's HTML is not something to depend on. The same prefix rule as tier 1 applies, plus the author appearing in the same result, and two independent results must agree before anything is written. One query per string, ever, cached like every other answer.</p>
+<p><strong>Do not build tier 2 until tiers 0 and 1 are measured</strong> — today's probe suggests they may leave very little behind, and tier 2 is the only part of this that costs money.</p>
+
+<h5>Then, and only then, the cover</h5>
+<p>A repaired name goes back on the cover queue if the book has none — evidence-backed rather than hoped for: correcting Piers Anthony's titles turned 16 books Open Library had refused into <strong>9 covers</strong> on the very next ask.</p>
+
+<h5>Free and open-source, before anything paid</h5>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Source</th><th>Cost</th><th>What it gives</th></tr></thead>
+<tbody>
+<tr><td>Trim-and-retry on Open Library</td><td>free, no key</td><td>proven above on both examples — try before anything else</td></tr>
+<tr><td><strong>ISFDB database dumps</strong></td><td>free, CC BY-SA</td><td>exhaustive SF/F coverage down to obscure paperbacks, <strong>and the series data Open Library lacks</strong>; downloadable in full, so queried locally at zero requests</td></tr>
+<tr><td>Open Library monthly dumps</td><td>free</td><td>what Open Library themselves ask bulk users to use instead of the API (§6.5); local matching with no pacing at all</td></tr>
+<tr><td>Wikidata SPARQL</td><td>free, no key</td><td>works, authors and series via <code>P179</code>/<code>P1545</code></td></tr>
+<tr><td>SearxNG, self-hosted</td><td>free, AGPL</td><td>a genuine open-source route to tier 2 — a metasearch server you run yourself; no key, no account, but it rides on upstream engines and can break</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>ISFDB is worth a look on its own merits</strong>, independently of damaged names: it would answer item 5's series question for a library that is mostly science fiction and fantasy, offline and for nothing, where Open Library has never been shown able to.</p>
+
+<p><strong>4 — Fetch each matched work's own record.</strong> Open Library's <em>search</em> results carry no synopsis and no publisher, so auto-apply writes almost nothing: 1,912 books have no synopsis, 1,873 no genre, 1,585 no first-published year. One extra request per book fixes all three — and it is the same call that confirms a candidate above, so they are one piece of work rather than two.</p>
+
+<h4>5 — Editing a book's metadata</h4>
+<p><strong>Series is not coming from a provider.</strong> §6 said it would and it was never built; Open Library's search results are thin enough that its series data is unproven, and nothing measured here says it can tell Xanth #8 from Xanth #9. The answer is the reader's own hand. Hand-editing today is <strong>authors and series only</strong>; it should be the whole record — title, series and number, synopsis, genre — because that is the only thing that reaches a book the machinery cannot: the truncated <code>Bamboo Bloodbath &amp; Ninj</code>, the clipped <code>The Caterpillars Questi</code>, a series nobody else has heard of. It costs no requests, and the machinery exists already: what a person says is <code>origin = 'user'</code>, locked, and no pass overrules it.</p>
+<p>1,558 books have no series; 241 more can still be read straight off their filenames by the pass that exists.</p>
+
+<p><strong>6 — Waiting on a person:</strong> 280 hidden duplicate copies (audited twice, no file ever deleted, all restorable); <code>GOOGLE_BOOKS_API_KEY</code> unset, so Google Books answers 429 to everything and contributes nothing; 17 authors never asked about and 375 unknown to Open Library, which the Sunday job walks at ten a week.</p>
+
+<p><strong>7 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out because it is RAR; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
 
 </main>
 </div>

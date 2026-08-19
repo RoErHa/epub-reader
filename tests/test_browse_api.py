@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from epub_browse import BrowseQueries
 from tests.epub_fixtures import EpubBuilder
 
 
@@ -212,3 +213,69 @@ class TestTheStatusCountsWhatIsOnTheShelves:
         assert after["authors"] == len(
             stocked.get("/api/authors").json()["authors"])
         assert after["missing"] >= 1
+
+
+class TestCreditOrder:
+    """§5 says credit order matters, which is why `book_author` carries a
+    position. The browse query asked for it and did not get it.
+
+    `GROUP_CONCAT` has no defined order, and an `ORDER BY` tacked onto
+    the same SELECT does not give it one — it orders the one row the
+    aggregate returns. The clause looked right and did nothing, so a
+    book's authors came out in whatever order SQLite felt like. It went
+    unnoticed for as long as it did because almost every book in a
+    library has exactly one author; it surfaced the day a pass started
+    crediting second ones, and put Mercedes Lackey ahead of Andre Norton
+    on her own collaboration.
+    """
+
+    def test_authors_are_listed_in_credit_order(self, client, library,
+                                                gateway):
+        """The second author must already exist, with a LOWER id than the
+        first — which is the real case and the only one that fails.
+
+        Mercedes Lackey was in this library long before she turned up as
+        Andre Norton's collaborator, so her `author` row is older and her
+        id smaller. The join reaches `book_author` by `author_id`, so
+        that is the order the rows arrive in, and `GROUP_CONCAT` keeps
+        whatever it is handed. A fixture that creates the authors in
+        credit order cannot fail, which is why the first version of this
+        test passed against the broken query.
+        """
+        for existing in library.glob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Dragonflight", author="Mercedes Lackey").build(
+            library / "aaa-lackey.epub")
+        gateway.reindex()
+        EpubBuilder(title="Elvenblood",
+                    author="Andre Norton & Mercedes Lackey").build(
+            library / "elvenblood.epub")
+        gateway.reindex()
+
+        ids = dict(gateway.database.connection.execute(
+            "SELECT name, id FROM author").fetchall())
+        assert ids["Mercedes Lackey"] < ids["Andre Norton"], \
+            "the fixture must reproduce the real id order"
+
+        rows = {r["title"]: r["authors"]
+                for r in BrowseQueries(gateway.database).books(sort="title").rows}
+        assert rows["Elvenblood"] == ["Andre Norton", "Mercedes Lackey"]
+
+    def test_the_order_survives_the_author_being_added_later(self, client,
+                                                             library, gateway):
+        """The real case: the second author arrives from a later pass, so
+        their `author` row is newer than the first author's. Anything
+        that falls back to insertion or id order gets this backwards."""
+        for existing in library.glob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="Dead Morn", author="Piers Anthony").build(
+            library / "deadmorn.epub")
+        gateway.reindex()
+        from epub_coauthors import CoAuthorsInTitles
+        book_id = gateway.database.connection.execute(
+            "SELECT book_id FROM metadata WHERE title = 'Dead Morn'"
+        ).fetchone()["book_id"]
+        CoAuthorsInTitles(gateway.database)._credit(  # noqa: SLF001
+            {"id": book_id, "people": ["Roberto Fuentes"]}, 0)
+        row = BrowseQueries(gateway.database).books(sort="title").rows[0]
+        assert row["authors"] == ["Piers Anthony", "Roberto Fuentes"]

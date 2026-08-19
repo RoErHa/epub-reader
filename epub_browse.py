@@ -49,9 +49,15 @@ class BrowseQueries:
                m.title, m.title_sort, m.first_published, m.language,
                m.series_index, m.cover_path, m.synopsis,
                s.name AS series_name, s.sort_name AS series_sort,
-               (SELECT GROUP_CONCAT(a2.name, ' & ')
+               -- ORDER BY belongs INSIDE the aggregate. Outside it, it
+               -- orders the single row the aggregate returns, which is
+               -- no order at all: the names came back in author_id
+               -- order, so a collaborator already in the library
+               -- outranked the author whose book it is. §5 says credit
+               -- order matters; this is where it is kept.
+               (SELECT GROUP_CONCAT(a2.name, ' & ' ORDER BY ba2.position)
                   FROM book_author ba2 JOIN author a2 ON a2.id = ba2.author_id
-                 WHERE ba2.book_id = b.id ORDER BY ba2.position) AS author_names,
+                 WHERE ba2.book_id = b.id) AS author_names,
                (SELECT a3.sort_name
                   FROM book_author ba3 JOIN author a3 ON a3.id = ba3.author_id
                  WHERE ba3.book_id = b.id ORDER BY ba3.position LIMIT 1)

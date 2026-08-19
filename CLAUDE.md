@@ -450,6 +450,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Remove books whose files are gone | `./run.sh forget [--apply]` | `epub_forget.py` |
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | Author, series and title from one filename | `./run.sh names [--apply]` | `epub_filenames.py` |
+| A co-author written into the title | `./run.sh coauthors [--apply]` | `epub_coauthors.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 | A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
@@ -795,6 +796,52 @@ That is the whole of hand-editing today: **who wrote it, and where it sits in a 
 
 Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.
 
+### 8.13b A co-author written into the title
+
+**§12.3's tier 0, and it needs nothing but a rule.** No provider, no key,
+no network. `Dead Morn (with Roberto Fuentes)` is a book by two people
+whose filename had room for one, so the second went in brackets and every
+pass since has read it as part of the book's name.
+
+Measured first, over the whole library rather than the two examples that
+prompted it: **13 books carry it** — nine of Piers Anthony's, two of
+P. N. Elrod's, and one each from Robert Asprin and Andre Norton. Every
+other parenthetical in the library is the scanner talking (`(not ocr)`,
+`(v2.1)`, `(txt)`, `(9781982156176)`, `(1946)`, `(Book 1)`), and the word
+`with` is what tells them apart.
+
+> **A co-author is a *second* author, so there must be a first.** The two
+> Elrod PDFs credit nobody, because their filenames name him and
+> `epub_pdf` reads only the Info dictionary. Crediting Nigel Bennett
+> alone would promote the collaborator to author, which is worse than the
+> bracket. They are left for `./run.sh names` — §6.6's order again.
+
+> **Only the `with` bracket goes.** `Elvenblood (With Mercedes Lackey)
+> (v1.0)` keeps its version tag. It is somebody else's rubbish to clear,
+> and a pass that tidies more than it was asked to is one nobody can
+> predict.
+
+**Measured: 11 titles freed, 12 people credited, 2 deferred.**
+`./run.sh coauthors`.
+
+**And it uncovered a bug that had been there since M2.** §5 says credit
+order matters, which is why `book_author` carries a `position` — and the
+browse query asked for it and did not get it:
+
+> **`ORDER BY` belongs *inside* the aggregate.** Outside it, it orders
+> the single row the aggregate returns, which is no order at all.
+> `GROUP_CONCAT` kept whatever the join handed it, which was `author_id`
+> order — so **Mercedes Lackey came out ahead of Andre Norton on her own
+> collaboration**, because she was already in this library and her row is
+> older than his. It went unseen for as long as it did because almost
+> every book has exactly one author; it surfaced the day a pass began
+> crediting second ones.
+
+The first version of the test **passed against the broken query**, because
+a fixture that creates authors in credit order cannot fail. It only
+became a real test once it built the collaborator *first*, so her id is
+lower — which is the actual library, and the only shape that fails.
+
 ### 8.13a Three facts written as one name
 
 `Anthony, Piers - Xanth 08 - Crewel Lye` browsed as a single run-on
@@ -1050,6 +1097,8 @@ epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
 epub_series.py      SeriesFromNames — series read from filenames
 epub_filenames.py   CreditsFromNames — author, series and title, read from
                     one filename, in §6.6's order
+epub_coauthors.py   CoAuthorsInTitles — the second author somebody wrote
+                    into the title, because a file has one name
 epub_credits.py     BookCredits — who wrote it and where in a series,
                     when neither the file nor its name says
 epub_forget.py      ForgetMissing — removing books whose files are gone
@@ -1429,6 +1478,12 @@ authors, 34 series, 258 genres.
 - foliate-js is a pinned submodule, never edited in place; differences go in `reader.js`
 - All SQLite access server-side; the frontend only sees JSON
 - Migrations forward-only and numbered
+- **Track current SQLite, and use it.** `Database.NEEDS` is checked on
+  the way in and says what to do if it is not met. Writing round old
+  versions costs clarity for nothing — the workaround is always less
+  obvious than the feature, which is how `GROUP_CONCAT`'s ordering came
+  to be silently wrong (§8.13b). This supersedes §10.9's "the same on
+  any SQLite"; the `COALESCE` there still works and is left alone.
 - `Intl.Collator` / `Intl.Segmenter` over hand-rolled string logic — the library is multilingual
 - Never modify the user's book files — read-only, always
 - Every user-facing string is written from the reader's point of view, not the system's
@@ -1566,7 +1621,7 @@ nothing at all, for ever.
 Three tiers, cheapest first, and **nothing reaches a tier it did not
 need**.
 
-#### Tier 0 — `(with X)` is authorship, not a title
+#### Tier 0 ✅ — `(with X)` is authorship, not a title  (§8.13b)
 
 No network, no provider, no key. `Dead Morn (with Roberto Fuentes)` is
 *Dead Morn* by Piers Anthony **and Roberto Fuentes** — the parenthetical
@@ -1574,10 +1629,9 @@ is a second author that somebody wrote into the filename because a file
 has only one name. So: strip it from the title, add the person at
 position 1.
 
-**9 books on the Piers Anthony shelf alone.** It is a rule, not a
-lookup, and it should be built first because it costs nothing and
-because it makes the strings in tier 1 shorter and cleaner before they
-are ever sent anywhere.
+**Done — 11 titles freed and 12 people credited**, out of 13 found
+library-wide; the two that credit nobody wait on `./run.sh names`. See
+§8.13b, including the credit-order bug it exposed.
 
 > **A guard it needs:** only a name-shaped parenthetical counts.
 > `(with Roberto Fuentes)` is a person; `(retail)`, `(v1.5)`,

@@ -21,6 +21,7 @@ from epub_covers import CoverBackfill, ProviderCovers
 from epub_credits import BookCredits
 from epub_duplicates import DuplicateFinder
 from epub_forget import ForgetMissing, UnpluggedError
+from epub_coauthors import CoAuthorsInTitles
 from epub_filenames import CreditsFromNames
 from epub_series import SeriesFromNames
 from epub_config import Config
@@ -222,6 +223,7 @@ class EpubGateway:
         self._duplicates = DuplicateFinder(self._database)
         self._series = SeriesFromNames(self._database)
         self._filenames = CreditsFromNames(self._database, self._series)
+        self._coauthors = CoAuthorsInTitles(self._database)
         self._forget = ForgetMissing(self._database)
         self._credits = BookCredits(self._database)
         # One fetcher for every provider, so the pacing is the whole
@@ -334,6 +336,10 @@ class EpubGateway:
         """Author, series and title from one filename, in one line."""
         return CreditsFromNames.summary(
             self._filenames.run(apply=apply, author=author, formats=formats))
+
+    def read_coauthors(self, apply: bool = False) -> str:
+        """Free the people written into titles, in one line."""
+        return CoAuthorsInTitles.summary(self._coauthors.run(apply=apply))
 
     def dedupe_books(self, apply: bool = False) -> str:
         """One row per work, and one line about it."""

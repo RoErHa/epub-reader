@@ -329,8 +329,21 @@ class MigrationRunner:
         return version
 
 
+class DatabaseError(Exception):
+    """Something about the database itself is wrong, and saying so beats
+    failing later in the middle of a query."""
+
+
 class Database:
     """Owns the connection and its pragmas."""
+
+    # `GROUP_CONCAT(x, sep ORDER BY y)` — what keeps a book's authors in
+    # credit order (§5) — arrived in SQLite 3.44.0, November 2023. This
+    # project tracks current SQLite rather than writing round old ones:
+    # the workarounds are less clear than the feature, and a version
+    # this old on a machine running Python 3.14 means something is
+    # wrong with the environment rather than with the code.
+    NEEDS = (3, 44, 0)
 
     def __init__(self, path: Path) -> None:
         self._path = Path(path)
@@ -343,6 +356,7 @@ class Database:
     @property
     def connection(self) -> sqlite3.Connection:
         if self._connection is None:
+            self._require_sqlite()
             self._path.parent.mkdir(parents=True, exist_ok=True)
             connection = sqlite3.connect(
                 self._path, check_same_thread=False, isolation_level=None
@@ -353,6 +367,27 @@ class Database:
             connection.execute("PRAGMA synchronous = NORMAL")
             self._connection = connection
         return self._connection
+
+    @classmethod
+    def supported(cls, version: str) -> bool:
+        """Whether this SQLite is new enough. Compared as numbers, not as
+        text: "3.9.0" is greater than "3.44.0" alphabetically."""
+        try:
+            parts = tuple(int(p) for p in version.split(".")[:3])
+        except ValueError:
+            return False
+        return parts >= cls.NEEDS
+
+    @classmethod
+    def _require_sqlite(cls) -> None:
+        if cls.supported(sqlite3.sqlite_version):
+            return
+        needed = ".".join(str(n) for n in cls.NEEDS)
+        raise DatabaseError(
+            f"SQLite {sqlite3.sqlite_version} is too old — this needs "
+            f"{needed} or newer. Python brings its own SQLite, so the fix "
+            f"is usually a newer Python (or `brew upgrade sqlite` before "
+            f"rebuilding it).")
 
     def migrate(self) -> int:
         return MigrationRunner().run(self.connection)

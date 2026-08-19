@@ -226,3 +226,15 @@ class TestNames:
     def test_names_is_listed_in_the_help(self):
         result = run("help")
         assert "names" in result.stdout + result.stderr
+
+
+class TestCoAuthors:
+    """`run.sh coauthors` frees the people written into titles."""
+
+    def test_coauthors_runs(self, env_file):
+        result = run("coauthors", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+
+    def test_coauthors_is_listed_in_the_help(self):
+        result = run("help")
+        assert "coauthors" in result.stdout + result.stderr

@@ -191,6 +191,27 @@ class NamesCommand:
         return 0
 
 
+class CoAuthorsCommand:
+    """`--coauthors`: a second author written into the title.
+
+    "Dead Morn (with Roberto Fuentes)" is a book by two people whose
+    filename had room for one. A rule, not a lookup — no provider, no
+    key, no network.
+    """
+
+    def __init__(self, config: Config, apply: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.read_coauthors(apply=self._apply))
+        finally:
+            gateway.close()
+        return 0
+
+
 class CoversCommand:
     """`--covers`: a cover for books that show a lettered tile.
 
@@ -330,6 +351,11 @@ class GatewayCLI:
             help="With --names: only this format (repeatable), e.g. --format pdf.",
         )
         parser.add_argument(
+            "--coauthors",
+            action="store_true",
+            help="Free the co-authors written into titles, then exit.",
+        )
+        parser.add_argument(
             "--dedupe",
             action="store_true",
             help="Report works held more than once, then exit without serving.",
@@ -380,6 +406,8 @@ class GatewayCLI:
         if args.names:
             return NamesCommand(config, apply=args.apply, author=args.author,
                                 formats=args.formats).run()
+        if args.coauthors:
+            return CoAuthorsCommand(config, apply=args.apply).run()
         if args.dedupe:
             return DedupeCommand(config, apply=args.apply).run()
         if args.covers:

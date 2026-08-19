@@ -9,7 +9,7 @@ import sqlite3
 
 import pytest
 
-from epub_db import Database, Migration, MigrationRunner
+from epub_db import Database, DatabaseError, Migration, MigrationRunner
 
 
 @pytest.fixture
@@ -129,3 +129,39 @@ class TestTwoWriters:
         db = Database(tmp_path / "books.db")
         waited = db.connection.execute("PRAGMA busy_timeout").fetchone()[0]
         assert waited >= 5000
+
+
+class TestSqliteVersion:
+    """The schema and the queries assume a current SQLite.
+
+    `GROUP_CONCAT(x, sep ORDER BY y)` — which is what keeps a book's
+    authors in credit order — arrived in **3.44.0** (November 2023). On
+    anything older the parser rejects it, and the failure would arrive
+    as a query error in the middle of browsing rather than as something
+    anyone could act on.
+
+    So it is checked once, on the way in, and says what to do.
+    """
+
+    def test_a_current_version_is_accepted(self):
+        assert Database.supported("3.44.0")
+        assert Database.supported("3.53.4")
+        assert Database.supported("4.0.1")
+
+    def test_an_old_version_is_refused(self):
+        assert not Database.supported("3.43.2")
+        assert not Database.supported("3.9.0")
+        assert not Database.supported("2.8.17")
+
+    def test_opening_on_an_old_sqlite_says_what_is_wrong(self, tmp_path,
+                                                          monkeypatch):
+        monkeypatch.setattr("epub_db.sqlite3.sqlite_version", "3.43.2")
+        with pytest.raises(DatabaseError) as exc:
+            Database(tmp_path / "old.db").connection
+        message = str(exc.value)
+        assert "3.43.2" in message and "3.44" in message
+
+    def test_the_running_interpreter_is_current_enough(self):
+        """Not a unit test — a check on the machine this is built on."""
+        assert Database.supported(sqlite3.sqlite_version), (
+            f"SQLite {sqlite3.sqlite_version} is too old for this project")

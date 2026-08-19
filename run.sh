@@ -33,6 +33,8 @@
 #   ./run.sh names              # read author, series and title from filenames
 #   ./run.sh names --apply      # ...and write what the name says
 #   ./run.sh names --author "Piers Anthony" --format pdf --apply
+#   ./run.sh coauthors          # find people written into titles
+#   ./run.sh coauthors --apply  # ...and credit them properly
 #   ./run.sh covers             # find books whose own first page is their cover
 #   ./run.sh covers --apply     # ...and give them it
 #   ./run.sh covers --online --apply   # ...and ask a provider for the rest
@@ -68,7 +70,7 @@ while [ $# -gt 0 ]; do
     --online)     ONLINE=1; shift ;;
     --author)     AUTHOR="${2:?--author needs a name}"; shift 2 ;;
     --format)     FORMAT="${2:?--format needs a format}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|forget|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -182,6 +184,19 @@ do_names() {
   else
     echo "▶  Reading filenames (nothing will change)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --names ${scope[@]+"${scope[@]}"}
+  fi
+}
+
+do_coauthors() {
+  # "Dead Morn (with Roberto Fuentes)" is a book by two people. A rule,
+  # not a lookup: no provider, no key, no network. Wants to run AFTER
+  # `names`, since a co-author is a second author and needs a first.
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Crediting the people written into titles…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --coauthors --apply
+  else
+    echo "▶  Looking for people written into titles (nothing will change)…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --coauthors
   fi
 }
 
@@ -311,6 +326,7 @@ case "${COMMAND}" in
   covers)  do_covers ;;
   series)  do_series ;;
   names)   do_names ;;
+  coauthors) do_coauthors ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;
