@@ -41,7 +41,7 @@ TAG = re.compile(
     r"|not\s*ocr"
     r"|doc|docx|txt|rtf|lit|pdb|htm|html|pdf|epub|mobi|prc|azw3?|zip"
     r")\s*\)",
-    re.I)
+    re.IGNORECASE)
 
 
 class ScannerTags:

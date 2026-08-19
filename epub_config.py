@@ -6,8 +6,8 @@ in the codebase may carry a hardcoded default for a deployment value.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
 
 from dotenv import dotenv_values
 
@@ -45,7 +45,7 @@ class Config:
 
     # ── construction ──────────────────────────────────────────────────
     @classmethod
-    def from_file(cls, path: Path | str) -> "Config":
+    def from_file(cls, path: Path | str) -> Config:
         path = Path(path)
         if not path.is_file():
             raise ConfigError(

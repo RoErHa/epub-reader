@@ -411,9 +411,9 @@ class TestGivingUpOnAHostThatIsDown:
     @staticmethod
     def fetcher(fetch, clock, **kwargs):
         from epub_providers import PoliteFetcher
-        settings = dict(interval=0, backoff=0, attempts=2,
-                        sleep=lambda s: None, clock=clock,
-                        jitter=lambda a, b: 0.0)
+        settings = {"interval": 0, "backoff": 0, "attempts": 2,
+                    "sleep": lambda s: None, "clock": clock,
+                    "jitter": lambda a, b: 0.0}
         settings.update(kwargs)
         return PoliteFetcher(fetch, **settings)
 

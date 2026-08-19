@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import base64
 import zipfile
-from xml.sax.saxutils import escape
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
+from xml.sax.saxutils import escape
 
 # A 1x1 PNG. Enough to make a section that has an image and no text,
 # which is what a real book's cover page amounts to.
@@ -76,7 +77,7 @@ class EpubBuilder:
 
     SENTINEL = "__epub_script_executed"
 
-    NAMES = [
+    NAMES: ClassVar[list[str]] = [
         "Chapter One", "Chapter Two", "Chapter Three", "Chapter Four",
         "Chapter Five", "Chapter Six", "Chapter Seven", "Chapter Eight",
     ]

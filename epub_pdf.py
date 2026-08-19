@@ -31,6 +31,7 @@ which is the same outcome as the 161 that have none at all.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 from pathlib import Path
@@ -125,7 +126,7 @@ class PdfCoverRenderer:
                 return None
             image = page.render(scale=self._scale(page)).to_pil()
             return self._jpeg(image)
-        except Exception as exc:                # noqa: BLE001
+        except Exception as exc:
             # Any malformed file, any pdfium error. One bad book must
             # never stop a scan — §3.2.
             LOG.info("no cover from %s: %s", Path(path).name,
@@ -133,10 +134,8 @@ class PdfCoverRenderer:
             return None
         finally:
             if document is not None:
-                try:
+                with contextlib.suppress(Exception):
                     document.close()
-                except Exception:               # noqa: BLE001, S110
-                    pass
 
     # ── is this a cover? ──────────────────────────────────────────────
     def _is_a_cover(self, page, raw) -> bool:
@@ -283,7 +282,7 @@ class PdfMetadataReader:
 
     @classmethod
     def _names_nothing(cls, stem: str) -> bool:
-        words = [w for w in re.findall(r"[a-z]{2,}", stem.lower())]
+        words = re.findall(r"[a-z]{2,}", stem.lower())
         return len(words) < 2 or bool(PLACEHOLDER.match(stem.strip()))
 
     @staticmethod
@@ -352,8 +351,8 @@ class PdfMetadataReader:
     def _subjects(info: dict[str, str]) -> list[str]:
         subjects: list[str] = []
         for key in ("Subject", "Keywords"):
-            for part in re.split(r"[,;]", info.get(key, "")):
-                part = part.strip()
+            for raw in re.split(r"[,;]", info.get(key, "")):
+                part = raw.strip()
                 if part and part not in subjects:
                     subjects.append(part)
         return subjects

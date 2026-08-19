@@ -177,6 +177,8 @@ class TestUnderscores:
             "Spotlight Blues Guitar LessonBook"
 
     def test_both_rules_at_once(self):
-        assert ScannerTags.strip(
+        # `strip` here is our own classmethod, not str.strip, which is
+        # what B005 is about.
+        assert ScannerTags.strip(  # noqa: B005
             "Hamilton,_Laurell_K._-_The_Lunatic_Cafe(v2.1)"
         ) == "Hamilton, Laurell K. - The Lunatic Cafe"

@@ -16,12 +16,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from epub_metadata import (BookMetadata, DrmError, EpubMetadataReader,
-                           MetadataError)
-from epub_mobi import MobiMetadataReader
 from epub_cbz import CbzMetadataReader
-from epub_pdf import PdfMetadataReader
+from epub_metadata import BookMetadata, DrmError, EpubMetadataReader, MetadataError
+from epub_mobi import MobiMetadataReader
 from epub_names import fold, title_sort_key
+from epub_pdf import PdfMetadataReader
 from epub_search import SearchIndex
 
 LOG = logging.getLogger("epub-reader.index")
@@ -69,10 +68,11 @@ class IndexReport:
             (self.searchable, "newly searchable"),
         ):
             if count:
-                parts.append(f"{self._books(count) if label == 'new' else count} {label}")
+                shown = self._books(count) if label == "new" else count
+                parts.append(f"{shown} {label}")
         lines = [
-            f"Indexed — {', '.join(parts)}, {self.unchanged} unchanged "
-            f"({self.seconds:.1f}s)."
+            (f"Indexed — {', '.join(parts)}, {self.unchanged} unchanged "
+             f"({self.seconds:.1f}s).")
         ]
         for mark, names in (("+", self.added_names), ("-", self.missing_names),
                             ("!", self.failed_names)):
@@ -114,12 +114,14 @@ class CoverStore:
         try:
             from PIL import Image
 
-            with Image.open(io.BytesIO(data)) as image:
-                image = image.convert("RGB")
+            with Image.open(io.BytesIO(data)) as opened:
+                # RGB before JPEG, or a cover with an alpha channel
+                # cannot be saved at all.
+                image = opened.convert("RGB")
                 image.thumbnail((COVER_MAX, COVER_MAX))
                 image.save(target, "JPEG", quality=82, optimize=True)
             return rel
-        except Exception as exc:  # noqa: BLE001 — a bad cover is not fatal
+        except Exception as exc:
             LOG.debug("cover failed for %s: %s", content_hash[:12], exc)
             return None
 
@@ -167,7 +169,7 @@ class LibraryIndexer:
                     LOG.info("%s", exc)
                     self._forget_locked(path, report)
                     report.locked += 1
-                except Exception as exc:  # noqa: BLE001 — never stop the run
+                except Exception as exc:
                     LOG.warning("indexing %s failed: %s", path, exc)
                     report.failed += 1
 

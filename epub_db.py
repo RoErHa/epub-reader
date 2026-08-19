@@ -9,6 +9,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ class Migration:
 class MigrationRunner:
     """Applies numbered migrations in order, once each."""
 
-    MIGRATIONS: list[Migration] = [
+    MIGRATIONS: ClassVar[list[Migration]] = [
         Migration(
             1,
             "reading_state",

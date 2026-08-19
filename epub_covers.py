@@ -79,7 +79,7 @@ class CoverBackfill:
             path = self._root / book["path"]
             try:
                 data = self._renderer.cover(path)
-            except Exception as exc:              # noqa: BLE001
+            except Exception as exc:
                 LOG.info("cover failed for %s: %s", book["path"], exc)
                 report["failed"] += 1
                 continue
@@ -297,7 +297,7 @@ class ProviderCovers:
             try:
                 found = self._provider.find_books(
                     search_title(book["title"]), self._query_author(book))
-            except Exception as exc:              # noqa: BLE001
+            except Exception as exc:
                 # A provider having a bad day is not this book's fault,
                 # and a failed lookup is not written down — it stays in
                 # the queue for the next run.
@@ -332,7 +332,7 @@ class ProviderCovers:
     def _store(self, book: dict, chosen, rank: int) -> bool:
         try:
             data = self._fetch_image(chosen.cover_url)
-        except Exception as exc:                  # noqa: BLE001
+        except Exception as exc:
             LOG.info("cover fetch failed for %s: %s", book["title"], exc)
             return False
         if not self._is_a_picture(data):
@@ -363,7 +363,7 @@ class ProviderCovers:
 
             with Image.open(io.BytesIO(data)) as image:
                 return min(image.size) >= SMALLEST
-        except Exception:                         # noqa: BLE001
+        except Exception:
             return False
 
     def _surname(self, book: dict) -> str | None:
@@ -379,7 +379,7 @@ class ProviderCovers:
         return book.get("author") or book.get("author_surname")
 
     def _record(self, book_id: int, origin: str, source: str) -> None:
-        CoverBackfill._record(self, book_id, origin, source)  # noqa: SLF001
+        CoverBackfill._record(self, book_id, origin, source)
 
     @staticmethod
     def summary(report: dict) -> str:

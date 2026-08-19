@@ -84,7 +84,9 @@ class TestReadingOne:
         bsdtar twice."""
         extractor = FakeExtractor()
         rar = RarArchive(archive, run=extractor)
-        rar.names(); rar.pages(); rar.listing()
+        rar.names()
+        rar.pages()
+        rar.listing()
         assert [c[0] for c in extractor.calls] == ["-tvf"]
 
     def test_reading_a_cover_does_not_unpack_the_archive(self, archive):
@@ -227,7 +229,7 @@ class TestTheLibraryAcceptsIt:
         assert EpubGateway.MEDIA_TYPES[".cbr"] == "application/vnd.comicbook+zip"
 
     def test_the_indexer_has_a_reader_for_it(self, gateway):
-        readers = gateway._indexer._readers  # noqa: SLF001
+        readers = gateway._indexer._readers
         assert ".cbr" in readers
         assert readers[".cbr"].__class__.__name__ == "CbzMetadataReader"
 

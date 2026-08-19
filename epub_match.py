@@ -26,11 +26,11 @@ WEIGHTS = {"title": 0.5, "author": 0.3, "year": 0.1, "language": 0.1}
 # Bracketed junk, scanner watermarks and version tags, which real
 # filenames are full of.
 BRACKETS = re.compile(r"[\(\[\{][^\)\]\}]*[\)\]\}]")
-VERSION = re.compile(r"[\s\-–—]+v\.?\s*\d+(\.\d+)*\s*$", re.I)
+VERSION = re.compile(r"[\s\-–—]+v\.?\s*\d+(\.\d+)*\s*$", re.IGNORECASE)
 NOISE = re.compile(
     r"\b(retail|epub|mobi|azw3?|ebook|e-book|unabridged|illustrated|"
     r"annotated|reprint|scan(ned)?|proofed?|edition)\b",
-    re.I,
+    re.IGNORECASE,
 )
 
 

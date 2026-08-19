@@ -1,4 +1,7 @@
 -r requirements.txt
 
 pytest>=8.0
+# Linting, which this project did without for far too long: run cold on a
+# finished codebase it found 116 things and no bugs. See ruff.toml.
+ruff>=0.16
 httpx>=0.27

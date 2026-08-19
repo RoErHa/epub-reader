@@ -135,7 +135,8 @@ class TestIndexMaintenance:
     def test_a_retitled_book_is_findable_by_its_new_title(
         self, stocked, library, gateway
     ):
-        import os, time
+        import os
+        import time
         EpubBuilder(title="Renamed Entirely", author="Frank Herbert").build(
             library / "dune.epub"
         )

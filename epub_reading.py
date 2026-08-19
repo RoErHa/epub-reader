@@ -38,7 +38,7 @@ class ReadingState:
         }
 
     @classmethod
-    def from_row(cls, row) -> "ReadingState":
+    def from_row(cls, row) -> ReadingState:
         return cls(
             content_hash=row["content_hash"],
             cfi=row["cfi"],

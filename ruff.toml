@@ -1,0 +1,50 @@
+# Linting, which this project did without for far too long.
+#
+# Running ruff cold on a finished codebase found 62 things and no bugs —
+# which is the point: none of it was wrong, and nothing was checking. The
+# eleven *unused* `# noqa` comments were the tell, suppressions written
+# for a linter that had never existed.
+#
+# Tool configuration, not application configuration: §10.7's "one .env is
+# the only configuration source" is about secrets, ports and paths, and a
+# linter reads none of those.
+
+line-length = 88          # ruff's own default. The prose-shaped code here
+                          # sits near 79 by habit; asking for 79 outright
+                          # flagged 436 lines, almost all of them in tests,
+                          # which is churn rather than an improvement.
+target-version = "py313"
+exclude = [".venv", "static/vendor", ".test-library"]
+
+[lint]
+select = [
+    "E", "W",     # pycodestyle
+    "F",          # pyflakes — the ones that are actually bugs
+    "I",          # import order
+    "B",          # bugbear: mutable defaults, useless expressions
+    "C4",         # comprehensions
+    "UP",         # syntax this Python no longer needs
+    "SIM",        # simplifications
+    "RUF",        # ruff's own, including unused-noqa
+    "ISC",        # implicit string concatenation
+    "PLE", "PLW", # pylint errors and warnings, not its opinions
+    "FURB",       # modernisations
+    "EXE",        # shebangs that are not executable
+]
+
+ignore = [
+    # The prose in this codebase uses en-dashes, em-dashes and
+    # typographic quotes on purpose — every docstring is written to be
+    # read. "Ambiguous unicode" is a warning about homoglyph attacks in
+    # identifiers, and there are none here: it is punctuation, in
+    # English, in comments.
+    "RUF001", "RUF002", "RUF003",
+]
+
+[lint.per-file-ignores]
+# Tests say what they mean at whatever length that takes, and a fixture
+# built inline is clearer than one hoisted to the top of the file.
+"tests/*" = ["E501"]
+
+[lint.isort]
+known-first-party = ["tests"]

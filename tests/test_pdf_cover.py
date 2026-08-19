@@ -26,7 +26,8 @@ Image = pytest.importorskip("PIL.Image")
 
 def jpeg(colour=(180, 40, 40), size=(600, 800), noise=True):
     """A picture, not a flat wash: a real cover has detail in it."""
-    from PIL import Image as PilImage, ImageDraw
+    from PIL import Image as PilImage
+    from PIL import ImageDraw
     img = PilImage.new("RGB", size, colour)
     if noise:
         draw = ImageDraw.Draw(img)

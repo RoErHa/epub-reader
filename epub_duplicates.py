@@ -19,12 +19,12 @@ library full of PDFs called "Contents" would collapse into one book.
 """
 from __future__ import annotations
 
-import difflib
 import logging
 import re
 from pathlib import Path
 
 from epub_match import normalise_title
+from epub_names import fold
 
 
 def cls_title(title: str | None) -> str:
@@ -37,7 +37,6 @@ def cls_title(title: str | None) -> str:
     subtitle is part of what distinguishes one book from another.
     """
     return normalise_title(str(title or "").replace(":", " "))
-from epub_names import fold
 
 LOG = logging.getLogger("epub-reader.duplicates")
 
@@ -74,8 +73,8 @@ class DuplicateFinder:
 
         found = []
         for copies in groups.values():
-            copies = self._same_title_same_book(copies)
-            if len(copies) < 2:
+            same = self._same_title_same_book(copies)
+            if len(same) < 2:
                 continue
             keeper = self._best(copies)
             found.append({

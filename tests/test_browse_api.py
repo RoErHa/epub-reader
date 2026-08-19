@@ -275,7 +275,7 @@ class TestCreditOrder:
         book_id = gateway.database.connection.execute(
             "SELECT book_id FROM metadata WHERE title = 'Dead Morn'"
         ).fetchone()["book_id"]
-        CoAuthorsInTitles(gateway.database)._credit(  # noqa: SLF001
+        CoAuthorsInTitles(gateway.database)._credit(
             {"id": book_id, "people": ["Roberto Fuentes"]}, 0)
         row = BrowseQueries(gateway.database).books(sort="title").rows[0]
         assert row["authors"] == ["Piers Anthony", "Roberto Fuentes"]

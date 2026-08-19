@@ -44,7 +44,8 @@ def run(*args, env_file=None):
     if env_file is not None:
         argv += ["--env", str(env_file)]
     argv += list(args)
-    return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=60)
+    return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True,
+                          timeout=60, check=False)
 
 
 class TestUsage:
@@ -84,13 +85,11 @@ class TestScan:
 
     def test_scan_detects_a_book_added_between_runs(self, env_file):
         run("scan", env_file=env_file)
-        library = Path(
-            [
-                line.split("=", 1)[1]
-                for line in env_file.read_text().splitlines()
-                if line.startswith("LIBRARY_ROOT=")
-            ][0]
-        )
+        library = Path(next(
+            line.split("=", 1)[1]
+            for line in env_file.read_text().splitlines()
+            if line.startswith("LIBRARY_ROOT=")
+        ))
         EpubBuilder(title="Second Book").build(library / "second.epub")
         result = run("scan", env_file=env_file)
         assert "second.epub" in result.stdout
@@ -126,7 +125,7 @@ class TestRepair:
         state.mkdir()
         env = tmp_path / ".env.empty"
         env.write_text(ENV_BODY.format(library=library, state=state))
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 — the return code IS the assertion
             [str(SCRIPT), "repair", "--env", str(env)],
             capture_output=True, text=True, cwd=ROOT, timeout=60)
         assert result.returncode == 0, result.stderr
@@ -134,11 +133,11 @@ class TestRepair:
 
     def test_repair_is_listed_in_the_help(self):
         result = subprocess.run([str(SCRIPT), "help"], capture_output=True,
-                                text=True, cwd=ROOT)
+                                text=True, cwd=ROOT, check=False)
         assert "repair" in result.stdout
 
     def test_an_unknown_command_is_still_refused(self, env_file):
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 — the return code IS the assertion
             [str(SCRIPT), "reapir", "--env", str(env_file)],
             capture_output=True, text=True, cwd=ROOT)
         assert result.returncode != 0
@@ -155,7 +154,7 @@ class TestRefresh:
         state.mkdir()
         env = tmp_path / ".env.refresh"
         env.write_text(ENV_BODY.format(library=library, state=state))
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510 — the return code IS the assertion
             [str(SCRIPT), "refresh", "--env", str(env)],
             capture_output=True, text=True, cwd=ROOT, timeout=60)
         assert result.returncode == 0, result.stderr
@@ -163,7 +162,7 @@ class TestRefresh:
 
     def test_refresh_is_listed_in_the_help(self):
         result = subprocess.run([str(SCRIPT), "help"], capture_output=True,
-                                text=True, cwd=ROOT)
+                                text=True, cwd=ROOT, check=False)
         assert "refresh" in result.stdout
 
 

@@ -14,7 +14,11 @@ from __future__ import annotations
 import pytest
 
 from epub_match import (
-    AUTO_APPLY, REVIEW_FLOOR, Candidate, MatchScorer, normalise_title,
+    AUTO_APPLY,
+    REVIEW_FLOOR,
+    Candidate,
+    MatchScorer,
+    normalise_title,
     search_title,
 )
 
@@ -135,8 +139,8 @@ class TestFuzzyScoring:
 
 class TestVerdicts:
     def test_the_thresholds_are_the_decided_ones(self):
-        assert AUTO_APPLY == pytest.approx(0.90)
-        assert REVIEW_FLOOR == pytest.approx(0.60)
+        assert pytest.approx(0.90) == AUTO_APPLY
+        assert pytest.approx(0.60) == REVIEW_FLOOR
 
     @pytest.mark.parametrize("score,expected", [
         (1.0, "apply"), (0.95, "apply"), (0.90, "apply"),

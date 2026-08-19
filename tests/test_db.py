@@ -157,7 +157,7 @@ class TestSqliteVersion:
                                                           monkeypatch):
         monkeypatch.setattr("epub_db.sqlite3.sqlite_version", "3.43.2")
         with pytest.raises(DatabaseError) as exc:
-            Database(tmp_path / "old.db").connection
+            _ = Database(tmp_path / "old.db").connection
         message = str(exc.value)
         assert "3.43.2" in message and "3.44" in message
 

@@ -35,7 +35,8 @@ ARTICLES = frozenset({
     "el", "los", "las", "il", "lo", "gli",
 })
 
-SPLIT_AUTHORS = re.compile(r"\s*(?:&|;|,\s*and\s+|\s+and\s+|\s+with\s+)\s*", re.I)
+SPLIT_AUTHORS = re.compile(
+    r"\s*(?:&|;|,\s*and\s+|\s+and\s+|\s+with\s+)\s*", re.IGNORECASE)
 
 
 def fold(text: str) -> str:
@@ -55,7 +56,7 @@ class PersonName:
         return fold(raw).strip() in NON_NAMES
 
     @classmethod
-    def parse(cls, raw: str | None) -> "PersonName | None":
+    def parse(cls, raw: str | None) -> PersonName | None:
         if not raw:
             return None
         raw = re.sub(r"\s+", " ", str(raw)).strip()
@@ -94,7 +95,7 @@ class PersonName:
         return fold(f"{surname}, {given}") if given else fold(surname)
 
     @classmethod
-    def parse_many(cls, raw: str | None) -> list["PersonName"]:
+    def parse_many(cls, raw: str | None) -> list[PersonName]:
         if not raw:
             return []
         text = re.sub(r"\s+", " ", str(raw)).strip()

@@ -13,7 +13,7 @@ import json
 import logging
 import time
 
-from epub_match import AUTO_APPLY, REVIEW_FLOOR, Candidate, MatchScorer, search_title
+from epub_match import Candidate, MatchScorer, search_title
 from epub_providers import ProviderError
 
 LOG = logging.getLogger("epub-reader.enrich")
@@ -230,7 +230,9 @@ class BookEnricher:
             new = candidate.get(field)
             if new in (None, "") or field not in allowed:
                 continue
-            old = row[field] if field in row.keys() else None
+            # `keys()` is not optional: sqlite3.Row has no
+            # __contains__, so `field in row` raises rather than answers.
+            old = row[field] if field in row.keys() else None  # noqa: SIM118
             if (old or None) == (new or None):
                 continue
             out.append({"field": field, "from": old, "to": new})

@@ -6,6 +6,7 @@ an index run.
 """
 from __future__ import annotations
 
+import contextlib
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -118,7 +119,7 @@ class EpubMetadataReader:
             raise MetadataError(f"{path.name} does not exist.") from exc
         except MetadataError:
             raise
-        except Exception as exc:  # noqa: BLE001 — one book must not stop a run
+        except Exception as exc:
             raise MetadataError(f"{path.name}: {type(exc).__name__}: {exc}") from exc
 
     # ── internals ─────────────────────────────────────────────────────
@@ -169,7 +170,7 @@ class EpubMetadataReader:
                 self._refuse_if_locked(contents, contents.names(), path)
         except DrmError:
             return True
-        except Exception:  # noqa: BLE001 — anything else is not this question
+        except Exception:
             return False
         return False
 
@@ -184,7 +185,7 @@ class EpubMetadataReader:
             return
         try:
             declared = contents.read(found).decode("utf-8", "replace")
-        except Exception:  # noqa: BLE001 — an unreadable note is not DRM
+        except Exception:
             return
 
         locked = [uri for uri in re.findall(r'CipherReference[^>]*URI="([^"]+)"',
@@ -217,7 +218,8 @@ class EpubMetadataReader:
             elif name == "language" and not meta.language:
                 # "UND" is the OPF shrugging, not a language. Showing it
                 # as one is worse than showing none.
-                meta.language = text if text.strip().lower() not in NOT_A_LANGUAGE else None
+                spoken = text.strip().lower() not in NOT_A_LANGUAGE
+                meta.language = text if spoken else None
             elif name == "publisher" and not meta.publisher:
                 meta.publisher = text
             elif name == "description" and not meta.description:
@@ -252,18 +254,14 @@ class EpubMetadataReader:
             if name == "calibre:series" and content:
                 meta.series = content.strip()
             elif name == "calibre:series_index" and content:
-                try:
+                with contextlib.suppress(ValueError):
                     meta.series_index = float(content)
-                except ValueError:
-                    pass
             # EPUB 3 equivalent
             elif node.get("property") == "belongs-to-collection" and node.text:
                 meta.series = meta.series or node.text.strip()
             elif node.get("property") == "group-position" and node.text:
-                try:
+                with contextlib.suppress(ValueError):
                     meta.series_index = meta.series_index or float(node.text)
-                except ValueError:
-                    pass
 
     def _read_cover(self, zf, root, base: str, meta: BookMetadata) -> None:
         items = [n for n in self._children(root, "manifest")

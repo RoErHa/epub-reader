@@ -109,8 +109,8 @@ class TestTheCompletionRule:
          "theirs does not begin where ours does"),
         ("Chthon", "Phthor", "a different book entirely"),
         ("The Ring", "The Rings of Saturn",
-         "one word alone corroborates nothing — 'ring' would become "
-         "'rings' and carry the book off to a different author"),
+         ("one word alone corroborates nothing — 'ring' would become "
+          "'rings' and carry the book off to a different author")),
         ("Dispossesse", "The Dispossessed",
          "one word again: a completion needs a whole word beside it"),
     ])

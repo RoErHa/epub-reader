@@ -105,7 +105,7 @@ class PdfBuilder:
         return "\n".join(parts).encode("latin-1", "replace")
 
     def _page_stream(self, index: int) -> bytes:
-        lines = [f"Page {index + 1}."] + list(self.lines)
+        lines = [f"Page {index + 1}.", *self.lines]
         parts = ["BT", "/F1 18 Tf", "72 720 Td"]
         for line in lines:
             parts.append(f"({self._escape(line)}) Tj")

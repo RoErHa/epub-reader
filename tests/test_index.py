@@ -143,7 +143,8 @@ class TestIncremental:
         add(library, "a.epub", title="Before")
         indexer.run()
         add(library, "a.epub", title="After", paragraphs_per_chapter=9)
-        import os, time
+        import os
+        import time
         os.utime(library / "a.epub", (time.time() + 5, time.time() + 5))
         report = indexer.run()
         assert report.updated == 1
@@ -676,7 +677,7 @@ class TestBooksThatCannotBeOpened:
         (library / "keeper.epub").unlink()
         self.locked(library, "keeper.epub")
 
-        report = indexer.run()          # must not raise
+        indexer.run()          # must not raise
         assert db.connection.execute(
             "SELECT COUNT(*) n FROM book WHERE path = 'keeper.epub'"
         ).fetchone()["n"] == 0

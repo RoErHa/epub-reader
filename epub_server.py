@@ -9,6 +9,7 @@ import hashlib
 import io
 import zipfile
 from pathlib import Path
+from typing import ClassVar
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -16,33 +17,37 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from epub_annotations import AnnotationError, AnnotationStore
+from epub_book_enrich import BookEnricher
 from epub_browse import BrowseError, BrowseQueries
+from epub_coauthors import CoAuthorsInTitles
+from epub_config import Config
 from epub_covers import CoverBackfill, ProviderCovers
 from epub_credits import BookCredits
-from epub_duplicates import DuplicateFinder
-from epub_forget import ForgetMissing, UnpluggedError
-from epub_coauthors import CoAuthorsInTitles
-from epub_filenames import CreditsFromNames
-from epub_fragments import TitlesFromFragments
-from epub_series import SeriesFromNames
-from epub_tags import ScannerTags
-from epub_config import Config
 from epub_db import Database
+from epub_dedupe import AuthorDeduplicator
+from epub_duplicates import DuplicateFinder
+from epub_enrich import AuthorEnricher
+from epub_filenames import CreditsFromNames
+from epub_forget import ForgetMissing, UnpluggedError
+from epub_fragments import TitlesFromFragments
 from epub_index import LibraryIndexer
+from epub_maintenance import LibraryRepair
+from epub_providers import (
+    GoogleBooksProvider,
+    OpenLibraryProvider,
+    PoliteFetcher,
+    http_bytes,
+)
 from epub_rar import RarArchive, RarError, repack
 from epub_reading import STATUSES, ReadingStateStore
-from epub_book_enrich import BookEnricher
-from epub_dedupe import AuthorDeduplicator
-from epub_maintenance import LibraryRepair
 from epub_refresh import AuthorRefresh
 from epub_repair import TitleAsAuthorRepair
-from epub_titles import TitleFromWorks
-from epub_enrich import AuthorEnricher
-from epub_providers import (GoogleBooksProvider, OpenLibraryProvider,
-                            PoliteFetcher, http_bytes)
 from epub_search import SearchQueries
-from epub_shelves import SMART, ShelfError, ShelfExists, ShelfStore
 from epub_security import SecurityHeaders, SecurityHeadersMiddleware
+from epub_series import SeriesFromNames
+from epub_shelves import SMART, ShelfError, ShelfExists, ShelfStore
+from epub_tags import ScannerTags
+from epub_titles import TitleFromWorks
 
 VERSION = "0.1.0"
 SERVICE = "epub-reader"
@@ -198,7 +203,7 @@ class StatusUpdate(BaseModel):
 class EpubGateway:
     """Builds and owns the FastAPI application."""
 
-    MEDIA_TYPES = {
+    MEDIA_TYPES: ClassVar[dict[str, str]] = {
         ".epub": "application/epub+zip",
         ".azw3": "application/vnd.amazon.ebook",
         ".mobi": "application/x-mobipocket-ebook",
@@ -340,7 +345,7 @@ class EpubGateway:
         images = PoliteFetcher(http_bytes, rps=self._config.provider_max_rps)
         return ProviderCovers(
             self._database, self._indexer.covers, self._config.library_root,
-            provider, fetch_image=lambda url: images(url))
+            provider, fetch_image=images)
 
     def name_series(self, apply: bool = False) -> str:
         """File books under the series their names give, in one line."""

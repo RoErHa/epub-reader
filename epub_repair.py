@@ -254,7 +254,9 @@ class TitleAsAuthorRepair:
         if not first or not second:
             return False
         short, long_ = sorted((first, second), key=len)
-        for ours, theirs in zip(short, long_):
+        # The short list is the point: an initial stands in for the
+        # name it begins, so pairing stops at the shorter one.
+        for ours, theirs in zip(short, long_, strict=False):
             # An initial stands in for the name it begins.
             if len(ours) == 1 or len(theirs) == 1:
                 if ours[0] != theirs[0]:

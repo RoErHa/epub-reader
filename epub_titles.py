@@ -49,8 +49,9 @@ COVERAGE = 0.6
 
 # Words that stay lower case inside a title, unless they open or close
 # it.
-SMALL = frozenset("a an the and but or nor of in on at to for from by with"
-                  " as is".split())
+SMALL = frozenset(["a", "an", "the", "and", "but", "or", "nor", "of",
+                   "in", "on", "at", "to", "for", "from", "by",
+                   "with", "as", "is"])
 
 # Articles that a normalised work title drops, so they turn up as
 # leftovers in front of a match and mean nothing.

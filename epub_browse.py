@@ -132,7 +132,8 @@ class BrowseQueries:
         if letter:
             column = "author_sort" if sort == "author" else "m.title_sort"
             if letter == "#":
-                sql += f" AND (substr({column},1,1) < 'a' OR substr({column},1,1) > 'z')"
+                sql += (f" AND (substr({column},1,1) < 'a'"
+                        f" OR substr({column},1,1) > 'z')")
             else:
                 sql += f" AND substr({column},1,1) = ?"
                 params.append(letter.lower())
@@ -142,7 +143,8 @@ class BrowseQueries:
         ).fetchone()["n"]
 
         sql += f" ORDER BY {SORTS[sort]}, m.title_sort LIMIT ? OFFSET ?"
-        rows = self._db.connection.execute(sql, params + [limit, offset]).fetchall()
+        rows = self._db.connection.execute(
+            sql, [*params, limit, offset]).fetchall()
         return Page([self._book(r) for r in rows], total)
 
     @staticmethod
@@ -312,7 +314,7 @@ class BrowseQueries:
         library by that author is still worth showing.
         """
         fetched = self._fetched_works(author_id, exclude_book_id, show_all)
-        return fetched if fetched else self._owned_works(author_id, exclude_book_id)
+        return fetched or self._owned_works(author_id, exclude_book_id)
 
     def _fetched_works(self, author_id: int, exclude_book_id: int,
                        show_all: bool) -> list[dict]:
@@ -328,8 +330,8 @@ class BrowseQueries:
             placeholders = ",".join("?" * len(self.SHOWN_WORK_TYPES))
             sql += f" AND w.work_type IN ({placeholders})"
             params += list(self.SHOWN_WORK_TYPES)
-        sql += " ORDER BY COALESCE(w.series_name, 'zzz'), w.series_index," \
-               " COALESCE(w.first_published, 9999), w.title"
+        sql += (" ORDER BY COALESCE(w.series_name, 'zzz'), w.series_index,"
+                " COALESCE(w.first_published, 9999), w.title")
         return [
             {"title": r["title"], "first_published": r["first_published"],
              "series": r["series_name"], "series_index": r["series_index"],

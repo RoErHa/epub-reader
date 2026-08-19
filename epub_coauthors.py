@@ -44,10 +44,10 @@ LOG = logging.getLogger("epub-reader.coauthors")
 # "(with Roberto Fuentes)", "(With Lynn Abbey)". Only `with` — `and` and
 # `&` open the door to "(and Other Stories)" and buy us nothing: every
 # one of the 13 real cases says `with`.
-CREDIT = re.compile(r"\s*\(\s*with\s+(?P<names>[^)]+?)\s*\)", re.I)
+CREDIT = re.compile(r"\s*\(\s*with\s+(?P<names>[^)]+?)\s*\)", re.IGNORECASE)
 
 # "James Richey and Alan Riggs" is two people in one bracket.
-SPLIT = re.compile(r"\s*(?:,|&|\band\b)\s*", re.I)
+SPLIT = re.compile(r"\s*(?:,|&|\band\b)\s*", re.IGNORECASE)
 
 
 class CoAuthorsInTitles:

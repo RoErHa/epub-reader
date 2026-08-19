@@ -18,6 +18,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import ClassVar
 
 from epub_match import Candidate
 from epub_names import PersonName, fold
@@ -186,12 +187,13 @@ class WorkClassifier:
         r"\bcollected\b", r"\bselected\b", r"\bshort stories\b",
         r"and other stories\b", r"\bstories\b$", r"\btales\b$",
     )
-    NONFICTION_SUBJECTS = {
+    NONFICTION_SUBJECTS: ClassVar[set[str]] = {
         "essays", "biography", "autobiography", "memoir", "criticism",
         "literary criticism", "history", "philosophy", "letters",
         "interviews", "nonfiction", "non-fiction",
     }
-    COLLECTION_SUBJECTS = {"short stories", "short story", "poetry", "poems"}
+    COLLECTION_SUBJECTS: ClassVar[set[str]] = {
+        "short stories", "short story", "poetry", "poems"}
 
     @classmethod
     def classify(cls, title: str, subjects: list[str] | None) -> str:

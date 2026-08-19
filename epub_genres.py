@@ -11,10 +11,9 @@ from real data; inventing a mapping would quietly file books wrongly.
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from pathlib import Path
-
-import re
 
 from epub_names import fold
 
@@ -34,7 +33,7 @@ class GenreVocabulary:
         self.unmapped: Counter = Counter()
 
     @classmethod
-    def load(cls, root: Path | None = None) -> "GenreVocabulary":
+    def load(cls, root: Path | None = None) -> GenreVocabulary:
         root = Path(root) if root else DATA
         genres = dict(cls._rows(root / "genres.tsv"))
         mapping = {fold(k): v for k, v in cls._rows(root / "genre_map.tsv")}
@@ -46,8 +45,8 @@ class GenreVocabulary:
 
     @staticmethod
     def _rows(path: Path):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
             if not line or line.startswith("#"):
                 continue
             parts = line.split("\t")

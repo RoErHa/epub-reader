@@ -50,9 +50,9 @@ import re
 import time
 from pathlib import Path
 
+from epub_coauthors import CoAuthorsInTitles
 from epub_names import PersonName
 from epub_series import SeriesFromNames
-from epub_coauthors import CoAuthorsInTitles
 from epub_tags import ScannerTags
 
 LOG = logging.getLogger("epub-reader.filenames")
@@ -85,7 +85,7 @@ GIVEN = re.compile(r"^(?:[^\W\d_][\w.'\u2019-]*)(?:\s+[^\W\d_][\w.'\u2019-]*){0,
 EXTENSION = re.compile(
     r"\.(?:doc|docx|txt|rtf|lit|pdb|htm|html|pdf|epub|mobi|prc|azw3?|zip"
     r"|jpg|jpeg|png|gif)$",
-    re.I)
+    re.IGNORECASE)
 
 # What is left once the author is off the front, when it names a shelf:
 # "Xanth 08 - Crewel Lye". Only read after SeriesFromNames has agreed
