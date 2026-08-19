@@ -814,6 +814,61 @@ joins through to a present book, so an empty series cannot show (§6.8).
 #5 is genuinely missing rather than misfiled: *Statesman* is not in the
 library, which is the gap-finder working.
 
+### 8.16 A book dropped in is a book filed
+
+§6.6 said dropping books into `LIBRARY_ROOT` and restarting was the whole
+workflow. It was half true. `REPAIR_ON_SCAN` runs the three passes that
+**ask Open Library**, and is off by default for exactly that reason —
+while everything built since (§8.13a–d) is local, free, and **ran on
+nothing at all**. A book added yesterday browsed as
+`Anthony, Piers - Xanth 12 - Man From Mundania`, credited to nobody,
+exactly as the first forty-five did.
+
+> **What costs nothing may be done for you; what costs a request may
+> not.** `TIDY_ON_SCAN` is **on unless turned off**: these passes read
+> names, write to our own database, reach no provider, and keep what the
+> file said in `file_title`, so nothing they do is one-way.
+> `REPAIR_ON_SCAN` and `fragments` stay opt-in.
+
+`tidy()` runs them in §6.6's order — **authors, then what is asked of an
+author, then what depends on nobody**: `names` (author, series, title),
+`coauthors`, `tags`. Both `./run.sh scan` and the server's own startup
+scan do it, so a launchd start behaves exactly like `./run.sh restart`.
+
+**Proved on the real library**: a PDF dropped in as
+`Anthony, Piers - Xanth 12 - Man From Mundania (with Nobody Real).pdf`,
+carrying `harry` as its author, came back after one restart as **Man From
+Mundania · Piers Anthony, Nobody Real · Xanth #12**.
+
+**Two ways passes can fail to settle, and both were live:**
+
+> **A title a provider CONFIRMED outranks one read off a filename.**
+> §8.13c had repaired `The Caterpillars Questi` to *The Caterpillar's
+> Question*; the next scan read the broken name again and put the
+> fragment back, whereupon `coauthors` saw the bracket it had just
+> restored and rewrote the title a second time. Within `provider`,
+> `source = 'openlibrary'` is what a catalogue asserts and
+> `source = 'filename'` is what we inferred — so the derived one yields.
+
+> **Passes must settle, not take turns.** `names` derives a title from
+> `file_title`, which is the file's own words, co-author bracket and all;
+> `coauthors` takes the bracket off. So every restart put
+> "(with Roberto Fuentes)" back and took it off again — **13 books
+> retitled and 13 co-authors "freed" on a scan where nothing had
+> changed**. Now both read the same source and each writes only the facts
+> it owns: `names` strips the bracket from the title it writes, and
+> `coauthors` finds its people in `file_title` and renames only if the
+> current title still carries one. Three scans in a row now report
+> *nothing new to read*.
+
+The idempotence test that existed used a book with no co-author, which is
+why it never saw this. There is one with a co-author now.
+
+**And it finished a job that was on ice:** the two P. N. Elrod books that
+§8.13b had to defer — a co-author needs a first author to join — were
+credited by `names` and freed by `coauthors` in the same pass, without
+anybody running either.
+
 ### 8.15 Comics packed with RAR
 
 **295 CBR files, every one invisible.** §2.1 excluded them because "it is

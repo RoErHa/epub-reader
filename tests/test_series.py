@@ -256,7 +256,11 @@ class TestTheCommand:
         env.write_text(
             f"EPUB_PORT=8775\nEPUB_BIND=127.0.0.1\nLIBRARY_ROOT={library}\n"
             f"DB_PATH={state}/books.db\nCOVER_CACHE={state}/covers\n"
-            f"LOG_LEVEL=WARNING\nLOG_FILE={state}/test.log\n")
+            f"LOG_LEVEL=WARNING\nLOG_FILE={state}/test.log\n"
+            # A scan now reads the names it finds (§8.16), which would
+            # file these two before `--series` was asked to. Off here, so
+            # what is under test is the command rather than the scan.
+            f"TIDY_ON_SCAN=false\n")
         return env
 
     def test_it_reports_without_filing_anything(self, tmp_path, capsys):

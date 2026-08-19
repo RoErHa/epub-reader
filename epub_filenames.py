@@ -52,6 +52,7 @@ from pathlib import Path
 
 from epub_names import PersonName
 from epub_series import SeriesFromNames
+from epub_coauthors import CoAuthorsInTitles
 from epub_tags import ScannerTags
 
 LOG = logging.getLogger("epub-reader.filenames")
@@ -163,10 +164,14 @@ class CreditsFromNames:
         there is nothing connecting these words to that shelf, and they
         stay part of the book.
         """
-        # Through §8.13d on the way out: `file_title` is the file's own
-        # words, scanner tags and all, so without this `tags` and this
-        # pass undo one another for ever.
+        # Through §8.13d and §8.13b on the way out. `file_title` is the
+        # file's own words — scanner tags, co-author brackets and all —
+        # so without this the passes take turns instead of settling: one
+        # writes the bracket back and the next takes it off, for ever.
         rest = ScannerTags.strip(EXTENSION.sub("", rest).strip())
+        freed = CoAuthorsInTitles.read(rest)
+        if freed:
+            rest = freed[0]
         if not series:
             return rest
         match = SHELF.match(rest)
@@ -217,6 +222,16 @@ class CreditsFromNames:
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id AND f.field IN ('authors', 'title')
                         AND (f.origin = 'user' OR f.locked = 1))
+               -- A title a provider CONFIRMED outranks one read off a
+               -- filename. Within `provider`, `openlibrary` is what
+               -- somebody's catalogue asserts and `filename` is what we
+               -- inferred from a name — so a repaired fragment
+               -- (§8.13c) is not undone by the next scan reading the
+               -- broken name again.
+               AND NOT EXISTS (
+                     SELECT 1 FROM field_provenance f2
+                      WHERE f2.book_id = b.id AND f2.field = 'title'
+                        AND f2.source = 'openlibrary')
         """
         params: list = []
         if formats:

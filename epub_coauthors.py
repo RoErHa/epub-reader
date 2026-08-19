@@ -91,10 +91,19 @@ class CoAuthorsInTitles:
         """What would change. Changes nothing."""
         plan = []
         for row in self._books():
-            found = self.read(row["title"])
+            # `file_title` is what the file said, and it does not change
+            # between runs; the current title may already have had the
+            # bracket taken off by §8.13a.
+            source = row["file_title"] or row["title"]
+            found = self.read(source)
             if not found:
                 continue
-            title, people = found
+            _, people = found
+            # Only the current title is rewritten, and only if it still
+            # holds the bracket. Otherwise this pass credits people and
+            # leaves the title exactly as it found it.
+            cleaned = self.read(row["title"])
+            title = cleaned[0] if cleaned else row["title"]
             # A second author needs a first. Left for ./run.sh names.
             if not row["author"]:
                 LOG.info("%r credits nobody yet; leaving it for the names pass",
@@ -105,6 +114,8 @@ class CoAuthorsInTitles:
             fresh = [p for p in people
                      if (person := PersonName.parse(p))
                      and person.display.casefold() not in credited]
+            if not fresh and title == row["title"]:
+                continue          # nothing to credit and nothing to rename
             plan.append({"id": row["id"], "title": title, "people": fresh,
                          "was": row["title"]})
         return plan
@@ -114,7 +125,7 @@ class CoAuthorsInTitles:
         authors nobody has settled by hand."""
         return self._db.connection.execute(
             """
-            SELECT b.id, m.title,
+            SELECT b.id, m.title, m.file_title,
                    (SELECT a.name FROM book_author ba
                       JOIN author a ON a.id = ba.author_id
                      WHERE ba.book_id = b.id ORDER BY ba.position LIMIT 1)
@@ -125,12 +136,22 @@ class CoAuthorsInTitles:
               FROM book b
               JOIN metadata m ON m.book_id = b.id
              WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
-               AND m.title LIKE '%(%'
+               AND (m.title LIKE '%(%' OR m.file_title LIKE '%(%')
                AND NOT EXISTS (
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id
                         AND f.field IN ('authors', 'title')
                         AND (f.origin = 'user' OR f.locked = 1))
+               -- A title a provider CONFIRMED outranks one read off a
+               -- filename. Within `provider`, `openlibrary` is what
+               -- somebody's catalogue asserts and `filename` is what we
+               -- inferred from a name — so a repaired fragment
+               -- (§8.13c) is not undone by the next scan reading the
+               -- broken name again.
+               AND NOT EXISTS (
+                     SELECT 1 FROM field_provenance f2
+                      WHERE f2.book_id = b.id AND f2.field = 'title'
+                        AND f2.source = 'openlibrary')
             """
         ).fetchall()
 
@@ -145,7 +166,8 @@ class CoAuthorsInTitles:
         now = int(time.time())
         for item in plan:
             self._credit(item, now)
-            self._retitle(item, now)
+            if item["title"] != item["was"]:
+                self._retitle(item, now)
             report["credited"] += 1
             LOG.info("book %s: %r -> %r, with %s", item["id"], item["was"],
                      item["title"], ", ".join(item["people"]) or "nobody new")

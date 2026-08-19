@@ -78,6 +78,14 @@ deleted** — the library is opened read-only.
 ./run.sh refresh [--max N]  # re-ask about the oldest author data
 ```
 
+**You do not have to run the free ones.** A scan reads the names it
+finds — author, series and title out of the filename, a co-author freed
+from a title, the scanner's notes taken off — so dropping books into
+`LIBRARY_ROOT` and restarting is the whole workflow. Set
+`TIDY_ON_SCAN=false` in `.env` to stop it. What it will *not* do
+unasked is reach a provider: `fragments` and `REPAIR_ON_SCAN` are
+opt-in, because a request costs somebody something.
+
 `names` and `fragments` take `--author "Name"` and `--format pdf` so a
 run can be **aimed and then read** — `coauthors` and `tags` are cheap,
 local and library-wide. Aiming matters:

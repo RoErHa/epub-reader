@@ -1110,6 +1110,26 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11g &nbsp;A book dropped in is a book filed</h3>
+<p>§6.6 said dropping books into <code>LIBRARY_ROOT</code> and restarting was the whole workflow. It was half true: <code>REPAIR_ON_SCAN</code> runs the three passes that <strong>ask Open Library</strong> and is off by default for exactly that reason — while everything built since is local, free, and <strong>ran on nothing at all</strong>. A book added yesterday browsed as <code>Anthony, Piers - Xanth 12 - Man From Mundania</code>, credited to nobody, exactly as the first forty-five did.</p>
+
+<div class="rule">
+  <span class="eyebrow">What costs nothing may be done for you; what costs a request may not</span>
+  <p><code>TIDY_ON_SCAN</code> is <strong>on unless turned off</strong>: these passes read names, write to our own database, reach no provider, and keep what the file said in <code>file_title</code>, so nothing they do is one-way. <code>REPAIR_ON_SCAN</code> and <code>fragments</code> stay opt-in.</p>
+</div>
+
+<p>They run in §6.6's order — authors, then what is asked of an author, then what depends on nobody: <code>names</code>, <code>coauthors</code>, <code>tags</code>. Both <code>./run.sh scan</code> and the server's own startup scan do it, so a launchd start behaves exactly like <code>./run.sh restart</code>. <strong>Proved on the real library:</strong> a PDF dropped in as <code>Anthony, Piers - Xanth 12 - Man From Mundania (with Nobody Real).pdf</code>, carrying <code>harry</code> as its author, came back after one restart as <strong>Man From Mundania · Piers Anthony, Nobody Real · Xanth #12</strong>.</p>
+
+<div class="rule">
+  <span class="eyebrow">A title a provider confirmed outranks one read off a filename</span>
+  <p>§6.11d had repaired <code>The Caterpillars Questi</code> to <em>The Caterpillar's Question</em>; the next scan read the broken name again and put the fragment back, whereupon <code>coauthors</code> saw the bracket it had just restored and rewrote the title a second time. Within <code>provider</code>, <code>openlibrary</code> is what a catalogue asserts and <code>filename</code> is what we inferred — so the derived one yields.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Passes must settle, not take turns</span>
+  <p><code>names</code> derives a title from <code>file_title</code>, the file's own words with the co-author bracket and all; <code>coauthors</code> takes the bracket off. Every restart put "(with Roberto Fuentes)" back and took it off again — <strong>13 books retitled and 13 co-authors "freed" on a scan where nothing had changed</strong>. Both read the same source now and each writes only the facts it owns. The idempotence test that existed used a book with no co-author, which is why it never saw this.</p>
+</div>
+
 <h3>6.12a &nbsp;Comics packed with RAR</h3>
 <p><strong>295 CBR files, every one invisible.</strong> §2.1 excluded them because "it is RAR, which nothing in the stack reads" — and that had quietly stopped being true: <strong>macOS ships <code>/usr/bin/bsdtar</code>, which is libarchive, and libarchive reads RAR</strong>. No new dependency, nothing to install, nothing proprietary.</p>
 

@@ -15,14 +15,18 @@ import { openBook, waitForBookFrame } from './helpers.js'
 const PDF = 'Herbert, Frank - A Pdf Book.pdf'
 
 test.describe('a pdf', () => {
-  test('is listed with the title from its filename', async ({ page }) => {
-    await page.goto('/')
-    const row = page.locator(`.book-row[data-name="${PDF}"]`)
-    await expect(row).toBeVisible()
-    // No usable title inside, as with most real PDFs — so the
-    // filename is the title, and the repair passes understand it.
-    await expect(row).toContainText('Herbert, Frank - A Pdf Book')
-  })
+  test('is listed with its name read into a title and an author',
+    async ({ page }) => {
+      await page.goto('/')
+      const row = page.locator(`.book-row[data-name="${PDF}"]`)
+      await expect(row).toBeVisible()
+      // No usable title inside, as with most real PDFs — so the filename
+      // leads. A scan now reads it into the three facts it holds rather
+      // than showing it whole, so the row says what the book IS.
+      await expect(row).toContainText('A Pdf Book')
+      await expect(row).toContainText('Frank Herbert')
+      await expect(row).not.toContainText('Herbert, Frank -')
+    })
 
   test('opens without the CSP refusing anything', async ({ page }) => {
     const refusals = []

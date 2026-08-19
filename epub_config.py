@@ -114,6 +114,20 @@ class Config:
         return self._values.get("REPAIR_ON_SCAN", "").strip().lower() in (
             "1", "true", "yes", "on")
 
+    @property
+    def tidy_on_scan(self) -> bool:
+        """Whether a scan also reads the filenames it just found.
+
+        **On unless turned off**, which is the opposite of
+        `REPAIR_ON_SCAN` and for the opposite reason: these passes read
+        names and write to our own database. They reach no provider, cost
+        nobody a request, and keep what the file said in `file_title`, so
+        doing them for you is a kindness rather than a decision taken on
+        your behalf.
+        """
+        return self._values.get("TIDY_ON_SCAN", "").strip().lower() not in (
+            "0", "false", "no", "off")
+
     # Open Library allows 1 request/second anonymously and 3/second to a
     # client that identifies itself, which we do. Two leaves headroom:
     # their APIs are explicitly not a bulk data backend.

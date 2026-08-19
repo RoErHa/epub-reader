@@ -5,8 +5,10 @@
 # Every start and restart FIRST scans the library folder and reports what has
 # appeared, changed or vanished since the last run, so books dropped into
 # LIBRARY_ROOT are picked up without you having to remember a separate step.
-# Set REPAIR_ON_SCAN=true in .env and that scan also checks the authors and
-# titles of what it found.
+# That scan also READS the names of what it found — author, series and title
+# out of the filename — unless TIDY_ON_SCAN=false. It reaches no provider.
+# Set REPAIR_ON_SCAN=true as well and it additionally asks Open Library about
+# the authors and titles it could not settle locally.
 #
 # All configuration comes from the .env file — this script sets nothing itself
 # and passes no settings to the app. Secrets never appear here.

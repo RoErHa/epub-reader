@@ -105,6 +105,16 @@ class ScannerTags:
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id AND f.field = 'title'
                         AND (f.origin = 'user' OR f.locked = 1))
+               -- A title a provider CONFIRMED outranks one read off a
+               -- filename. Within `provider`, `openlibrary` is what
+               -- somebody's catalogue asserts and `filename` is what we
+               -- inferred from a name — so a repaired fragment
+               -- (§8.13c) is not undone by the next scan reading the
+               -- broken name again.
+               AND NOT EXISTS (
+                     SELECT 1 FROM field_provenance f2
+                      WHERE f2.book_id = b.id AND f2.field = 'title'
+                        AND f2.source = 'openlibrary')
             """
         ).fetchall()
 

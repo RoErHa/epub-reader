@@ -277,3 +277,41 @@ class TestTags:
                         "refresh", "dedupe", "covers", "series", "names",
                         "coauthors", "fragments", "tags", "forget"):
             assert command in out, f"{command} has fallen off the help"
+
+
+class TestTidyOnScan:
+    """`run.sh scan` reads the names of what it finds.
+
+    Dropping a book in and restarting is meant to be the whole workflow.
+    It was not: nothing built after §6.6 ran on a new arrival, so a book
+    added yesterday browsed as `Anthony, Piers - Xanth 12 - …`, credited
+    to nobody, exactly as the first forty-five did.
+    """
+
+    def test_a_new_arrival_is_read(self, tmp_path):
+        library = tmp_path / "books"
+        library.mkdir()
+        for n, title in ((11, "Heaven Cent"), (12, "Man From Mundania")):
+            EpubBuilder(title=f"Anthony, Piers - Xanth {n} - {title}",
+                        author="Piers Anthony").build(
+                library / f"Anthony, Piers - Xanth {n} - {title}.epub")
+        state = tmp_path / "state"
+        state.mkdir()
+        env = tmp_path / ".env.tidy"
+        env.write_text(ENV_BODY.format(library=library, state=state))
+
+        out = run("scan", env_file=env).stdout
+        assert "Names:" in out, out
+        assert "retitled 2" in out, out
+
+    def test_it_can_be_turned_off(self, tmp_path):
+        library = tmp_path / "books"
+        library.mkdir()
+        EpubBuilder(title="Anthony, Piers - Xanth 11 - Heaven Cent",
+                    author="Piers Anthony").build(library / "x.epub")
+        state = tmp_path / "state"
+        state.mkdir()
+        env = tmp_path / ".env.untidy"
+        env.write_text(ENV_BODY.format(library=library, state=state)
+                       + "TIDY_ON_SCAN=false\n")
+        assert "Names:" not in run("scan", env_file=env).stdout

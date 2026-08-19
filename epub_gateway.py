@@ -68,6 +68,9 @@ class ScanCommand:
         gateway = EpubGateway(self._config)
         try:
             print(gateway.reindex().summary())
+            # Free and local, so it runs unless turned off.
+            if self._config.tidy_on_scan:
+                print(gateway.tidy_summary(gateway.tidy()))
             if self._config.repair_on_scan:
                 print(gateway.repair(apply=True))
         finally:
@@ -327,10 +330,16 @@ class GatewayRunner:
         return cfg
 
     def scan_library(self) -> None:
-        """Pick up books added since the last run, before serving."""
+        """Pick up books added since the last run, before serving.
+
+        And read their names, so a launchd start behaves exactly as
+        `./run.sh restart` does — a book dropped in is a book filed.
+        """
         report = self._gateway.reindex()
         for line in report.summary().splitlines():
             LOG.info("%s", line)
+        if self._config.tidy_on_scan:
+            LOG.info("%s", self._gateway.tidy_summary(self._gateway.tidy()))
 
     def run(self) -> None:
         cfg = self.hypercorn_config()

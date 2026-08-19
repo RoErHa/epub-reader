@@ -366,6 +366,33 @@ class EpubGateway:
         """Take the scanner's notes out of the titles, in one line."""
         return ScannerTags.summary(self._tags.run(apply=apply))
 
+    def tidy(self) -> dict:
+        """Read what the new arrivals' names say, in §6.6's order.
+
+        **Authors before anything asked of an author**, then the
+        co-authors that need a first author to join, and the scanner's
+        notes last because they are nobody's dependency. Nothing here
+        reaches a provider: `fragments` does, and stays opt-in.
+        """
+        names = self._filenames.run(apply=True)
+        coauthors = self._coauthors.run(apply=True)
+        tags = self._tags.run(apply=True)
+        return {
+            "credited": names["credited"], "filed": names["filed"],
+            "retitled": names["retitled"], "freed": coauthors["credited"],
+            "cleaned": tags["cleaned"],
+        }
+
+    @staticmethod
+    def tidy_summary(report: dict) -> str:
+        done = sum(report.values())
+        if not done:
+            return "Names: nothing new to read."
+        return (f"Names: credited {report['credited']}, filed"
+                f" {report['filed']} under a series, retitled"
+                f" {report['retitled']}, freed {report['freed']} co-authors,"
+                f" cleaned {report['cleaned']} titles.")
+
     def dedupe_books(self, apply: bool = False) -> str:
         """One row per work, and one line about it."""
         return DuplicateFinder.summary(self._duplicates.run(apply=apply))
