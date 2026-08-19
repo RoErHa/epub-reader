@@ -303,6 +303,30 @@ class MigrationRunner:
             CREATE INDEX IF NOT EXISTS book_duplicate ON book(duplicate_of);
             """,
         ),
+        Migration(
+            10,
+            "provider_query",
+            """
+            -- Every question put to a provider, and what came back.
+            --
+            -- §6.6 made an author "asked once, ever" by stamping
+            -- author.fetched_at — but that records asking about a
+            -- PERSON, and repairing a title asks about a STRING. A miss
+            -- is an answer and is cached like any other, or the second
+            -- run costs what the first did.
+            --
+            -- `answer` is NULL for a silence. It is the provider's own
+            -- JSON, kept whole rather than picked apart, so a later rule
+            -- can read more out of it without asking again.
+            CREATE TABLE IF NOT EXISTS provider_query (
+              source     TEXT    NOT NULL,   -- 'openlibrary'
+              question   TEXT    NOT NULL,   -- exactly what was asked
+              answer     TEXT,               -- JSON, or NULL for nothing
+              asked_at   INTEGER NOT NULL,
+              PRIMARY KEY (source, question)
+            );
+            """,
+        ),
     ]
 
     LATEST = MIGRATIONS[-1].version

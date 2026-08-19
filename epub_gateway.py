@@ -212,6 +212,32 @@ class CoAuthorsCommand:
         return 0
 
 
+class FragmentsCommand:
+    """`--fragments`: finish the titles somebody's filesystem cut off.
+
+    "The Caterpillars Questi" matches nothing anywhere, for ever. Trim
+    to the last complete word, ask again, and take the answer only if it
+    *completes* what we hold.
+    """
+
+    def __init__(self, config: Config, apply: bool = False,
+                 author: str | None = None,
+                 formats: list[str] | None = None) -> None:
+        self._config = config
+        self._apply = apply
+        self._author = author
+        self._formats = formats
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.mend_fragments(apply=self._apply, author=self._author,
+                                         formats=self._formats))
+        finally:
+            gateway.close()
+        return 0
+
+
 class CoversCommand:
     """`--covers`: a cover for books that show a lettered tile.
 
@@ -342,13 +368,18 @@ class GatewayCLI:
         )
         parser.add_argument(
             "--author",
-            help="With --names: only books this filename credits to them.",
+            help="With --names or --fragments: only this author.",
         )
         parser.add_argument(
             "--format",
             action="append",
             dest="formats",
-            help="With --names: only this format (repeatable), e.g. --format pdf.",
+            help="With --names or --fragments: only this format (repeatable).",
+        )
+        parser.add_argument(
+            "--fragments",
+            action="store_true",
+            help="Finish titles that were cut off, then exit.",
         )
         parser.add_argument(
             "--coauthors",
@@ -406,6 +437,10 @@ class GatewayCLI:
         if args.names:
             return NamesCommand(config, apply=args.apply, author=args.author,
                                 formats=args.formats).run()
+        if args.fragments:
+            return FragmentsCommand(config, apply=args.apply,
+                                    author=args.author,
+                                    formats=args.formats).run()
         if args.coauthors:
             return CoAuthorsCommand(config, apply=args.apply).run()
         if args.dedupe:

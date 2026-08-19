@@ -35,6 +35,8 @@
 #   ./run.sh names --author "Piers Anthony" --format pdf --apply
 #   ./run.sh coauthors          # find people written into titles
 #   ./run.sh coauthors --apply  # ...and credit them properly
+#   ./run.sh fragments --author "Piers Anthony"          # finish cut-off titles
+#   ./run.sh fragments --author "Piers Anthony" --apply
 #   ./run.sh covers             # find books whose own first page is their cover
 #   ./run.sh covers --apply     # ...and give them it
 #   ./run.sh covers --online --apply   # ...and ask a provider for the rest
@@ -70,7 +72,7 @@ while [ $# -gt 0 ]; do
     --online)     ONLINE=1; shift ;;
     --author)     AUTHOR="${2:?--author needs a name}"; shift 2 ;;
     --format)     FORMAT="${2:?--format needs a format}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|forget|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -197,6 +199,22 @@ do_coauthors() {
   else
     echo "▶  Looking for people written into titles (nothing will change)…"
     "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --coauthors
+  fi
+}
+
+do_fragments() {
+  # "The Caterpillars Questi" matches nothing, for ever. Trim to the last
+  # whole word, ask again, and take the answer only if it COMPLETES what
+  # we hold. One request per book, so it wants a scope.
+  local scope=()
+  [ -n "${AUTHOR}" ] && scope+=(--author "${AUTHOR}")
+  [ -n "${FORMAT}" ] && scope+=(--format "${FORMAT}")
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Finishing titles that were cut off..."
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --fragments ${scope[@]+"${scope[@]}"} --apply
+  else
+    echo "▶  Looking for titles that were cut off (nothing will change)..."
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --fragments ${scope[@]+"${scope[@]}"}
   fi
 }
 
@@ -327,6 +345,7 @@ case "${COMMAND}" in
   series)  do_series ;;
   names)   do_names ;;
   coauthors) do_coauthors ;;
+  fragments) do_fragments ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;

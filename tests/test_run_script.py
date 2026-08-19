@@ -238,3 +238,21 @@ class TestCoAuthors:
     def test_coauthors_is_listed_in_the_help(self):
         result = run("help")
         assert "coauthors" in result.stdout + result.stderr
+
+
+class TestFragments:
+    """`run.sh fragments` finishes titles that were cut off."""
+
+    def test_fragments_runs_without_a_scope(self, env_file):
+        result = run("fragments", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+        assert "unbound variable" not in result.stderr
+
+    def test_fragments_runs_with_a_scope(self, env_file):
+        result = run("fragments", "--author", "Piers Anthony",
+                     "--format", "pdf", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+
+    def test_fragments_is_listed_in_the_help(self):
+        result = run("help")
+        assert "fragments" in result.stdout + result.stderr

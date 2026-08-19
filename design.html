@@ -1010,6 +1010,30 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
   <p>The first version of the test <strong>passed against the broken query</strong>: a fixture that creates authors in credit order cannot fail. It only became a test once it built the collaborator first, so her id is lower — the actual library, and the only shape that fails.</p>
 </div>
 
+<h3>6.11d &nbsp;A title that was cut off, finished by a provider</h3>
+<p><strong>§12's tier 1.</strong> <code>Anthony, Piers - The Caterpillars Questi.pdf</code> was truncated years ago by somebody's filesystem, and no amount of matching fixes a fragment: Open Library holds <em>The Caterpillar's Question</em>, and <code>The Caterpillars Questi</code> matches nothing at all, for ever. The damage is always at the <strong>end</strong>, so trimming back to the last complete word turns a dead query live.</p>
+
+<div class="rule">
+  <span class="eyebrow">There is no clever damage detector, and there should not be</span>
+  <p>A word cut mid-syllable cannot be told from an invented one without a dictionary, and this library is full of Xanth, Chthon and Phthor. So the provider <em>is</em> the detector: ask about the title as it stands, and only if nothing comes back is there anything to repair. One request per book — which is why the pass takes a scope.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">The answer must COMPLETE our fragment, word for word</span>
+  <p>Everything before our last word must match exactly, and our last word must be the beginning of theirs. A rule that can only ever <em>lengthen</em> a name cannot quietly swap in a different book.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A fragment needs a whole word beside it</span>
+  <p>With one word there is nothing holding the answer to the book: <code>The Ring</code> would cheerfully become <em>The Rings of Saturn</em>, a different book by a different author.</p>
+</div>
+
+<p>Two guards the real answers forced: an apostrophe <strong>joins</strong> rather than separates — the catalogue's <code>caterpillar's</code> and the filename's <code>caterpillars</code> are one word, and splitting on it made three words against two — and Open Library answered <em>"The Bamboo Bloodbath (#3 in the violent new series featuring Jason Striker, Master of Martial Arts)"</em>, so <code>TitlePolish</code> takes the marketing off before anything is written.</p>
+
+<p><strong>Every question and every answer is cached</strong> in <code>provider_query</code>. §6.6 made an author "asked once, ever" by stamping <code>author.fetched_at</code>, but that records asking about a <em>person</em> and this asks about a <em>string</em>. A silence is an answer and is kept like any other: <strong>122 questions, 98 answered, 24 silences</strong>, and the second run asked nothing.</p>
+
+<p><strong>Measured: 1 title finished, and the other refused — correctly.</strong> <code>Bamboo Bloodbath &amp; Ninj</code> names <em>two</em> novels and Open Library holds one of them, so their answer is <strong>shorter</strong> than what we hold. The cache shows exactly that: the trimmed question found <em>The Bamboo Bloodbath</em> and the rule threw it away. Completing a fragment is not replacing it with half of itself.</p>
+
 <h3>6.12 &nbsp;Comics</h3>
 <p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
 <pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>
@@ -1388,7 +1412,7 @@ Anthony, Piers - Dead Morn (with Roberto Fuentes).pdf</code></pre>
   <p><code>(with Roberto Fuentes)</code> is a person. <code>(retail)</code>, <code>(v1.5)</code>, <code>(digital) (Salem-Empire)</code> are the scanner talking — a shape §6.12 already learned from the comics.</p>
 </div>
 
-<h5>Tier 1 — trim the fragment back to a word boundary and re-ask</h5>
+<h5>Tier 1 ✅ — trim the fragment back to a word boundary and re-ask (§6.11d)</h5>
 <p><strong>Measured 19 August 2026, and it answers both examples for nothing:</strong></p>
 <div class="tablewrap">
 <table>

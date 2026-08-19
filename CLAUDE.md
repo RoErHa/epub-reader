@@ -451,6 +451,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Series from filenames | `./run.sh series [--apply]` | `epub_series.py` |
 | Author, series and title from one filename | `./run.sh names [--apply]` | `epub_filenames.py` |
 | A co-author written into the title | `./run.sh coauthors [--apply]` | `epub_coauthors.py` |
+| A title that was cut off | `./run.sh fragments [--apply]` | `epub_fragments.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 | A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
@@ -796,6 +797,58 @@ That is the whole of hand-editing today: **who wrote it, and where it sits in a 
 
 Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.
 
+### 8.13c A title that was cut off, finished by a provider
+
+**§12.3's tier 1.** `Anthony, Piers - The Caterpillars Questi.pdf` was
+truncated years ago by somebody's filesystem, and no amount of matching
+fixes a fragment — Open Library holds *The Caterpillar's Question*, and
+`The Caterpillars Questi` matches nothing at all, for ever. The damage is
+always at the **end**, so trimming back to the last complete word turns a
+dead query live.
+
+> **There is no clever damage detector, and there should not be.** A word
+> cut mid-syllable cannot be told from an invented one without a
+> dictionary, and this library is full of Xanth, Chthon and Phthor. So the
+> provider *is* the detector: ask about the title as it stands, and only
+> if nothing comes back is there anything to repair. One request per book
+> — which is why the pass takes a scope.
+
+> **The answer must COMPLETE our fragment, word for word.** Everything
+> before our last word must match exactly, and our last word must be the
+> beginning of theirs. A rule that can only ever *lengthen* a name cannot
+> quietly swap in a different book.
+
+> **A fragment needs a whole word beside it.** With one word there is
+> nothing holding the answer to the book: `The Ring` would cheerfully
+> become *The Rings of Saturn*, a different book by a different author.
+> Written as a rule where the rule lives, though `trimmed()` refuses a
+> one-word title anyway.
+
+Two guards the real answers forced. An apostrophe **joins** rather than
+separates — the catalogue's `caterpillar's` and the filename's
+`caterpillars` are one word, and splitting on it made three words against
+two. And Open Library's answer was *"The Bamboo Bloodbath (#3 in the
+violent new series featuring Jason Striker, Master of Martial Arts)"*, so
+`TitlePolish` takes the marketing off before anything is written.
+
+**Every question and every answer is cached** in `provider_query` — the
+table §12.2 asked for. §6.6 made an author "asked once, ever" by stamping
+`author.fetched_at`, but that records asking about a *person*, and this
+asks about a *string*. A silence is an answer and is kept like any other:
+122 questions, 98 answered, 24 silences, and the second run asked nothing.
+
+**Measured: 1 title finished, and the other refused — correctly.**
+`Bamboo Bloodbath & Ninj` names *two* novels and Open Library holds one of
+them, so their answer is **shorter** than what we hold. The cache shows
+exactly that: the trimmed question found *The Bamboo Bloodbath* and the
+rule threw it away. Completing a fragment is not replacing it with half
+of itself, and that book wants §12.5's editor.
+
+The silences are their own finding. Four of them are Bio of a Space
+Tyrant books still titled `Anthony, Piers - Tyrant 1 - Refugee`, because
+§8.13a was run with `--format pdf` and these are not PDFs — `./run.sh
+names --author "Piers Anthony"` is what they want.
+
 ### 8.13b A co-author written into the title
 
 **§12.3's tier 0, and it needs nothing but a rule.** No provider, no key,
@@ -1099,6 +1152,9 @@ epub_filenames.py   CreditsFromNames — author, series and title, read from
                     one filename, in §6.6's order
 epub_coauthors.py   CoAuthorsInTitles — the second author somebody wrote
                     into the title, because a file has one name
+epub_fragments.py   TitlesFromFragments — a title cut off at the end, and
+                    the provider that can finish it; every question and
+                    answer cached in provider_query
 epub_credits.py     BookCredits — who wrote it and where in a series,
                     when neither the file nor its name says
 epub_forget.py      ForgetMissing — removing books whose files are gone
@@ -1638,7 +1694,7 @@ library-wide; the two that credit nobody wait on `./run.sh names`. See
 > `(digital) (Salem-Empire)` are the scanner talking, and §8.7 already
 > knows that shape from the comics.
 
-#### Tier 1 — trim the fragment back to a word boundary and re-ask
+#### Tier 1 ✅ — trim the fragment back to a word boundary and re-ask  (§8.13c)
 
 **Measured on 2026-08-19, and it works on both examples:**
 
@@ -1649,7 +1705,8 @@ library-wide; the two that credit nobody wait on `./run.sh names`. See
 | `The Caterpillars Questi` | nothing found |
 | `The Caterpillars` + author | **The caterpillar's question**, 1992 |
 
-The steps, in order:
+**Done — 1 title finished, 1 refused correctly.** `./run.sh fragments
+--author "…"`. The steps, in order:
 
 1. **Notice the damage.** A title whose last word is not a word — cut
    mid-syllable — or which no provider has ever matched. `Ninj`,

@@ -23,6 +23,7 @@ from epub_duplicates import DuplicateFinder
 from epub_forget import ForgetMissing, UnpluggedError
 from epub_coauthors import CoAuthorsInTitles
 from epub_filenames import CreditsFromNames
+from epub_fragments import TitlesFromFragments
 from epub_series import SeriesFromNames
 from epub_config import Config
 from epub_db import Database
@@ -232,6 +233,12 @@ class EpubGateway:
         self._fetch = fetch or PoliteFetcher(rps=config.provider_max_rps)
         self._open_library = OpenLibraryProvider(
             self._fetch, contact=config.provider_key("OPENLIBRARY_CONTACT_EMAIL"))
+        # After the provider, obviously — and on the shared,
+        # browsing-paced fetcher: a scoped run is tens of requests, not
+        # the hundreds that earned the cover sweep its own one-a-minute
+        # clock (§8.13).
+        self._fragments = TitlesFromFragments(self._database,
+                                              self._open_library)
         self._enricher = AuthorEnricher(
             self._database, self._open_library, cover_root=config.cover_cache,
         )
@@ -340,6 +347,12 @@ class EpubGateway:
     def read_coauthors(self, apply: bool = False) -> str:
         """Free the people written into titles, in one line."""
         return CoAuthorsInTitles.summary(self._coauthors.run(apply=apply))
+
+    def mend_fragments(self, apply: bool = False, author: str | None = None,
+                       formats: list[str] | None = None) -> str:
+        """Finish the titles that were cut off, in one line."""
+        return TitlesFromFragments.summary(
+            self._fragments.run(apply=apply, author=author, formats=formats))
 
     def dedupe_books(self, apply: bool = False) -> str:
         """One row per work, and one line about it."""
