@@ -1448,6 +1448,18 @@ tools/              <span class="c">make_test_library.py</span></code></pre>
 <li><strong>Reopening a finished book does not un-finish it.</strong> The upsert preserves <code>finished</code>/<code>abandoned</code>; only an explicit status change clears it.</li>
 </ul>
 
+<h3>A method that was 56% of its module</h3>
+<p><code>EpubGateway._register_routes</code> was <strong>530 lines holding 57 nested functions</strong> — more than half of a 945-line file, and the largest thing in the codebase was not a class at all. No route could be tested without standing up the whole app.</p>
+<p>Five classes now, grouped by what they are about rather than by what FastAPI needs: the app itself, browse, shelves, reading, and the maintenance passes. <code>epub_server.py</code> went from <strong>945 lines to 398</strong>.</p>
+<div class="rule">
+  <span class="eyebrow">Reaching into another object's privates only moves the problem</span>
+  <p>The routes needed nineteen of the gateway's attributes, and a route class saying <code>gateway._browse</code> would be the same coupling spread over more files. <code>Services</code> is those collaborators, named and public, handed over once.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">A regex does not know a string from an identifier</span>
+  <p>Rewriting <code>shelves</code> → <code>self.services.shelves</code> over the source text rewrote it inside <code>"/api/shelves"</code> too, and four URLs quietly moved. The rewrite is done over <em>tokens</em> now, editing by position so spacing, comments and docstrings survive exactly. And <code>ast.get_source_segment</code> does not include decorators, so a first pass moved 51 route bodies and left every <code>@app.get</code> behind — everything answered 404, <code>/healthz</code> included, which is how it was caught immediately rather than subtly.</p>
+</div>
+
 <h3>One place for the rule everything depends on</h3>
 <p>§5's provenance rule is the invariant the whole design rests on — and it was written <strong>eleven times</strong>. Every pass hand-rolled its own <code>INSERT INTO field_provenance … ON CONFLICT</code>, and eight carried their own copy of the guard that reads it back.</p>
 <div class="rule">

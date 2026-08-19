@@ -1449,7 +1449,10 @@ since last time?
 epub_gateway.py     entry point — GatewayRunner, GatewayCLI, LoggingSetup
 epub_config.py      Config, ConfigError — the only reader of .env
 epub_security.py    ContentSecurityPolicy, SecurityHeaders, middleware
-epub_server.py      EpubGateway, BookLibrary — routes and read-only library
+epub_server.py      EpubGateway, BookLibrary — the app, and the read-only
+                    library it serves
+epub_routes.py      Services, Routes, App/Browse/Shelf/Reading routes
+epub_maintenance_routes.py  MaintenanceRoutes — §6.3's passes over HTTP
 epub_library.py     LibraryScanner, ScanManifest, ScanReport, BookFile
 epub_names.py       PersonName, title_sort_key — sort keys, computed at ingest
 epub_metadata.py    EpubMetadataReader, BookMetadata, MetadataError
@@ -1846,6 +1849,51 @@ authors, 34 series, 258 genres.
   use those helpers rather than holding a reference.
 - **Reopening a finished book does not un-finish it.** The upsert preserves
   `finished`/`abandoned` status; only an explicit status change clears it.
+
+### 10.15 A method that was 56% of its module
+
+`EpubGateway._register_routes` was **530 lines holding 57 nested
+functions** — more than half of a 945-line file, and the largest thing in
+the codebase was not a class at all, which §10.1 says everything here
+should be. No route could be tested without standing up the whole app,
+and nobody could read it in one sitting.
+
+Five classes now, grouped by what they are about rather than by what
+FastAPI needs: the app itself, browse, shelves, reading, and §6.3's
+maintenance passes.
+
+> **Reaching into another object's privates only moves the problem.** The
+> routes needed nineteen of the gateway's attributes, and a route class
+> saying `gateway._browse` would be the same coupling spread over more
+> files. `Services` is those collaborators, named and public, handed over
+> once.
+
+| | before | after |
+| --- | --- | --- |
+| `epub_server.py` | 945 | **398** |
+| `epub_routes.py` | — | 536 |
+| `epub_maintenance_routes.py` | — | 163 |
+
+**Three lessons from doing it mechanically**, because 51 routes are not
+moved by hand:
+
+> **`ast.get_source_segment` does not include decorators.** `node.lineno`
+> points at the `def`, so a first pass moved 51 route bodies and left
+> every `@app.get(…)` behind. Everything registered nothing and answered
+> 404 — including `/healthz`, which is how it was noticed at once rather
+> than subtly.
+
+> **A regex does not know a string from an identifier.** Rewriting
+> `shelves` → `self.services.shelves` over the source text rewrote it
+> inside `"/api/shelves"` too, and four URLs quietly moved. The rewrite
+> is done over **tokens** now, editing by position so that spacing,
+> comments and docstrings survive exactly — `tokenize.untokenize` does
+> not preserve them, it reflows the lot.
+
+> **A split that leaves one module too big has moved the problem, not
+> solved it.** The first cut produced a 686-line `epub_routes.py`;
+> maintenance came out into its own file, and every module is now inside
+> the ~400 the review asked for except `epub_index` and `epub_gateway`.
 
 ### 10.14 One place for the rule everything depends on
 
