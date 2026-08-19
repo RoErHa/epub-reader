@@ -795,7 +795,21 @@ That is the whole of hand-editing today: **who wrote it, and where it sits in a 
 
 > **A wrong position is as good as a wrong title for hiding a book.** With that fixed, dedupe still wanted to hide *Interview with the Vampire* behind *The Vampire Lestat*. It was right that two books cannot both be Vampire Chronicles #1 — the *file* was wrong: Lestat's own OPF carries `calibre:series_index = 1`. The rule found a real fault and blamed the wrong book, which is exactly the case hand-filing exists for.
 
-Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune novels plus Anderson's two, and the first two Vampire Chronicles.
+Filed by hand so far: the Licanius Trilogy 1–3, the six original Dune
+novels plus Anderson's two, the first two Vampire Chronicles, and — added
+2026-08-19 — Geodyssey #1 (*Isle of Women*, whose filename misspells the
+series, so nothing could corroborate it) and **Bio of a Space Tyrant
+1–4 and 6**.
+
+That last one is a **series split by two filing conventions**, and it is
+the shape to watch for. The four EPUBs named their series `Tyrant`, the
+PDF was hand-filed as `Bio of a Space Tyrant`, and both names are honest:
+nothing automatic chooses between a shorthand and the published name.
+The full name wins because that is what the books are called, and the
+shorthand's series row is left behind rather than deleted — every listing
+joins through to a present book, so an empty series cannot show (§6.8).
+#5 is genuinely missing rather than misfiled: *Statesman* is not in the
+library, which is the gap-finder working.
 
 ### 8.13c A title that was cut off, finished by a provider
 
