@@ -119,6 +119,70 @@ class TestReadingTheName:
         assert book(gateway, "A Novella")["series_index"] == 8.5
 
 
+class TestNamesThatAreNotNames:
+    """What a library-wide dry run caught before it wrote anything.
+
+    268 books, 61 of them replacing an author rather than filling a
+    blank — and reading those 61 found four filenames the parser had
+    misread. Each is a different way for a comma to appear in something
+    that is not a name.
+    """
+
+    def test_a_junk_prefix_is_not_a_surname(self, client, library, gateway,
+                                            namer):
+        """`e-Book - Feist, Raymond E. - Krondor The Assassins` gave
+        "Raymond E. e-Book - Feist". A surname may be hyphenated, but a
+        *spaced* dash is a separator, not a name."""
+        clear(library)
+        EpubBuilder(title="e-Book - Feist, Raymond E. - Krondor The Assassins",
+                    author="Somebody Real").build(library / "krondor.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "krondor")["authors"] == "Somebody Real"
+
+    def test_a_title_with_a_comma_is_not_a_name(self, client, library,
+                                                gateway, namer):
+        """`Cryptozoology, A Guide to (Mysterious Creatures) - George M.
+        Eberhart` put the *title* where the author goes and would have
+        credited the book to "A Guide to (Mysterious Creatures)
+        Cryptozoology". Given names are short, capitalised, and have no
+        brackets in them."""
+        clear(library)
+        EpubBuilder(
+            title="Cryptozoology, A Guide to (Mysterious Creatures) - "
+                  "George M. Eberhart",
+            author="George M. Eberhart").build(library / "crypto.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "crypto")["authors"] == "George M. Eberhart"
+
+    def test_an_editor_is_not_claimed_as_the_author(self, client, library,
+                                                    gateway, namer):
+        """`Jakubowski, Maxim (ed.) - New Crimes` is an anthology, and
+        `(ed.)` says so. §5 has a `role` column for editors; until
+        something fills it, saying nothing beats saying the wrong
+        thing."""
+        clear(library)
+        EpubBuilder(title="Jakubowski, Maxim (ed.) - New Crimes",
+                    author="John Le Carre").build(library / "crimes.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "crimes")["authors"] == "John Le Carre"
+
+    def test_two_authors_written_surname_first(self, client, library, gateway,
+                                               namer):
+        """`Pratchett, Terry & Gaiman, Neil - Good Omens` is two people,
+        and reading it as one gave "Terry & Gaiman, Neil Pratchett"."""
+        clear(library)
+        EpubBuilder(title="Pratchett, Terry & Gaiman, Neil - Good Omens",
+                    author="harry").build(library / "omens.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        row = book(gateway, "omens")
+        assert row["authors"] == "Terry Pratchett & Neil Gaiman"
+        assert row["title"] == "Good Omens"
+
+
 class TestTheNameIsNotAFile:
     """A title never ends in `.txt`.
 

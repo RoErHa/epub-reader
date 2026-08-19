@@ -61,6 +61,20 @@ LOG = logging.getLogger("epub-reader.filenames")
 AUTHOR = re.compile(r"^(?P<surname>[^,\d]{2,40}),\s*(?P<given>[^-\d]{1,40}?)"
                     r"\s+-\s+(?P<rest>\S.*)$")
 
+# Two people, each written surname-first: "Pratchett, Terry & Gaiman,
+# Neil - Good Omens". Read as one name it gave "Terry & Gaiman, Neil
+# Pratchett".
+AMPERSAND = re.compile(r"\s*&\s*")
+
+# Given names are short, capitalised, and have no brackets in them.
+# "Raymond E." and "L. Frank" are names; "A Guide to (Mysterious
+# Creatures)" is a title that happens to follow a comma, and
+# "Maxim (ed.)" is an anthology saying who edited it — §5 has a role
+# column for that, and until something fills it, saying nothing beats
+# saying the wrong thing.
+GIVEN = re.compile(r"^(?:[^\W\d_][\w.'\u2019-]*)(?:\s+[^\W\d_][\w.'\u2019-]*){0,3}$",
+                   re.UNICODE)
+
 # A title never ends in ".txt". 12 books here do — `Volk.doc`,
 # `Running with the Demon.txt`, `Nanny Ogg's Cookbook.htm` — the mark of
 # a library converted from one format to another by somebody who kept the
@@ -83,8 +97,8 @@ class CreditsFromNames:
         self._series = series or SeriesFromNames(database)
 
     # ── reading the names ─────────────────────────────────────────────
-    @staticmethod
-    def read(stem: str) -> dict | None:
+    @classmethod
+    def read(cls, stem: str) -> dict | None:
         """What a filename says, or nothing if it does not lead with a
         name written surname-first."""
         match = AUTHOR.match(stem)
@@ -92,10 +106,34 @@ class CreditsFromNames:
             return None
         surname = match.group("surname").strip()
         given = match.group("given").strip()
-        person = PersonName.parse(f"{surname}, {given}")
-        if not person:
+
+        # "Pratchett, Terry & Gaiman, Neil" is two people.
+        parts = AMPERSAND.split(f"{surname}, {given}")
+        people = []
+        for part in parts:
+            name, _, rest = part.partition(",")
+            if not cls._is_a_name(name.strip(), rest.strip()):
+                return None
+            person = PersonName.parse(f"{name.strip()}, {rest.strip()}")
+            if not person:
+                return None
+            people.append(person.display)
+        if not people:
             return None
-        return {"author": person.display, "rest": match.group("rest").strip()}
+        return {"author": people[0], "authors": people,
+                "rest": match.group("rest").strip()}
+
+    @staticmethod
+    def _is_a_name(surname: str, given: str) -> bool:
+        """Whether these two halves are a person rather than a title
+        that happens to hold a comma."""
+        if not surname or not given:
+            return False
+        # A surname may be hyphenated; a *spaced* dash is a separator.
+        # "e-Book - Feist, Raymond E." is a junk prefix, not a name.
+        if " - " in surname or " - " in given:
+            return False
+        return bool(GIVEN.match(given))
 
     @staticmethod
     def title_of(rest: str, series: str | None,
@@ -141,7 +179,7 @@ class CreditsFromNames:
             if found["author"] == row["author"]:
                 continue          # already credited to the right person
             plan.append({"id": row["id"], "author": found["author"],
-                         "was": row["author"]})
+                         "authors": found["authors"], "was": row["author"]})
         return plan
 
     def _nameless(self, author: str | None, formats: list[str] | None,
@@ -227,18 +265,25 @@ class CreditsFromNames:
         return row["title"] if row else None
 
     def _credit(self, item: dict, now: int) -> None:
+        """Everyone the name gives, in the order it gives them — §5 says
+        credit order matters, and "Pratchett, Terry & Gaiman, Neil" says
+        who came first."""
         cursor = self._db.connection
-        person = PersonName.parse(item["author"])
-        cursor.execute(
-            "INSERT OR IGNORE INTO author (name, sort_name) VALUES (?, ?)",
-            (person.display, person.sort))
-        author_id = cursor.execute(
-            "SELECT id FROM author WHERE name = ?",
-            (person.display,)).fetchone()["id"]
         cursor.execute("DELETE FROM book_author WHERE book_id = ?", (item["id"],))
-        cursor.execute(
-            "INSERT OR IGNORE INTO book_author (book_id, author_id, role,"
-            " position) VALUES (?, ?, 'author', 0)", (item["id"], author_id))
+        for position, name in enumerate(item.get("authors") or [item["author"]]):
+            person = PersonName.parse(name)
+            if not person:
+                continue
+            cursor.execute(
+                "INSERT OR IGNORE INTO author (name, sort_name) VALUES (?, ?)",
+                (person.display, person.sort))
+            author_id = cursor.execute(
+                "SELECT id FROM author WHERE name = ?",
+                (person.display,)).fetchone()["id"]
+            cursor.execute(
+                "INSERT OR IGNORE INTO book_author (book_id, author_id, role,"
+                " position) VALUES (?, ?, 'author', ?)",
+                (item["id"], author_id, position))
         self._record(item["id"], "authors", now)
 
     # ── what it is called ─────────────────────────────────────────────

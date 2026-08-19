@@ -1025,6 +1025,52 @@ a Space Tyrant**. Both names are honest and they are one series; nothing
 automatic can choose between a shorthand and a full name, so it is
 `PUT /api/books/{id}/series` again — §12.5's editor by another route.
 
+### The library-wide run, and the four names that were not names
+
+Run across everything on 2026-08-19: **265 books credited, 145 filed
+under a series, 284 retitled.** The library went from 158 series to
+**189** and from 623 books credited to nobody to a few dozen.
+
+**The dry run earned its keep before a single row was written.** Of 268
+proposals, 207 filled a blank and **61 replaced an existing author** —
+and reading those 61 found four filenames the parser had misread, each a
+different way for a comma to turn up in something that is not a name:
+
+| Filename | Would have credited |
+| --- | --- |
+| `e-Book - Feist, Raymond E. - Krondor The Assassins` | "Raymond E. e-Book - Feist" |
+| `Cryptozoology, A Guide to (Mysterious Creatures) - George M. Eberhart` | "A Guide to (Mysterious Creatures) Cryptozoology" |
+| `Jakubowski, Maxim (ed.) - New Crimes` | "Maxim (ed.) Jakubowski" |
+| `Pratchett, Terry & Gaiman, Neil - Good Omens` | "Terry & Gaiman, Neil Pratchett" |
+
+> **A surname may be hyphenated; a *spaced* dash is a separator.**
+> `e-Book - ` is somebody's prefix, not a name.
+
+> **Given names are short, capitalised, and have no brackets in them.**
+> That refuses a title which merely follows a comma, and `(ed.)` with it
+> — §5 has a `role` column for editors, and until something fills it,
+> saying nothing beats saying the wrong thing.
+
+> **Two people can share one filename.** `Pratchett, Terry & Gaiman,
+> Neil` is read as both, in the order given, because §5 says credit
+> order matters.
+
+**Then it made work for the dedupe pass, which is the system behaving.**
+Filenames spell people differently — `C.S Lewis`, `JRR Tolkien`,
+`Laurell K Hamilton`, and one flat typo, `Nora Robers`. That left 6
+spelling clashes and a misspelling; `POST /api/authors/dedupe` merged all
+7 without being asked twice, six as "identical once spacing is ignored"
+and the typo as "confirmed by Open Library". It still refused
+`Stephen King`/`Stephen Hawking`, which is the point of it.
+
+**What the pass cannot reach**, counted afterwards: **31 titles that are
+only a shelf label** — `Alex Cross 07`, `Elemental Masters 02` — where
+the filename names a position and no book at all; and **17 still carrying
+a scanner's version tag**, `(v1.0)`, `(v2.2)`, `(uc)`, `(not ocr)`. The
+first needs a provider or a person. The second is a rule waiting to be
+written, and deliberately was not: this pass tidies what it was asked to
+and no more.
+
 **The same shape is waiting on 241 more books across 49 authors** — 235
 PDFs and 6 PRCs — which is what `./run.sh names` reports library-wide.
 They are not done, because a pass this sharp should be aimed rather than
