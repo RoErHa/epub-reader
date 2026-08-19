@@ -1437,8 +1437,8 @@ authors, 34 series, 258 genres.
 
 Measured against the real library on 2026-08-19, in the order they are
 worth doing. Everything here is either not built or a decision waiting
-to be taken — what is *done* is §8. **§2 is next**, and §3 is the same
-call it needs.
+to be taken — what is *done* is §8. **§2 and §3 are next**; §4 is the
+same provider call they both need.
 
 ### 1. Cover art ✅ 90% — 1,969 of 2,176 books carry one
 
@@ -1546,7 +1546,129 @@ first pages: 30 real unreadable filenames through the splitter, counting
 how many anchor at all. If the answer is 20% this is a different piece of
 work, and better to know that on the first morning.
 
-### 3. Fetch each matched work's own record
+### 3. Names that are damaged, not merely unclear
+
+§2 is about names that are **ambiguous** — which half is the author? §3
+is about names that are **broken**, and they need a different answer
+because there is nothing to disambiguate: the words themselves are
+wrong.
+
+    Anthony, Piers - Jason Striker 02 - Bamboo Bloodbath & Ninj.pdf
+    Anthony, Piers - The Caterpillars Questi (with Philip Jose Farmer).pdf
+    Anthony, Piers - Dead Morn (with Roberto Fuentes).pdf
+
+The first two are **truncated on disk** — somebody's filesystem or
+unzipper cut them off years ago — and the third has **authorship glued
+into the title**. No amount of matching fixes a fragment: Open Library
+holds *The Bamboo Bloodbath*, and `Bamboo Bloodbath & Ninj` matches
+nothing at all, for ever.
+
+Three tiers, cheapest first, and **nothing reaches a tier it did not
+need**.
+
+#### Tier 0 — `(with X)` is authorship, not a title
+
+No network, no provider, no key. `Dead Morn (with Roberto Fuentes)` is
+*Dead Morn* by Piers Anthony **and Roberto Fuentes** — the parenthetical
+is a second author that somebody wrote into the filename because a file
+has only one name. So: strip it from the title, add the person at
+position 1.
+
+**9 books on the Piers Anthony shelf alone.** It is a rule, not a
+lookup, and it should be built first because it costs nothing and
+because it makes the strings in tier 1 shorter and cleaner before they
+are ever sent anywhere.
+
+> **A guard it needs:** only a name-shaped parenthetical counts.
+> `(with Roberto Fuentes)` is a person; `(retail)`, `(v1.5)`,
+> `(digital) (Salem-Empire)` are the scanner talking, and §8.7 already
+> knows that shape from the comics.
+
+#### Tier 1 — trim the fragment back to a word boundary and re-ask
+
+**Measured on 2026-08-19, and it works on both examples:**
+
+| Asked | Answer |
+| --- | --- |
+| `Bamboo Bloodbath & Ninj` | nothing found |
+| `Bamboo Bloodbath` | **The Bamboo Bloodbath**, Piers Anthony, 1974 |
+| `The Caterpillars Questi` | nothing found |
+| `The Caterpillars` + author | **The caterpillar's question**, 1992 |
+
+The steps, in order:
+
+1. **Notice the damage.** A title whose last word is not a word — cut
+   mid-syllable — or which no provider has ever matched. `Ninj`,
+   `Questi`.
+2. **Trim to the last complete word** and ask again, with the author as
+   a filter, because by then §8.13a has already settled who wrote it.
+   That filter is what makes a two-word query safe.
+3. **Demand that our fragment be a PREFIX of their answer.** `Bamboo
+   Bloodbath & Ninj` is accepted as *The Bamboo Bloodbath* only because
+   what we hold is the beginning of what they hold. This rule can only
+   ever **lengthen** a name, so it structurally cannot swap in a
+   different book — it is §6.3's containment logic pointed the other
+   way.
+4. **Strip the provider's marketing.** Open Library returned *"The
+   Bamboo Bloodbath (#3 in the violent new series featuring Jason
+   Striker, Master of Martial Arts)"*. §6.3 already knows a trailing
+   bracket is the shelf talking; `TitlePolish` already removes it.
+5. **Write it, and record it** — `origin = 'provider'`, and
+   `file_title` keeps what the file said, so every repair is reversible.
+
+> **A provider's series number is not necessarily ours.** Open Library
+> calls *The Bamboo Bloodbath* Jason Striker **#3**; our file calls it
+> **02**, and both are right — the file is an *omnibus* of novels 3 and
+> 4, and it is the second such volume. Take the title from the provider
+> and leave the number alone unless the book is a single work. This was
+> caught in the first probe, before any code existed.
+
+#### Tier 2 — the open web, only for what tiers 0 and 1 could not reach
+
+A catalogue can only match what it holds. A search engine indexes the
+long tail — a 1974 karate paperback is on eBay and AbeBooks whether or
+not it is well catalogued — which is why searching the raw string
+answers in one go where a catalogue returns nothing.
+
+- **A real search API, never scraping.** Scraping Google/Bing/DDG HTML
+  is against their terms, gets blocked, and rots. This needs a key in
+  `.env` beside `GOOGLE_BOOKS_API_KEY`.
+- **Result titles and snippets only**, never page bodies. A bookseller's
+  result title has the shape `Title by Author`, which is structured
+  enough; parsing eBay's HTML is not something to depend on.
+- **The same prefix rule as tier 1**, plus the author appearing in the
+  same result. Two independent results must agree before it is written.
+- **One query per string, ever**, cached like every other answer (§6.6).
+
+**Do not build tier 2 until tiers 0 and 1 have been measured**, because
+today's probe suggests they may leave very little behind — and tier 2 is
+the only part of this that costs money.
+
+#### Then, and only then, the cover
+
+A repaired name goes back on the cover queue (§1) if the book has none.
+This is already evidence-backed rather than hoped for: correcting Piers
+Anthony's titles turned 16 books Open Library had refused into **9
+covers** on the very next ask.
+
+#### Free and open-source, before anything paid
+
+Asked for tomorrow, listed in the order I would try them:
+
+| Source | Cost | What it gives |
+| --- | --- | --- |
+| **Trim-and-retry on Open Library** | free, no key | proven above on both examples — try this before anything else |
+| **ISFDB database dumps** | free, CC BY-SA | the best fit this library has: exhaustive SF/F coverage down to obscure paperbacks, **and the series data Open Library lacks**. Downloadable in full, so it is queried locally at zero requests and no rate limit |
+| **Open Library monthly dumps** | free | what Open Library themselves ask bulk users to use instead of the API (§6.5 already says so). Local fuzzy matching with no pacing at all |
+| **Wikidata SPARQL** | free, no key | works, authors, and series via `P179`/`P1545`; generous limits |
+| **SearxNG, self-hosted** | free, AGPL | a genuine open-source route to tier 2 — a metasearch server you run yourself. It still rides on upstream engines, so it can break, but it needs no key and no account |
+
+**ISFDB is the one worth a look on its own merits**, independently of
+damaged names: it would answer §4's series question for a library that
+is mostly science fiction and fantasy, offline and for nothing, where
+Open Library has never been shown able to.
+
+### 4. Fetch each matched work's own record
 
 §10.13 recorded this and left it undone. Open Library's *search* results
 carry title, author, year, ISBN, language and a cover but **no synopsis
@@ -1559,10 +1681,10 @@ and no publisher**, so auto-apply writes almost nothing:
 | no first-published year | 1,585 |
 
 One extra request per book fixes all three — and it is the same call that
-confirms a candidate in §2, so they are one piece of work rather than
-two.
+confirms a candidate in §2 and repairs a fragment in §3, so they are one
+piece of work rather than three.
 
-### 4. Editing a book's metadata
+### 5. Editing a book's metadata
 
 **Series is not coming from a provider.** §6 said it would and it was
 never built; Open Library's search results are thin enough (§10.13) that
@@ -1588,7 +1710,7 @@ and 6 PRCs, across 49 authors, in the shape §8.13a already handles.
 Anthony's 45 are done; the rest want an audit apiece, since the pass
 writes an author and a title.
 
-### 5. Decisions waiting on a person
+### 6. Decisions waiting on a person
 
 - **278 hidden duplicate copies.** Audited twice, and both audits found
   real faults (§8.6, §8.10). No file was ever deleted;
@@ -1600,7 +1722,7 @@ writes an author and a title.
   unknown to Open Library** — mostly series names and scanner handles.
   The Sunday job walks ten a week and needs no help.
 
-### 6. Known gaps, deliberately
+### 7. Known gaps, deliberately
 
 - **Hand-editing is authors and series only** (§8.10). Title, synopsis
   and genres are provider-or-file; `title` is outside even the
