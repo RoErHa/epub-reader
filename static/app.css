@@ -129,9 +129,17 @@ header{
 }
 
 /* ── Browse chrome ──────────────────────────────────────────────────── */
-.browse-modes{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+/* Wraps, because the strip has to fit the library column and the
+   column is 330px on a Mac by rule. Eight modes did not fit on one
+   line, and `flex:1` with `nowrap` does not shrink text — it overflows,
+   so the last button ended up under the reader, in the DOM and
+   unclickable. */
+.browse-modes{
+  display:flex;flex-wrap:wrap;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
 .browse-mode{
-  flex:1;padding:9px 4px;background:none;border:none;
+  flex:1 0 auto;padding:9px 6px;background:none;border:none;
   color:var(--ink-dim-soft);font:inherit;font-size:12px;cursor:pointer;
   border-bottom:2px solid transparent;white-space:nowrap;
 }

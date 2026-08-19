@@ -516,6 +516,20 @@ class EpubGateway:
                 {"books": with_progress(page.rows), "total": page.total}
             )
 
+        @app.get("/api/formats")
+        def list_formats() -> JSONResponse:
+            return JSONResponse({"formats": browse.formats()})
+
+        @app.get("/api/formats/{group}/books")
+        def format_books(group: str) -> JSONResponse:
+            try:
+                page = browse.books(format_group=group, limit=500)
+            except BrowseError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            return JSONResponse(
+                {"books": with_progress(page.rows), "total": page.total}
+            )
+
         @app.get("/api/years")
         def list_years() -> JSONResponse:
             return JSONResponse({"decades": browse.decades()})

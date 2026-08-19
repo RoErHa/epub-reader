@@ -12,6 +12,7 @@ export const MODES = [
   { id: 'authors', label: 'Authors', endpoint: '/api/authors', key: 'authors' },
   { id: 'series', label: 'Series', endpoint: '/api/series', key: 'series' },
   { id: 'genres', label: 'Genres', endpoint: '/api/genres', key: 'genres' },
+  { id: 'formats', label: 'Formats', endpoint: '/api/formats', key: 'formats' },
   { id: 'years', label: 'Years', endpoint: '/api/years', key: 'decades' },
   { id: 'shelves', label: 'Shelves', endpoint: '/api/shelves', key: 'shelves' },
   { id: 'review', label: 'Review', endpoint: '/api/review', key: 'items' }

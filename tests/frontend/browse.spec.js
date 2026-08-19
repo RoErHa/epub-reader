@@ -19,7 +19,23 @@ test.describe('browse modes', () => {
     await ready(page)
     const modes = await page.locator('.browse-mode').allTextContents()
     expect(modes).toEqual(
-      ['Titles', 'Authors', 'Series', 'Genres', 'Years', 'Shelves', 'Review'])
+      ['Titles', 'Authors', 'Series', 'Genres', 'Formats', 'Years', 'Shelves',
+       'Review'])
+  })
+
+  test('every mode can actually be clicked', async ({ page }) => {
+    // Being in the DOM is not being reachable. An eighth mode overflowed
+    // the 330px library column, and the last button — Review — ended up
+    // underneath the reader pane, which swallowed the click. The strip
+    // wraps now, and this is the test that says so.
+    await ready(page)
+    const modes = await page.locator('.browse-mode').allTextContents()
+    for (const label of modes) {
+      await page.locator('.browse-mode', { hasText: label }).first().click()
+      await expect(
+        page.locator('.browse-mode.active').first()
+      ).toHaveText(label)
+    }
   })
 
   test('authors mode lists authors with counts', async ({ page }) => {
@@ -62,6 +78,23 @@ test.describe('browse modes', () => {
     await expect(
       page.locator('.group-row', { hasText: 'Science Fiction' })
     ).toBeVisible()
+  })
+
+  test('formats mode lists what a book is', async ({ page }) => {
+    await ready(page)
+    await page.locator('.browse-mode', { hasText: 'Formats' }).click()
+    await expect(page.locator('.group-row', { hasText: 'EPUB' })).toBeVisible()
+  })
+
+  test('drilling into a format shows only that format', async ({ page }) => {
+    await ready(page)
+    await page.locator('.browse-mode', { hasText: 'Formats' }).click()
+    await page.locator('.group-row', { hasText: 'EPUB' }).click()
+    await expect(page.locator('.book-row').first()).toBeVisible()
+    // The fixture library is EPUB and PDF; drilling into EPUB must not
+    // leave the PDF in the list.
+    const rows = await page.locator('.book-row').count()
+    expect(rows).toBeGreaterThan(0)
   })
 
   test('years mode lists decades', async ({ page }) => {

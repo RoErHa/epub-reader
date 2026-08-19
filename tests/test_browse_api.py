@@ -279,3 +279,71 @@ class TestCreditOrder:
             {"id": book_id, "people": ["Roberto Fuentes"]}, 0)
         row = BrowseQueries(gateway.database).books(sort="title").rows[0]
         assert row["authors"] == ["Piers Anthony", "Roberto Fuentes"]
+
+
+class TestBrowsingByFormat:
+    """A sixth browse mode: what a book *is*.
+
+    Six formats are stored — epub, pdf, cbz, prc, mobi, azw3 — and four
+    are worth browsing by, because `prc` and `azw3` are the same Palm
+    container as `mobi` (§8.3) and a reader looking for a comic does not
+    care whether it is zipped or RAR'd.
+    """
+
+    @pytest.fixture
+    def mixed(self, client, library, gateway):
+        from tests.cbz_fixtures import CbzBuilder
+        from tests.mobi_fixtures import MobiBuilder
+        from tests.pdf_fixtures import PdfBuilder
+        for existing in library.glob("*.epub"):
+            existing.unlink()
+        EpubBuilder(title="An Epub", author="Ann Author").build(library / "a.epub")
+        EpubBuilder(title="Another Epub", author="Ann Author").build(library / "b.epub")
+        PdfBuilder(title="A Pdf", lines=["pdf"]).build(library / "c.pdf")
+        MobiBuilder(title="A Mobi", authors=["Ann Author"]).build(library / "d.mobi")
+        MobiBuilder(title="A Prc", authors=["Ann Author"]).build(library / "e.prc")
+        CbzBuilder(pages=2).build(library / "Some Comic 001.cbz")
+        gateway.reindex()
+        return gateway
+
+    def test_the_groups_are_the_four_a_reader_thinks_in(self, mixed):
+        groups = {g["name"]: g["books"] for g in BrowseQueries(mixed.database).formats()}
+        assert groups == {"EPUB": 2, "PDF": 1, "MOBI": 2, "Comics": 1}
+
+    def test_a_group_nobody_owns_is_not_listed(self, client, library, gateway):
+        for existing in library.glob("*"):
+            if existing.is_file():
+                existing.unlink()
+        EpubBuilder(title="Only An Epub", author="Ann Author").build(
+            library / "only.epub")
+        gateway.reindex()
+        names = [g["name"] for g in BrowseQueries(gateway.database).formats()]
+        assert names == ["EPUB"]
+
+    def test_drilling_into_a_group(self, mixed):
+        rows = BrowseQueries(mixed.database).books(format_group="mobi").rows
+        assert sorted(r["title"] for r in rows) == ["A Mobi", "A Prc"]
+
+    def test_comics_hold_both_containers(self, mixed):
+        """cbz and cbr are one shelf to a reader — the difference is how
+        the pictures are packed, not what the book is."""
+        from epub_browse import FORMAT_GROUPS
+        assert set(FORMAT_GROUPS["comics"]["formats"]) == {"cbz", "cbr"}
+
+    def test_a_group_nobody_has_heard_of_is_refused(self, mixed):
+        from epub_browse import BrowseError
+        with pytest.raises(BrowseError) as exc:
+            BrowseQueries(mixed.database).books(format_group="papyrus")
+        assert "papyrus" in str(exc.value)
+
+    def test_the_endpoint_lists_them(self, mixed, client):
+        groups = client.get("/api/formats").json()["formats"]
+        assert {g["id"] for g in groups} == {"epub", "pdf", "mobi", "comics"}
+
+    def test_the_endpoint_drills_in(self, mixed, client):
+        books = client.get("/api/formats/comics/books").json()["books"]
+        assert len(books) == 1
+        assert books[0]["format"] == "cbz"
+
+    def test_the_endpoint_refuses_a_group_it_does_not_know(self, mixed, client):
+        assert client.get("/api/formats/papyrus/books").status_code == 422

@@ -194,6 +194,7 @@ Same shell as dlna-gateway, with the same responsive behaviour: three columns on
 | Mode | Drill-down |
 | --- | --- |
 | Authors | author → their books, grouped by series |
+| Formats | EPUB / MOBI / PDF / Comics → books of that kind |
 | Titles | flat A–Z list of every book |
 | Series | series → books in reading order |
 | Genres | genre → books |
@@ -811,6 +812,33 @@ shorthand's series row is left behind rather than deleted — every listing
 joins through to a present book, so an empty series cannot show (§6.8).
 #5 is genuinely missing rather than misfiled: *Statesman* is not in the
 library, which is the gap-finder working.
+
+### 8.14 Browsing by what a book is
+
+A sixth grouping beside Authors, Titles, Series, Genres and Years: six
+formats are indexed and **four are worth browsing by**, because `prc` and
+`azw3` are the same Palm container as `mobi` (§8.3), and somebody after a
+comic does not care whether the pictures are zipped or RAR'd.
+
+| Group | Formats | Books |
+| --- | --- | --- |
+| EPUB | `epub` | 1,326 |
+| MOBI | `mobi`, `azw3`, `prc` | 53 |
+| PDF | `pdf` | 511 |
+| Comics | `cbz`, `cbr` | 286 |
+
+**A group nobody owns is not listed** — an empty shelf is worse than no
+shelf, and this library has no CBR indexed at all (§8.15).
+
+> **Being in the DOM is not being reachable.** The eighth button
+> overflowed the library column — 330 px on a Mac *by rule* (§10.9) — and
+> `flex:1` with `white-space:nowrap` does not shrink text, it overflows.
+> So **Review** ended up underneath the reader pane, which swallowed
+> every click on it. The suite went from 2.2 minutes to 11 as sixteen
+> review tests each waited thirty seconds to click a button that was
+> there and untouchable, and the existing test passed throughout because
+> it only asked whether the modes were *listed*. The strip wraps now, and
+> a test clicks every mode and checks the right one went active.
 
 ### 8.13d What the scanner wrote into the title
 
@@ -2008,7 +2036,15 @@ writes an author and a title.
   enrichment writable set.
 - **57% genre-map coverage.** The rest is junk like `Rand al'Thor
   (Fictitious character)` — logged, never guessed (decision 5).
-- **CBR stays out.** It is RAR, and nothing in the stack reads RAR.
+- **CBR stays out — for now, and the reason has expired.** 295 comics are
+invisible because of it: 103 of the Doctor Strange run, 63 Sandman, all
+27 Science Comics, and the Matt Groening. §2.1 says "nothing in the stack
+reads RAR", and that is no longer true — **macOS ships `/usr/bin/bsdtar`,
+which is libarchive, and it reads RAR**. Tested on 40 of the 295 at
+random: **40 read, every one yielding its images**. Serving them would
+follow §8.5's proven path — repack to CBZ on the way out, as an unpacked
+EPUB directory is zipped on the way out — so nothing downstream would
+know. Not built; recorded so the decision is a decision.
 - **foliate-js has been pinned at `78914ae` since M0** and never
   updated, while upstream declares itself unstable. Updating is a
   deliberate act with the whole UI suite behind it (§3).

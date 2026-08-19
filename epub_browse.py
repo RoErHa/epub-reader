@@ -30,6 +30,18 @@ SORT_LABELS = {
 
 MODES = {"titles": "m.title_sort", "authors": "a.sort_name", "series": "s.sort_name"}
 
+# What a book *is*, as a reader thinks of it rather than as the disk
+# stores it. Six formats are indexed and four are worth browsing by:
+# `prc` and `azw3` are the same Palm container as `mobi` (§8.3), and
+# somebody after a comic does not care whether the pictures are zipped
+# or RAR'd. Ordered as they are shown.
+FORMAT_GROUPS = {
+    "epub":   {"name": "EPUB",   "formats": ("epub",)},
+    "mobi":   {"name": "MOBI",   "formats": ("mobi", "azw3", "prc")},
+    "pdf":    {"name": "PDF",    "formats": ("pdf",)},
+    "comics": {"name": "Comics", "formats": ("cbz", "cbr")},
+}
+
 
 class BrowseError(ValueError):
     """A request we refuse rather than guess at."""
@@ -79,6 +91,7 @@ class BrowseQueries:
               author_id: int | None = None, series_id: int | None = None,
               genre_id: int | None = None, decade: int | None = None,
               shelf_id: int | None = None, smart: str | None = None,
+              format_group: str | None = None,
               limit: int = 200, offset: int = 0) -> Page:
         if sort not in SORTS:
             raise BrowseError(
@@ -98,6 +111,14 @@ class BrowseQueries:
         if genre_id is not None:
             sql += " AND b.id IN (SELECT book_id FROM book_genre WHERE genre_id = ?)"
             params.append(genre_id)
+        if format_group is not None:
+            if format_group not in FORMAT_GROUPS:
+                raise BrowseError(
+                    f"{format_group!r} is not a format. "
+                    f"Use one of: {', '.join(FORMAT_GROUPS)}.")
+            formats = FORMAT_GROUPS[format_group]["formats"]
+            sql += f" AND b.format IN ({','.join('?' * len(formats))})"
+            params.extend(formats)
         if shelf_id is not None:
             sql += " AND b.id IN (SELECT book_id FROM shelf_book WHERE shelf_id = ?)"
             params.append(shelf_id)
@@ -184,6 +205,23 @@ class BrowseQueries:
                  GROUP BY g.id ORDER BY n DESC, g.sort_name
             """)
         ]
+
+    def formats(self) -> list[dict]:
+        """The format groups a reader actually holds.
+
+        A group nobody owns is not listed — an empty shelf is worse than
+        no shelf, and this library has no CBR indexed at all (§2.1).
+        """
+        counts = {row["format"]: row["n"] for row in self._db.connection.execute(
+            """SELECT b.format, COUNT(*) n FROM book b
+                WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
+                GROUP BY b.format""")}
+        groups = []
+        for key, group in FORMAT_GROUPS.items():
+            total = sum(counts.get(f, 0) for f in group["formats"])
+            if total:
+                groups.append({"id": key, "name": group["name"], "books": total})
+        return groups
 
     def decades(self) -> list[dict]:
         return [

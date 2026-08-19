@@ -1083,6 +1083,26 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <p><strong>A bug this found in <code>run.sh</code>:</strong> the usage block was <code>sed -n '3,38p'</code>, a fixed line range, so every command added pushed the last one off the end — <code>fragments</code> fell out of the help the moment <code>tags</code> was added, silently. It now reads to the closing rule rather than to a number somebody has to remember, and a test asserts that <em>every</em> command appears.</p>
 
+<h3>6.11f &nbsp;Browsing by what a book is</h3>
+<p>A sixth grouping beside Authors, Titles, Series, Genres and Years. Six formats are indexed and <strong>four are worth browsing by</strong>: <code>prc</code> and <code>azw3</code> are the same Palm container as <code>mobi</code>, and somebody after a comic does not care whether the pictures are zipped or RAR'd.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Group</th><th>Formats</th><th class="num">Books</th></tr></thead>
+<tbody>
+<tr><td>EPUB</td><td><code>epub</code></td><td class="num">1,326</td></tr>
+<tr><td>MOBI</td><td><code>mobi</code>, <code>azw3</code>, <code>prc</code></td><td class="num">53</td></tr>
+<tr><td>PDF</td><td><code>pdf</code></td><td class="num">511</td></tr>
+<tr><td>Comics</td><td><code>cbz</code>, <code>cbr</code></td><td class="num">286</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>A group nobody owns is not listed</strong> — an empty shelf is worse than no shelf.</p>
+
+<div class="rule">
+  <span class="eyebrow">Being in the DOM is not being reachable</span>
+  <p>The eighth button overflowed the library column — 330&nbsp;px on a Mac by rule — and <code>flex:1</code> with <code>white-space:nowrap</code> does not shrink text, it overflows. <strong>Review</strong> ended up underneath the reader pane, which swallowed every click on it. The suite went from 2.2 minutes to 11 as sixteen review tests each waited thirty seconds to click a button that was there and untouchable, while the existing test passed throughout because it only asked whether the modes were <em>listed</em>. The strip wraps now, and a test clicks every mode and checks the right one went active.</p>
+</div>
+
 <h3>6.12 &nbsp;Comics</h3>
 <p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
 <pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>
@@ -1516,7 +1536,7 @@ Anthony, Piers - Dead Morn (with Roberto Fuentes).pdf</code></pre>
 
 <p><strong>6 — Waiting on a person:</strong> 280 hidden duplicate copies (audited twice, no file ever deleted, all restorable); <code>GOOGLE_BOOKS_API_KEY</code> unset, so Google Books answers 429 to everything and contributes nothing; 17 authors never asked about and 375 unknown to Open Library, which the Sunday job walks at ten a week.</p>
 
-<p><strong>7 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out because it is RAR; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
+<p><strong>7 — Gaps kept on purpose:</strong> hand-editing is authors and series only; genre-map coverage is 57% and the rest is genuine junk; CBR stays out — 295 comics' worth, and the reason has expired: macOS ships <code>bsdtar</code>, which is libarchive and reads RAR (40 of 40 sampled read cleanly), and serving them would follow the same repack-on-the-way-out path an unpacked EPUB already uses; and foliate-js has been pinned at <code>78914ae</code> since M0 while upstream calls itself unstable.</p>
 
 </main>
 </div>
