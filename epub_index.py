@@ -135,7 +135,10 @@ class LibraryIndexer:
         for suffix in (".mobi", ".azw3", ".azw", ".prc"):
             self._readers[suffix] = MobiMetadataReader()
         self._readers[".pdf"] = PdfMetadataReader()
+        # Zip or RAR, it is the same comic: the reader looks at
+        # what the file *is*, not what it is called.
         self._readers[".cbz"] = CbzMetadataReader()
+        self._readers[".cbr"] = self._readers[".cbz"]
         self._search = SearchIndex(database)
         self.hashed = 0  # observable so tests can assert we skip work
 

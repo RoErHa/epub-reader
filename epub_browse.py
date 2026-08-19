@@ -212,8 +212,13 @@ class BrowseQueries:
         A group nobody owns is not listed — an empty shelf is worse than
         no shelf, and this library has no CBR indexed at all (§2.1).
         """
+        # Joined through metadata, exactly as every book list is: a book
+        # whose archive could not be read has a row and no metadata, so
+        # counting rows would promise ten comics the shelf cannot show
+        # (§6.8).
         counts = {row["format"]: row["n"] for row in self._db.connection.execute(
             """SELECT b.format, COUNT(*) n FROM book b
+                JOIN metadata m ON m.book_id = b.id
                 WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
                 GROUP BY b.format""")}
         groups = []

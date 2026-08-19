@@ -29,6 +29,7 @@ from epub_tags import ScannerTags
 from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
+from epub_rar import RarArchive, RarError, repack
 from epub_reading import STATUSES, ReadingStateStore
 from epub_book_enrich import BookEnricher
 from epub_dedupe import AuthorDeduplicator
@@ -64,10 +65,12 @@ class BookLibrary:
     # rather than reflowing text — but it is 585 books here, and a
     # reader that cannot open them is a reader you keep leaving.
     #
-    # CBR stays out, and only CBR: it is RAR, which nothing in the
-    # stack reads. CBZ is a zip of images, which foliate draws.
+    # CBZ is a zip of images, which foliate draws. CBR is a RAR of
+    # images, which libarchive reads and foliate cannot — so it is
+    # repacked as a zip on the way out (§8.15), the same trick §8.5
+    # already plays on an unpacked EPUB.
     SUFFIXES = frozenset({".epub", ".mobi", ".azw3", ".azw", ".prc", ".pdf",
-                          ".cbz"})
+                          ".cbz", ".cbr"})
 
     def __init__(self, root: Path) -> None:
         self._root = root
@@ -201,6 +204,9 @@ class EpubGateway:
         ".mobi": "application/x-mobipocket-ebook",
         ".fb2": "application/x-fictionbook+xml",
         ".cbz": "application/vnd.comicbook+zip",
+        # A CBR is served repacked, so what leaves here is a zip
+        # whatever the file on disk is.
+        ".cbr": "application/vnd.comicbook+zip",
         ".pdf": "application/pdf",
     }
 
@@ -880,6 +886,21 @@ class EpubGateway:
             # subfolders, and a relative path with slashes cannot be a
             # single path segment.
             path = book_file(book_or_404(book_id))
+            if RarArchive.is_rar(path):
+                # A comic packed with RAR, packed as a zip. foliate reads
+                # a zip; the reader, the positions and the highlights
+                # carry on knowing nothing about it (§8.5's path).
+                try:
+                    body = repack(RarArchive(path))
+                except RarError as exc:
+                    raise HTTPException(status_code=422,
+                                        detail=str(exc)) from None
+                return Response(
+                    content=body,
+                    media_type="application/vnd.comicbook+zip",
+                    headers={"Content-Disposition":
+                             f'inline; filename="{path.stem}.cbz"'},
+                )
             if path.is_dir():
                 # foliate reads a zip, so a book that was never zipped
                 # is zipped on the way out. Everything downstream — the

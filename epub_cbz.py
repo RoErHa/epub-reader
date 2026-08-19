@@ -14,6 +14,12 @@ comic is not a 1985 work, which is the distinction §5 exists for.
 
 Where a `ComicInfo.xml` is present it beats the filename, because
 somebody wrote it on purpose.
+
+**Zip or RAR, it is the same comic.** A CBZ is a zip and a CBR is a RAR,
+and since libarchive reads both (§8.15) the difference stops at the
+loader. What matters is what the file *is*, never what it is called —
+two comics here are named `.cbz` and are RAR inside, and used to be
+refused with a message explaining the fact rather than acting on it.
 """
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ from xml.etree import ElementTree
 
 from epub_metadata import BookMetadata, MetadataError
 from epub_names import PersonName, title_sort_key
+from epub_rar import RarArchive, RarError, _run
 
 PAGE_TYPES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 
@@ -39,18 +46,18 @@ class CbzMetadataReader:
     """The comic counterpart of EpubMetadataReader, with the same shape:
     give it a path, get a BookMetadata back."""
 
+    def __init__(self, run=_run) -> None:
+        # The bsdtar process is injected, because libarchive reads RAR
+        # and cannot write it — so no fixture archive can be built, and
+        # what is worth testing is our reading of what it writes (§8.15).
+        self._run = run
+
     def read(self, path: Path) -> BookMetadata:
         path = Path(path)
-        try:
-            if path.open("rb").read(4) == b"Rar!":
-                # Two real ones are named .cbz and are RAR inside. Say
-                # which it is, rather than "not a comic archive" — the
-                # reader can rename it, and nothing here reads RAR.
-                raise MetadataError(
-                    f"{path.name} is a RAR archive named .cbz; nothing here"
-                    " reads RAR.")
-        except FileNotFoundError as exc:
-            raise MetadataError(f"{path.name} does not exist.") from exc
+        if not path.exists():
+            raise MetadataError(f"{path.name} does not exist.")
+        if RarArchive.is_rar(path):
+            return self._read_rar(path)
 
         try:
             with zipfile.ZipFile(path) as archive:
@@ -74,6 +81,26 @@ class CbzMetadataReader:
         except OSError as exc:
             raise MetadataError(f"{path.name} could not be read: {exc}") from exc
 
+        meta.title_sort = title_sort_key(meta.title)
+        return meta
+
+    def _read_rar(self, path: Path) -> BookMetadata:
+        """The same comic, unpacked by libarchive instead of zipfile."""
+        archive = RarArchive(path, run=self._run)
+        try:
+            pages = archive.pages()
+            if not pages:
+                raise MetadataError(f"{path.name} holds no pages.")
+            meta = self._from_name(path)
+            meta.page_count = len(pages)
+            meta.spine_length = path.stat().st_size
+            data = archive.read(pages[0])
+            if data:
+                meta.cover_data = data
+                meta.cover_suffix = Path(pages[0]).suffix.lower()
+            self._comic_info(archive, archive.names(), meta)
+        except RarError as exc:
+            raise MetadataError(f"{path.name} could not be read: {exc}") from exc
         meta.title_sort = title_sort_key(meta.title)
         return meta
 

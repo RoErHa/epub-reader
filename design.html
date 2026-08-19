@@ -1092,7 +1092,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr><td>EPUB</td><td><code>epub</code></td><td class="num">1,326</td></tr>
 <tr><td>MOBI</td><td><code>mobi</code>, <code>azw3</code>, <code>prc</code></td><td class="num">53</td></tr>
 <tr><td>PDF</td><td><code>pdf</code></td><td class="num">511</td></tr>
-<tr><td>Comics</td><td><code>cbz</code>, <code>cbr</code></td><td class="num">286</td></tr>
+<tr><td>Comics</td><td><code>cbz</code>, <code>cbr</code></td><td class="num">481</td></tr>
 </tbody>
 </table>
 </div>
@@ -1109,6 +1109,43 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Everything in brackets is the scanner talking, and the year among it is the <em>edition</em> — a 2025 scan of a 1985 comic is not a 1985 work. The issue number is worth keeping because it orders a run: <code>Shadowman 004</code> is the fourth Shadowman. The cover is the first page, sorted, because scanners pad their filenames and <code>002</code> really does come before <code>010</code>.</p>
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
+
+<h3>6.12a &nbsp;Comics packed with RAR</h3>
+<p><strong>295 CBR files, every one invisible.</strong> §2.1 excluded them because "it is RAR, which nothing in the stack reads" — and that had quietly stopped being true: <strong>macOS ships <code>/usr/bin/bsdtar</code>, which is libarchive, and libarchive reads RAR</strong>. No new dependency, nothing to install, nothing proprietary.</p>
+
+<div class="rule">
+  <span class="eyebrow">A comic packed with RAR is packed again as a zip on the way out</span>
+  <p>§6.9 already does this for an unpacked EPUB directory, and the reader, the positions and the highlights carry on knowing nothing about it. A 3.5&nbsp;MB comic is repacked and served in <strong>23&nbsp;ms</strong>.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Listing is cheap and extracting is not</span>
+  <p><code>-tv</code> reads headers and decompresses nothing, so a cover asks for <em>one entry</em>, not for the archive — the largest comic here is 315&nbsp;MB, and holding all of it to make a thumbnail is not a trade worth making. Reading all 295 for metadata takes <strong>4 seconds</strong>.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">Extracting to stdout, never to disk</span>
+  <p>No temporary directory, no permissions, no path that might climb out of one. <code>-tv</code> gives every entry's size in archive order and <code>-xO</code> gives every entry's bytes in the same order, so the stream splits exactly — checked byte for byte against a 315&nbsp;MB comic. If the two ever disagree the split is a guess, so it is refused rather than handing a reader half of one page stuck to half of the next.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">libarchive reads most RAR, not all</span>
+  <p><strong>10 of 205 are refused</strong> with <em>"Prefix found: Inappropriate file type or format"</em>, all ten one run of 2003-vintage Marvel Premiere archives. A book that cannot be unpacked is reported and skipped like any other unreadable file; it does not take a scan down.</p>
+</div>
+
+<p><strong>It reads RAR and cannot write it</strong>, and nor can anything else here, so there is no <code>RarBuilder</code> beside <code>EpubBuilder</code> and <code>CbzBuilder</code> and there cannot be. The <strong>process</strong> is the injected boundary: the tests fake what bsdtar writes, so what they cover is our reading of it — the listing parser and the size split, which is where a bug would live.</p>
+
+<p><strong>Measured: 295 files, 205 distinct comics.</strong> The other 90 are byte-identical copies filed in two places, folded into one book without being asked. 195 are on the shelves and 10 carry their error. <strong>Comics went from 286 to 481</strong>, the library from 2,176 books to 2,381.</p>
+
+<div class="rule">
+  <span class="eyebrow">What the file is, never what it is called</span>
+  <p>Some <code>.cbr</code> files here are zips, and §2.1 recorded <code>.cbz</code> files that were RAR. Both are read by sniffing the magic, so neither is a special case any more — the error message that existed to explain the mismatch is gone, because there is nothing left to explain.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A count that disagrees with its own list, again</span>
+  <p>The Comics group said <strong>491</strong> and the shelf showed <strong>481</strong>: the ten unreadable archives have a <code>book</code> row and no metadata, so anything counting rows counts them and every list joins metadata and cannot. §6.8 settled this for the status line; the format counts now join through as well.</p>
+</div>
 
 <h3>6.13 &nbsp;A scan notices a deletion; it does not act on one</h3>
 <p>A vanished book is marked <code>missing_since</code> and kept — §5 says it in as many words, <em>"vanished; row never auto-deleted"</em>. That is why it leaves the shelves at once while your place in it survives, and it is what makes an unplugged drive a nuisance rather than a disaster. It is the wrong answer for a book deleted on purpose, so <code>./run.sh forget</code> is a separate act, and it says what would be lost before losing it.</p>

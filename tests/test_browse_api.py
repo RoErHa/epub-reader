@@ -310,6 +310,31 @@ class TestBrowsingByFormat:
         groups = {g["name"]: g["books"] for g in BrowseQueries(mixed.database).formats()}
         assert groups == {"EPUB": 2, "PDF": 1, "MOBI": 2, "Comics": 1}
 
+    def test_the_count_is_what_the_list_shows(self, client, library, gateway):
+        """§6.8's rule again: a count that disagrees with the screen
+        below it is wrong however defensible it is on its own.
+
+        Ten CBR comics are archives libarchive refuses, so they have a
+        `book` row and no metadata — counted by anything that counts
+        rows, listed by nothing, because every list joins through
+        metadata. The Comics group said 491 and showed 481.
+        """
+        for existing in library.glob("*"):
+            if existing.is_file():
+                existing.unlink()
+        EpubBuilder(title="A Readable One", author="Ann Author").build(
+            library / "fine.epub")
+        gateway.reindex()
+        # A book that could not be read at all: a row, and nothing else.
+        gateway.database.connection.execute(
+            "INSERT INTO book (content_hash, path, format, size_bytes, mtime,"
+            " added_at, index_error) VALUES ('deadbeef', 'broken.epub',"
+            " 'epub', 1, 1, 1, 'nope')")
+        browse = BrowseQueries(gateway.database)
+        counted = {g["name"]: g["books"] for g in browse.formats()}["EPUB"]
+        listed = len(browse.books(format_group="epub").rows)
+        assert counted == listed
+
     def test_a_group_nobody_owns_is_not_listed(self, client, library, gateway):
         for existing in library.glob("*"):
             if existing.is_file():

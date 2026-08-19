@@ -63,8 +63,9 @@ Two references to a `book` row have **no cascade**, and both took a scan down in
 
 ## 2.1 Scope: what the reader can open
 
-**EPUB, MOBI, AZW3, PRC, PDF and CBZ.** Only CBR stays out: it is RAR,
-which nothing in the stack reads. Two files named `.cbz` turned out to
+**EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR.** RAR comics are read through
+libarchive, which macOS ships as `/usr/bin/bsdtar`, and repacked as a zip
+on the way out (§8.15). Two files named `.cbz` turned out to
 be RAR inside, and the error says so rather than "not a comic archive" —
 the reader can act on the first and not on the second.
 
@@ -109,8 +110,8 @@ Known upstream weak spots we design around: the paginator uses CSS multi-column 
 
 Validated against `~/Books` when M2 began: 34 GB, 1,327 EPUB files, 585
 PDFs, 309 CBZ, 295 CBR. Everything below is measured, not assumed. (The
-library is 2,268 books now, and all of those formats but CBR are read —
-§2.1.)
+library is 2,381 books now, and every one of those formats is read —
+§2.1, §8.15.)
 
 **Two structural surprises, both of which M2 must handle:**
 
@@ -813,6 +814,67 @@ joins through to a present book, so an empty series cannot show (§6.8).
 #5 is genuinely missing rather than misfiled: *Statesman* is not in the
 library, which is the gap-finder working.
 
+### 8.15 Comics packed with RAR
+
+**295 CBR files, every one invisible.** §2.1 excluded them because "it is
+RAR, which nothing in the stack reads" — and that had quietly stopped
+being true: **macOS ships `/usr/bin/bsdtar`, which is libarchive, and
+libarchive reads RAR.** No new dependency, nothing to install, nothing
+proprietary.
+
+> **A comic packed with RAR is packed again as a zip on the way out.**
+> §8.5 already does this for an unpacked EPUB directory, and the reader,
+> the positions and the highlights carry on knowing nothing about it. A
+> 3.5 MB comic is repacked and served in **23 ms**.
+
+Three things the real archives decided, none of which a fixture would
+have shown:
+
+> **Listing is cheap and extracting is not.** `-tv` reads headers and
+> decompresses nothing. So a cover asks for **one entry**, not for the
+> archive — the largest comic here is 315 MB, and holding all of it to
+> make a thumbnail is not a trade worth making. Reading all 295 for
+> metadata takes **4 seconds**.
+
+> **Extracting to stdout, never to disk.** No temporary directory, no
+> permissions, no path that might climb out of one. `-tv` gives every
+> entry's size in archive order and `-xO` gives every entry's bytes in
+> the same order, so the stream splits exactly — checked byte for byte
+> against a 315 MB comic. And if the two ever disagree the split is a
+> guess, so it is refused rather than handing a reader half of one page
+> stuck to half of the next.
+
+> **libarchive reads most RAR, not all.** **10 of 205 are refused** with
+> *"Prefix found: Inappropriate file type or format"*, and all ten are
+> one run of 2003-vintage Marvel Premiere archives. A book that cannot be
+> unpacked is reported and skipped like any other unreadable file (§3.2);
+> it does not take a scan down.
+
+**It reads RAR and cannot write it**, and nor can anything else here, so
+there is no `RarBuilder` beside `EpubBuilder` and `CbzBuilder` and there
+cannot be. The **process** is the injected boundary: the tests fake what
+bsdtar writes, so what they cover is our reading of it — the listing
+parser and the size split, which is where a bug would live. The tool
+itself is measured against the real library, as the fetcher is (§10.11).
+
+**Measured: 295 files, 205 distinct comics.** The other 90 are
+byte-identical copies filed in two places, which §10.3 folds into one
+book without being asked. 195 are on the shelves, 10 carry their error.
+**Comics went from 286 to 481**, and the library from 2,176 books to
+2,381.
+
+> **What the file *is*, never what it is called.** Some `.cbr` files here
+> are zips and §2.1 recorded `.cbz` files that were RAR; both are read by
+> sniffing the magic, so neither is a special case any more — the error
+> message that existed to explain the mismatch is gone, because there is
+> nothing left to explain.
+
+**A count that disagrees with its own list, again.** The Comics group
+said **491** and the shelf showed **481**: the ten unreadable archives
+have a `book` row and no metadata, so anything counting rows counts them
+and every list joins metadata and cannot. §6.8 settled this for the
+status line; `formats()` now joins through as well.
+
 ### 8.14 Browsing by what a book is
 
 A sixth grouping beside Authors, Titles, Series, Genres and Years: six
@@ -825,10 +887,12 @@ comic does not care whether the pictures are zipped or RAR'd.
 | EPUB | `epub` | 1,326 |
 | MOBI | `mobi`, `azw3`, `prc` | 53 |
 | PDF | `pdf` | 511 |
-| Comics | `cbz`, `cbr` | 286 |
+| Comics | `cbz`, `cbr` | 481 |
 
 **A group nobody owns is not listed** — an empty shelf is worse than no
-shelf, and this library has no CBR indexed at all (§8.15).
+shelf. Comics covered 286 books when it was built and 481 the day
+CBR came in (§8.15), which is the point of naming the group after what
+a reader wants rather than after a container.
 
 > **Being in the DOM is not being reachable.** The eighth button
 > overflowed the library column — 330 px on a Mac *by rule* (§10.9) — and
@@ -1340,7 +1404,10 @@ epub_pdf.py         PdfMetadataReader — the Info dict, when it is worth
 epub_covers.py      CoverBackfill — a cover from the book's own first page;
                     ProviderCovers, CoverMatch, AuthorHint — and from
                     Open Library for the files that hold no image
-epub_cbz.py         CbzMetadataReader — comics: a filename and a first page
+epub_cbz.py         CbzMetadataReader — comics: a filename and a first page,
+                    zip or RAR alike
+epub_rar.py         RarArchive, repack — comics packed with RAR, read
+                    through libarchive and repacked as a zip on the way out
 epub_series.py      SeriesFromNames — series read from filenames
 epub_filenames.py   CreditsFromNames — author, series and title, read from
                     one filename, in §6.6's order
@@ -2036,15 +2103,10 @@ writes an author and a title.
   enrichment writable set.
 - **57% genre-map coverage.** The rest is junk like `Rand al'Thor
   (Fictitious character)` — logged, never guessed (decision 5).
-- **CBR stays out — for now, and the reason has expired.** 295 comics are
-invisible because of it: 103 of the Doctor Strange run, 63 Sandman, all
-27 Science Comics, and the Matt Groening. §2.1 says "nothing in the stack
-reads RAR", and that is no longer true — **macOS ships `/usr/bin/bsdtar`,
-which is libarchive, and it reads RAR**. Tested on 40 of the 295 at
-random: **40 read, every one yielding its images**. Serving them would
-follow §8.5's proven path — repack to CBZ on the way out, as an unpacked
-EPUB directory is zipped on the way out — so nothing downstream would
-know. Not built; recorded so the decision is a decision.
+- **CBR is in** (§8.15). What stays out is the **10 archives libarchive
+itself refuses** — one run of 2003-vintage Marvel Premiere files. Nothing
+here can reach them; another unrar could, at the cost of a dependency
+that is not already on the machine.
 - **foliate-js has been pinned at `78914ae` since M0** and never
   updated, while upstream declares itself unstable. Updating is a
   deliberate act with the whole UI suite behind it (§3).
