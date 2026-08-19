@@ -238,6 +238,27 @@ class FragmentsCommand:
         return 0
 
 
+class TagsCommand:
+    """`--tags`: what the scanner wrote into the title.
+
+    "(v2.1)", "(not ocr)", "(uc)" — a closed vocabulary, never any
+    bracket, because the same titles carry "(The Murderbot Diaries)" and
+    "(Osprey, Men at Arms #121)".
+    """
+
+    def __init__(self, config: Config, apply: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.clean_tags(apply=self._apply))
+        finally:
+            gateway.close()
+        return 0
+
+
 class CoversCommand:
     """`--covers`: a cover for books that show a lettered tile.
 
@@ -382,6 +403,11 @@ class GatewayCLI:
             help="Finish titles that were cut off, then exit.",
         )
         parser.add_argument(
+            "--tags",
+            action="store_true",
+            help="Take the scanner's notes out of the titles, then exit.",
+        )
+        parser.add_argument(
             "--coauthors",
             action="store_true",
             help="Free the co-authors written into titles, then exit.",
@@ -441,6 +467,8 @@ class GatewayCLI:
             return FragmentsCommand(config, apply=args.apply,
                                     author=args.author,
                                     formats=args.formats).run()
+        if args.tags:
+            return TagsCommand(config, apply=args.apply).run()
         if args.coauthors:
             return CoAuthorsCommand(config, apply=args.apply).run()
         if args.dedupe:

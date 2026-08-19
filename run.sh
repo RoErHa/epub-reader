@@ -35,6 +35,8 @@
 #   ./run.sh names --author "Piers Anthony" --format pdf --apply
 #   ./run.sh coauthors          # find people written into titles
 #   ./run.sh coauthors --apply  # ...and credit them properly
+#   ./run.sh tags               # find scanner notes in titles
+#   ./run.sh tags --apply       # ...and take them out
 #   ./run.sh fragments --author "Piers Anthony"          # finish cut-off titles
 #   ./run.sh fragments --author "Piers Anthony" --apply
 #   ./run.sh covers             # find books whose own first page is their cover
@@ -72,7 +74,7 @@ while [ $# -gt 0 ]; do
     --online)     ONLINE=1; shift ;;
     --author)     AUTHOR="${2:?--author needs a name}"; shift 2 ;;
     --format)     FORMAT="${2:?--format needs a format}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|forget|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|tags|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -86,7 +88,9 @@ done
 PID_FILE="${RUN_DIR}/$(basename "${ENV_FILE}").pid"
 
 usage() {
-  sed -n '3,38p' "$0" | sed 's/^# \{0,1\}//'
+  # To the closing rule, not to a line number somebody has to remember
+  # to move: adding a command used to push the last ones off the help.
+  sed -n '3,/^# ===/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
 }
 
 if [ -z "${COMMAND}" ]; then
@@ -218,6 +222,18 @@ do_fragments() {
   fi
 }
 
+do_tags() {
+  # "(v2.1)", "(not ocr)", "(uc)" — a closed vocabulary, never any
+  # bracket: the same titles carry "(The Murderbot Diaries)".
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Taking the scanner notes out of titles..."
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --tags --apply
+  else
+    echo "▶  Looking for scanner notes in titles (nothing will change)..."
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --tags
+  fi
+}
+
 do_covers() {
   # Page one of a PDF, but only where page one is the cover. Nothing is
   # fetched and no book file is touched. --online asks Open Library about
@@ -346,6 +362,7 @@ case "${COMMAND}" in
   names)   do_names ;;
   coauthors) do_coauthors ;;
   fragments) do_fragments ;;
+  tags)    do_tags ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;

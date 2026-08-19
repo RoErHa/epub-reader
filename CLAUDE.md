@@ -452,6 +452,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | Author, series and title from one filename | `./run.sh names [--apply]` | `epub_filenames.py` |
 | A co-author written into the title | `./run.sh coauthors [--apply]` | `epub_coauthors.py` |
 | A title that was cut off | `./run.sh fragments [--apply]` | `epub_fragments.py` |
+| What the scanner wrote into the title | `./run.sh tags [--apply]` | `epub_tags.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 | A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
@@ -811,6 +812,41 @@ joins through to a present book, so an empty series cannot show (§6.8).
 #5 is genuinely missing rather than misfiled: *Statesman* is not in the
 library, which is the gap-finder working.
 
+### 8.13d What the scanner wrote into the title
+
+`Blue Moon (v2.2)`, `Enemies of the Roman Order (not ocr)`,
+`Myth-Nomers (uc)`. A version stamp, a note that a scan never went
+through OCR, a bare format — none of these is part of a book's name. **17
+titles carried one**, and they are exactly what the library-wide `names`
+run left behind, deliberately: that pass tidies what it was asked to and
+no more (§8.13a).
+
+> **A closed vocabulary, never "strip any bracket".** The same 66
+> bracketed titles hold `(The Murderbot Diaries)`, `(Osprey, Men at Arms
+> #121)`, `(PhD, 1998)`, `(Collins Shorts, Book 1)` and `(Mysterious
+> Creatures)` — every one part of the book or of its shelf. Guessing
+> would cost more than it cleared. Known values only, the rule §6.1
+> follows for genres and §8.13a for file extensions.
+
+Two shapes the real titles forced: **two brackets with no space between
+them**, `Rome and Her Enemies (Osprey)(not ocr)`, where only the
+scanner's may go; and **a title is never emptied** — a book called
+`(v1.0)` is absurd, but a book called nothing falls out of every list
+that sorts by title.
+
+**Measured: 18 cleaned, 0 left.** `./run.sh tags`.
+
+**The tests passed the first time they were run, which is not the same as
+passing.** They were written before the module but not *run* before it,
+so §10's remedy applied: the rule was temporarily disabled and 12 of the
+23 failed, which is what makes the other 11 worth having.
+
+**A bug this found in `run.sh`:** the usage block was `sed -n '3,38p'`, a
+fixed line range, so every command added pushed the last one off the end
+— `fragments` fell out of the help the moment `tags` was added, silently.
+It now reads to the closing rule rather than to a number somebody has to
+remember, and a test asserts that **every** command appears.
+
 ### 8.13c A title that was cut off, finished by a provider
 
 **§12.3's tier 1.** `Anthony, Piers - The Caterpillars Questi.pdf` was
@@ -1065,11 +1101,9 @@ and the typo as "confirmed by Open Library". It still refused
 
 **What the pass cannot reach**, counted afterwards: **31 titles that are
 only a shelf label** — `Alex Cross 07`, `Elemental Masters 02` — where
-the filename names a position and no book at all; and **17 still carrying
-a scanner's version tag**, `(v1.0)`, `(v2.2)`, `(uc)`, `(not ocr)`. The
-first needs a provider or a person. The second is a rule waiting to be
-written, and deliberately was not: this pass tidies what it was asked to
-and no more.
+the filename names a position and no book at all; and 17 carrying a scanner's version tag — since
+cleaned by §8.13d, which is the rule this pass deliberately left
+unwritten. The shelf labels still need a provider or a person.
 
 **The same shape is waiting on 241 more books across 49 authors** — 235
 PDFs and 6 PRCs — which is what `./run.sh names` reports library-wide.
@@ -1242,6 +1276,8 @@ epub_filenames.py   CreditsFromNames — author, series and title, read from
                     one filename, in §6.6's order
 epub_coauthors.py   CoAuthorsInTitles — the second author somebody wrote
                     into the title, because a file has one name
+epub_tags.py        ScannerTags — (v2.1), (not ocr), (uc): a closed
+                    vocabulary, never any bracket
 epub_fragments.py   TitlesFromFragments — a title cut off at the end, and
                     the provider that can finish it; every question and
                     answer cached in provider_query

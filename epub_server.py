@@ -25,6 +25,7 @@ from epub_coauthors import CoAuthorsInTitles
 from epub_filenames import CreditsFromNames
 from epub_fragments import TitlesFromFragments
 from epub_series import SeriesFromNames
+from epub_tags import ScannerTags
 from epub_config import Config
 from epub_db import Database
 from epub_index import LibraryIndexer
@@ -225,6 +226,7 @@ class EpubGateway:
         self._series = SeriesFromNames(self._database)
         self._filenames = CreditsFromNames(self._database, self._series)
         self._coauthors = CoAuthorsInTitles(self._database)
+        self._tags = ScannerTags(self._database)
         self._forget = ForgetMissing(self._database)
         self._credits = BookCredits(self._database)
         # One fetcher for every provider, so the pacing is the whole
@@ -353,6 +355,10 @@ class EpubGateway:
         """Finish the titles that were cut off, in one line."""
         return TitlesFromFragments.summary(
             self._fragments.run(apply=apply, author=author, formats=formats))
+
+    def clean_tags(self, apply: bool = False) -> str:
+        """Take the scanner's notes out of the titles, in one line."""
+        return ScannerTags.summary(self._tags.run(apply=apply))
 
     def dedupe_books(self, apply: bool = False) -> str:
         """One row per work, and one line about it."""

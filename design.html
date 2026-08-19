@@ -1051,6 +1051,23 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <p><strong>Measured: 1 title finished, and the other refused — correctly.</strong> <code>Bamboo Bloodbath &amp; Ninj</code> names <em>two</em> novels and Open Library holds one of them, so their answer is <strong>shorter</strong> than what we hold. The cache shows exactly that: the trimmed question found <em>The Bamboo Bloodbath</em> and the rule threw it away. Completing a fragment is not replacing it with half of itself.</p>
 
+<h3>6.11e &nbsp;What the scanner wrote into the title</h3>
+<p><code>Blue Moon (v2.2)</code>, <code>Enemies of the Roman Order (not ocr)</code>, <code>Myth-Nomers (uc)</code>. A version stamp, a note that a scan never went through OCR, a bare format — none of these is part of a book's name. <strong>17 titles carried one</strong>, and they are exactly what the library-wide <code>names</code> run left behind, deliberately: that pass tidies what it was asked to and no more.</p>
+
+<div class="rule">
+  <span class="eyebrow">A closed vocabulary, never "strip any bracket"</span>
+  <p>The same 66 bracketed titles hold <code>(The Murderbot Diaries)</code>, <code>(Osprey, Men at Arms #121)</code>, <code>(PhD, 1998)</code> and <code>(Mysterious Creatures)</code> — every one part of the book or of its shelf. Guessing would cost more than it cleared. Known values only, the rule §6.1 follows for genres.</p>
+</div>
+
+<p>Two shapes the real titles forced: <strong>two brackets with no space between them</strong>, <code>Rome and Her Enemies (Osprey)(not ocr)</code>, where only the scanner's may go; and <strong>a title is never emptied</strong> — a book called <code>(v1.0)</code> is absurd, but a book called nothing falls out of every list that sorts by title. <strong>Measured: 18 cleaned, 0 left.</strong></p>
+
+<div class="rule">
+  <span class="eyebrow">Passing the first time is not the same as passing</span>
+  <p>These tests were written before the module but not <em>run</em> before it, so the remedy the CSP test established applied here too: the rule was temporarily disabled and 12 of the 23 failed. That is what makes the other 11 worth having.</p>
+</div>
+
+<p><strong>A bug this found in <code>run.sh</code>:</strong> the usage block was <code>sed -n '3,38p'</code>, a fixed line range, so every command added pushed the last one off the end — <code>fragments</code> fell out of the help the moment <code>tags</code> was added, silently. It now reads to the closing rule rather than to a number somebody has to remember, and a test asserts that <em>every</em> command appears.</p>
+
 <h3>6.12 &nbsp;Comics</h3>
 <p>A CBZ is a zip of images and nothing else: <strong>286 indexed</strong>, and only one in 120 carries a <code>ComicInfo.xml</code>. So the filename is the metadata, and these filenames are full of the scanner's notes:</p>
 <pre><code>Zootopia 001 (2025) (5 covers) (digital) (Salem-Empire).cbz</code></pre>

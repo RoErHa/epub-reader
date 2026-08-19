@@ -256,3 +256,24 @@ class TestFragments:
     def test_fragments_is_listed_in_the_help(self):
         result = run("help")
         assert "fragments" in result.stdout + result.stderr
+
+
+class TestTags:
+    """`run.sh tags` takes the scanner's notes out of titles.
+
+    Its help test also guards the usage block, which used to be a fixed
+    line range: every command added pushed the last one off the end, and
+    `fragments` fell off silently the day `tags` was added. It now runs
+    to the closing rule instead of to a number somebody has to remember.
+    """
+
+    def test_tags_runs(self, env_file):
+        result = run("tags", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+
+    def test_every_command_is_listed_in_the_help(self):
+        out = run("help").stdout
+        for command in ("start", "stop", "restart", "status", "scan", "repair",
+                        "refresh", "dedupe", "covers", "series", "names",
+                        "coauthors", "fragments", "tags", "forget"):
+            assert command in out, f"{command} has fallen off the help"
