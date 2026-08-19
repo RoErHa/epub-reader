@@ -9,8 +9,8 @@ vanilla front end with no build step. Rendering is
 [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT), pinned as
 a submodule.
 
-**Status:** works and is in daily use on a library of ~2,200 books, but it
-is a personal project rather than a product.
+**Status:** works and is in daily use on a library of ~2,400 books in
+seven formats, but it is a personal project rather than a product.
 
 ## What it reads
 
@@ -34,8 +34,11 @@ the Earthsea novels among them, and they read perfectly.
 
 ## What it does
 
-- **Browse** by Titles, Authors, Series, Genres, Years or Shelves, with a
-  letter bar and drill-down.
+- **Browse** by Titles, Authors, Series, Genres, **Formats**, Years or
+  Shelves, with a letter bar and drill-down. Formats groups what a book
+  *is* rather than what it is packed in: EPUB, MOBI (with AZW3 and PRC,
+  the same Palm container), PDF, and Comics — where a CBZ and a CBR are
+  one shelf, because the difference is how the pictures are packed.
 - **Search** across titles, authors, series and genres (SQLite FTS5, with
   diacritics folded — `le carre` finds *le Carré*).
 - **Read** with four themes, adjustable type, paginated or scrolled flow,
@@ -54,7 +57,7 @@ the Earthsea novels among them, and they read perfectly.
   derived from reading state rather than maintained by hand — so nothing
   puts a book on one, and the way off is to say you have finished it, or
   stopped.
-- Indexes ~2,200 books in about 7 seconds, and re-scans in under a second.
+- Indexes ~2,400 books in about 8 seconds, and re-scans in under a second.
 
 ## Tidying a library nobody catalogued
 
@@ -139,11 +142,18 @@ rule could place — *The Light of All That Falls* is book three of the
 Licanius Trilogy, and neither its file nor its name says so. What you
 say is locked against every future scan.
 
-What that found here: 607 authors became 576 (misspellings and spacing);
-193 books filed under their own title got a real author; 386 titles that
-were really filenames were corrected; 289 spare copies are now one row
-each; 297 books were filed under 80 series; and 155 series exist where
-there had been 39.
+What that found here: 607 authors became 577 (misspellings and spacing);
+193 books filed under their own title got a real author; **731 titles
+that were really filenames were corrected**, and 303 books that were
+credited to nobody — or to `harry`, whoever ran the scanner — now name
+their author; 288 spare copies are one row each; and **235 series exist
+where there had been 39**.
+
+Every one of those passes was run as a dry run and *read* before it was
+applied, which is the only reason the numbers are worth quoting: the
+library-wide author run proposed four names that were not names, and the
+last duplicate audit caught a book about to be hidden behind its own
+sibling.
 
 Everything a provider says is cached, so an author is looked up **once,
 ever**. A weekly launchd job re-asks about the ten oldest, which walks

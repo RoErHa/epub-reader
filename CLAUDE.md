@@ -4,11 +4,13 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0–M8 and M10 complete, M9 half done. Running against the real library: 2,179 books in six formats, 278 duplicate copies folded away, 155 series, 50 excluded as shop-locked.** All seven decisions settled (§9).
+**Status: M0–M12 complete except M9's provider half. Running against the real library: 2,374 books in seven formats, 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
 
-The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads EPUB, MOBI, AZW3, PRC, PDF and CBZ, including EPUBs stored as directories. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. Five maintenance passes tidy what thirty years of other people's filing left behind, all dry-run by default and none of them touching a file.
+The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page.
 
-**Next: cover art for the quarter of the library that has none** — §12 lists everything open, in the order it is worth doing.
+**Eleven maintenance passes** tidy what thirty years of other people's filing left behind — all dry-run by default, none of them touching a file, and the ones that cost nothing now run on every scan, so **dropping a book into `LIBRARY_ROOT` and restarting really is the whole workflow** (§8.16).
+
+**Next: §12.1 and §12.2** — the names that are clear to a person and not to the code. §12 lists everything open, in the order it is worth doing.
 
 ---
 
@@ -43,7 +45,7 @@ static/vendor/foliate-js/            pinned submodule
 | | |
 | --- | --- |
 | Service | `epub-reader` |
-| launchd label | `com.example.epub-reader` |
+| launchd label | `com.example.epub-reader`, or whatever `LAUNCHD_LABEL` says in `.env` — the label is configuration, not a constant, so a public repository names nobody |
 | Port | **8770** — clear of dlna-gateway's 8765 and localfs's 8200 |
 | Database | `books.db` in the project directory |
 | Entry point | `epub_gateway.py` |
@@ -600,8 +602,10 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M6 | Annotations (highlights, notes, panel); MOBI/AZW3/PRC | done |
 | ✅ M7 | PDF: metadata from the filename first, pdf.js under the existing CSP | done |
 | ✅ M8 | Unpacked EPUB directories; book-level dedupe; CBZ | done |
-| 🔄 M9 | Series from filenames ✅; Frank Herbert's Dune and the rest still need a provider | in progress |
+| 🔄 M9 | Series from filenames ✅; hand-filing what no filename reaches ✅; series from a provider still open | in progress |
 | ✅ M10 | Shelves from the browse pane: add and remove a book without opening it | done |
+| ✅ M11 | The name is the metadata: author, series and title read from one filename; a co-author freed from a title; the scanner's notes taken off; a truncated title finished by a provider | done |
+| ✅ M12 | Comics packed with RAR; browsing by format; a scan that reads what it finds | done |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -1082,7 +1086,7 @@ remember, and a test asserts that **every** command appears.
 
 ### 8.13c A title that was cut off, finished by a provider
 
-**§12.3's tier 1.** `Anthony, Piers - The Caterpillars Questi.pdf` was
+**§12's tier 1, now built.** `Anthony, Piers - The Caterpillars Questi.pdf` was
 truncated years ago by somebody's filesystem, and no amount of matching
 fixes a fragment — Open Library holds *The Caterpillar's Question*, and
 `The Caterpillars Questi` matches nothing at all, for ever. The damage is
@@ -1115,7 +1119,7 @@ violent new series featuring Jason Striker, Master of Martial Arts)"*, so
 `TitlePolish` takes the marketing off before anything is written.
 
 **Every question and every answer is cached** in `provider_query` — the
-table §12.2 asked for. §6.6 made an author "asked once, ever" by stamping
+table §12.1 asked for. §6.6 made an author "asked once, ever" by stamping
 `author.fetched_at`, but that records asking about a *person*, and this
 asks about a *string*. A silence is an answer and is kept like any other:
 122 questions, 98 answered, 24 silences, and the second run asked nothing.
@@ -1125,7 +1129,7 @@ asks about a *string*. A silence is an answer and is kept like any other:
 them, so their answer is **shorter** than what we hold. The cache shows
 exactly that: the trimmed question found *The Bamboo Bloodbath* and the
 rule threw it away. Completing a fragment is not replacing it with half
-of itself, and that book wants §12.5's editor.
+of itself, and that book wants §12.4's editor.
 
 The silences are their own finding. Four of them are Bio of a Space
 Tyrant books still titled `Anthony, Piers - Tyrant 1 - Refugee`, because
@@ -1134,7 +1138,7 @@ names --author "Piers Anthony"` is what they want.
 
 ### 8.13b A co-author written into the title
 
-**§12.3's tier 0, and it needs nothing but a rule.** No provider, no key,
+**§12's tier 0, and it needed nothing but a rule.** No provider, no key,
 no network. `Dead Morn (with Roberto Fuentes)` is a book by two people
 whose filename had room for one, so the second went in brackets and every
 pass since has read it as part of the book's name.
@@ -1292,7 +1296,7 @@ run.
 from their filenames, while the PDF hand-filed earlier is under **Bio of
 a Space Tyrant**. Both names are honest and they are one series; nothing
 automatic can choose between a shorthand and a full name, so it is
-`PUT /api/books/{id}/series` again — §12.5's editor by another route.
+`PUT /api/books/{id}/series` again — §12.4's editor by another route.
 
 ### The library-wide run, and the four names that were not names
 
@@ -1939,6 +1943,38 @@ moved by hand:
 > maintenance came out into its own file, and every module is now inside
 > the ~400 the review asked for except `epub_index` and `epub_gateway`.
 
+### 10.13a A linter, and the 116 things it found
+
+This project had none. Running ruff cold on a finished codebase found
+**116 findings and no bugs**, which is the point twice over: none of it
+was wrong, and nothing had been checking. The tell was **eleven *unused*
+`# noqa` comments** — suppressions written for a linter that had never
+existed.
+
+`ruff.toml` picks rules rather than taking a default, at ruff's own line
+length of 88: asking for 79 flagged 436 lines, almost all of them in
+tests, which is churn rather than improvement. `RUF001–003` are off,
+because the prose here uses en-dashes and typographic quotes on purpose
+and "ambiguous unicode" is about homoglyphs in identifiers, not
+punctuation in English.
+
+> **Two false positives are suppressed with the reason, never blankly.**
+> `sqlite3.Row` has no `__contains__`, so `field in row.keys()` is not
+> optional; and `ScannerTags.strip` is our own classmethod, not
+> `str.strip`.
+
+**One finding was a bug waiting to happen.** `epub_index` rebound `image`
+inside its own `with`, so the RGB conversion was assigned and thrown
+away — a cover with an alpha channel could never have been saved as
+JPEG. And renaming the loop variables in `epub_genres` and `epub_pdf`
+the same way would silently have dropped a `.strip()` in each; caught by
+reading what the rest of the block still used, which is the whole risk
+of a mechanical tidy-up.
+
+**Enforced, not hoped for**: `tests/test_lint.py` runs ruff and fails on
+anything, and ruff is in `requirements-dev.txt`. A tidy-up nobody
+enforces lasts until the next commit.
+
 ### 10.14 One place for the rule everything depends on
 
 §5's provenance rule is the invariant the whole design rests on — and it
@@ -1992,56 +2028,42 @@ indistinguishable from an oversight.
 
 ## 12. Open actions
 
-Measured against the real library on 2026-08-19, in the order they are
-worth doing. Everything here is either not built or a decision waiting
-to be taken — what is *done* is §8. **§2 and §3 are next**; §4 is the
-same provider call they both need.
+Measured against the real library on 2026-08-19. **What is done is
+listed first and briefly** — the reasoning behind each lives in §8, where
+it belongs. What follows it is genuinely unfinished, left exactly as it
+was written. What closes the section is not a to-do list at all: those
+are limits that were weighed and accepted.
 
-### 1. Cover art ✅ 90% — 1,969 of 2,176 books carry one
+### Done
 
-**Done.** 159 PDFs took their cover from their own first page (§8.12) and
-Open Library answered for 219 more (§8.13). **207 books still show a
-lettered tile** — the ones whose own file holds no image and whose title
-Open Library could not match, all of them now recorded `openlibrary-none`
-so no run asks twice.
+- **Cover art.** From the book's own first page where that page is a
+  cover, and from a provider for the rest. **91% of books carry one.**
+- **A co-author written into the title** is read as a second author, by
+  a rule that costs nothing.
+- **A title cut off by a filesystem** is finished by asking a provider
+  for the trimmed form, and only accepted when the answer *completes*
+  what we hold.
+- **A filename read as three facts** — author, series and title — across
+  the library, each run aimed at one author and read before it was
+  applied.
+- **What the scanner wrote into the title** — version stamps, `not ocr`,
+  underscores standing in for spaces — is taken off by a closed
+  vocabulary.
+- **Comics packed with RAR** are read and served, which brought in
+  several hundred books that had been invisible.
+- **Browsing by format**, grouped as a reader thinks of them rather than
+  as the disk stores them.
+- **A scan reads what it finds.** The passes that cost nothing run on
+  every start, so dropping a book in and restarting is the whole
+  workflow.
+- **Duplicate copies folded to one row per work**, audited each time and
+  reversible; no file was ever deleted.
+- **A linter, a single place for the provenance rule, and the routes
+  split into classes** — the three findings of a review, taken in order.
 
-A recorded miss is worth *clearing* whenever the thing that produced it
-changes. Correcting Piers Anthony's titles (§8.13a) turned 16 previously
-unanswerable books into 9 covers on the next ask — proof that the misses
-are about our questions as much as about their catalogue.
+### Still open
 
-### 1a. What it looked like before
-
-**555 of 2,179 books show a lettered tile instead of a cover**, and a
-browse list is mostly covers:
-
-| Format | Books | Without a cover |
-| --- | --- | --- |
-| PDF | 514 | **514** |
-| EPUB | 1,326 | 26 |
-| PRC | 46 | 15 |
-| MOBI · AZW3 · CBZ | 293 | 0 |
-
-M7 skipped PDF covers deliberately — "rasterising the first page needs a
-PDF renderer, which is a heavy dependency for a proof-of-concept reader"
-(§8.4). That reasoning has expired: PDF is 514 books, they are all
-blank, and pdf.js is already vendored for the reader.
-
-Two routes, and they are not exclusive:
-
-- **Render page one at scan time.** Server-side needs a rasteriser
-  (`pypdfium2` or `pymupdf` — check the licence: MuPDF is AGPL, pdfium
-  is BSD). 514 pages of a scanned comic is real work, so it belongs in
-  the indexer beside cover extraction, not in a request.
-- **Ask a provider.** Open Library returns cover URLs for a matched
-  work, which is the only hope for the 26 EPUBs and 15 PRCs whose files
-  carry no image at all. It also costs a request per book and gives the
-  *edition's* cover, which may not be the copy you own.
-
-Whatever is fetched goes through `CoverStore` and lands on disk keyed by
-hash, like every other cover — not in SQLite.
-
-### 2. The names that are clear to a person and not to the code
+### 1. The names that are clear to a person and not to the code
 
 **This is the next piece of work.** Piers Anthony's filenames were
 obvious to a reader and opaque to the code, and closing that gap is the
@@ -2103,145 +2125,42 @@ first pages: 30 real unreadable filenames through the splitter, counting
 how many anchor at all. If the answer is 20% this is a different piece of
 work, and better to know that on the first morning.
 
-### 3. Names that are damaged, not merely unclear
+### 2. Names that are damaged: the open web
 
-§2 is about names that are **ambiguous** — which half is the author? §3
-is about names that are **broken**, and they need a different answer
-because there is nothing to disambiguate: the words themselves are
-wrong.
+Tiers 0 and 1 are built — a co-author freed from a title (§8.13b), and a
+truncated title finished by trimming it back to a whole word and asking a
+provider (§8.13c). **Tier 2 is not**, and the gate on it still holds:
 
-    Anthony, Piers - Jason Striker 02 - Bamboo Bloodbath & Ninj.pdf
-    Anthony, Piers - The Caterpillars Questi (with Philip Jose Farmer).pdf
-    Anthony, Piers - Dead Morn (with Roberto Fuentes).pdf
+> A catalogue can only match what it holds; a search engine indexes the
+> long tail, which is why searching a raw string answers in one go where
+> a catalogue returns nothing. It needs **a real search API, never
+> scraping** — a key in `.env` beside `GOOGLE_BOOKS_API_KEY` — reads
+> **result titles and snippets only**, applies tier 1's prefix rule plus
+> the author appearing in the same result, and requires two independent
+> results to agree before writing anything. One query per string, ever.
 
-The first two are **truncated on disk** — somebody's filesystem or
-unzipper cut them off years ago — and the third has **authorship glued
-into the title**. No amount of matching fixes a fragment: Open Library
-holds *The Bamboo Bloodbath*, and `Bamboo Bloodbath & Ninj` matches
-nothing at all, for ever.
+**Do not build it until the free tiers have been measured against what is
+left.** They were, and they left very little: the population tier 2 could
+reach is now a handful of books, and it is the only part of this that
+costs money.
 
-Three tiers, cheapest first, and **nothing reaches a tier it did not
-need**.
-
-#### Tier 0 ✅ — `(with X)` is authorship, not a title  (§8.13b)
-
-No network, no provider, no key. `Dead Morn (with Roberto Fuentes)` is
-*Dead Morn* by Piers Anthony **and Roberto Fuentes** — the parenthetical
-is a second author that somebody wrote into the filename because a file
-has only one name. So: strip it from the title, add the person at
-position 1.
-
-**Done — 11 titles freed and 12 people credited**, out of 13 found
-library-wide; the two that credit nobody wait on `./run.sh names`. See
-§8.13b, including the credit-order bug it exposed.
-
-> **A guard it needs:** only a name-shaped parenthetical counts.
-> `(with Roberto Fuentes)` is a person; `(retail)`, `(v1.5)`,
-> `(digital) (Salem-Empire)` are the scanner talking, and §8.7 already
-> knows that shape from the comics.
-
-#### Tier 1 ✅ — trim the fragment back to a word boundary and re-ask  (§8.13c)
-
-**Measured on 2026-08-19, and it works on both examples:**
-
-| Asked | Answer |
-| --- | --- |
-| `Bamboo Bloodbath & Ninj` | nothing found |
-| `Bamboo Bloodbath` | **The Bamboo Bloodbath**, Piers Anthony, 1974 |
-| `The Caterpillars Questi` | nothing found |
-| `The Caterpillars` + author | **The caterpillar's question**, 1992 |
-
-**Done — 1 title finished, 1 refused correctly.** `./run.sh fragments
---author "…"`. The steps, in order:
-
-1. **Notice the damage.** A title whose last word is not a word — cut
-   mid-syllable — or which no provider has ever matched. `Ninj`,
-   `Questi`.
-2. **Trim to the last complete word** and ask again, with the author as
-   a filter, because by then §8.13a has already settled who wrote it.
-   That filter is what makes a two-word query safe.
-3. **Demand that our fragment be a PREFIX of their answer.** `Bamboo
-   Bloodbath & Ninj` is accepted as *The Bamboo Bloodbath* only because
-   what we hold is the beginning of what they hold. This rule can only
-   ever **lengthen** a name, so it structurally cannot swap in a
-   different book — it is §6.3's containment logic pointed the other
-   way.
-4. **Strip the provider's marketing.** Open Library returned *"The
-   Bamboo Bloodbath (#3 in the violent new series featuring Jason
-   Striker, Master of Martial Arts)"*. §6.3 already knows a trailing
-   bracket is the shelf talking; `TitlePolish` already removes it.
-5. **Write it, and record it** — `origin = 'provider'`, and
-   `file_title` keeps what the file said, so every repair is reversible.
-
-> **A provider's series number is not necessarily ours.** Open Library
-> calls *The Bamboo Bloodbath* Jason Striker **#3**; our file calls it
-> **02**, and both are right — the file is an *omnibus* of novels 3 and
-> 4, and it is the second such volume. Take the title from the provider
-> and leave the number alone unless the book is a single work. This was
-> caught in the first probe, before any code existed.
-
-#### Tier 2 — the open web, only for what tiers 0 and 1 could not reach
-
-A catalogue can only match what it holds. A search engine indexes the
-long tail — a 1974 karate paperback is on eBay and AbeBooks whether or
-not it is well catalogued — which is why searching the raw string
-answers in one go where a catalogue returns nothing.
-
-- **A real search API, never scraping.** Scraping Google/Bing/DDG HTML
-  is against their terms, gets blocked, and rots. This needs a key in
-  `.env` beside `GOOGLE_BOOKS_API_KEY`.
-- **Result titles and snippets only**, never page bodies. A bookseller's
-  result title has the shape `Title by Author`, which is structured
-  enough; parsing eBay's HTML is not something to depend on.
-- **The same prefix rule as tier 1**, plus the author appearing in the
-  same result. Two independent results must agree before it is written.
-- **One query per string, ever**, cached like every other answer (§6.6).
-
-**Do not build tier 2 until tiers 0 and 1 have been measured**, because
-today's probe suggests they may leave very little behind — and tier 2 is
-the only part of this that costs money.
-
-#### Then, and only then, the cover
-
-A repaired name goes back on the cover queue (§1) if the book has none.
-This is already evidence-backed rather than hoped for: correcting Piers
-Anthony's titles turned 16 books Open Library had refused into **9
-covers** on the very next ask.
-
-#### Free and open-source, before anything paid
-
-Asked for tomorrow, listed in the order I would try them:
-
-| Source | Cost | What it gives |
-| --- | --- | --- |
-| **Trim-and-retry on Open Library** | free, no key | proven above on both examples — try this before anything else |
-| **ISFDB database dumps** | free, CC BY-SA | the best fit this library has: exhaustive SF/F coverage down to obscure paperbacks, **and the series data Open Library lacks**. Downloadable in full, so it is queried locally at zero requests and no rate limit |
-| **Open Library monthly dumps** | free | what Open Library themselves ask bulk users to use instead of the API (§6.5 already says so). Local fuzzy matching with no pacing at all |
-| **Wikidata SPARQL** | free, no key | works, authors, and series via `P179`/`P1545`; generous limits |
-| **SearxNG, self-hosted** | free, AGPL | a genuine open-source route to tier 2 — a metasearch server you run yourself. It still rides on upstream engines, so it can break, but it needs no key and no account |
-
-**ISFDB is the one worth a look on its own merits**, independently of
-damaged names: it would answer §4's series question for a library that
-is mostly science fiction and fantasy, offline and for nothing, where
-Open Library has never been shown able to.
-
-### 4. Fetch each matched work's own record
+### 3. Fetch each matched work's own record
 
 §10.13 recorded this and left it undone. Open Library's *search* results
 carry title, author, year, ISBN, language and a cover but **no synopsis
 and no publisher**, so auto-apply writes almost nothing:
 
-| | |
+| | of 2,364 shown |
 | --- | --- |
-| no synopsis | 1,912 of 2,179 |
-| no genre | 1,873 |
-| no first-published year | 1,585 |
+| no synopsis | 2,097 |
+| no genre | 2,058 |
+| no first-published year | 1,769 |
 
 One extra request per book fixes all three — and it is the same call that
 confirms a candidate in §2 and repairs a fragment in §3, so they are one
 piece of work rather than three.
 
-### 5. Editing a book's metadata
+### 4. Editing a book's metadata
 
 **Series is not coming from a provider.** §6 said it would and it was
 never built; Open Library's search results are thin enough (§10.13) that
@@ -2256,44 +2175,37 @@ Questi`, a series nobody else has heard of. It costs no requests, and the
 machinery for it already exists: what a person says is `origin = 'user'`,
 locked, and no pass overrules it (§6.4).
 
-**1,558 books have no series.** Filenames gave 297 of them one and
+**1,434 books have no series.** Filenames gave 297 of them one and
 hand-filing reached those that could be proved; most of the rest either
 genuinely stand alone or need a person. `PUT /api/books/{id}/series` is
 the answer today, one book at a time.
 
-**241 books can still be read straight off their filenames** — 235 PDFs
-and 6 PRCs, across 49 authors, in the shape §8.13a already handles.
-`./run.sh names` reports them and `--author`/`--format` aims it. Piers
-Anthony's 45 are done; the rest want an audit apiece, since the pass
-writes an author and a title.
 
-### 6. Decisions waiting on a person
+### Constraints the builder accepted
 
-- **278 hidden duplicate copies.** Audited twice, and both audits found
-  real faults (§8.6, §8.10). No file was ever deleted;
-  `POST /api/books/restore-duplicates` shows them all again.
-- **`GOOGLE_BOOKS_API_KEY` is unset**, so Google Books answers 429 to
-  everything and contributes nothing. It has the best synopses and
-  categories of the free providers, which is exactly what §2 is short of.
-- **17 authors have never been asked about, and 375 were asked and are
-  unknown to Open Library** — mostly series names and scanner handles.
-  The Sunday job walks ten a week and needs no help.
+Not a to-do list. Each of these was weighed, and the cost of removing it
+judged higher than the cost of keeping it. They are written down so that
+a later reader can tell a decision from an oversight.
 
-### 7. Known gaps, deliberately
-
-- **Hand-editing is authors and series only** (§8.10). Title, synopsis
-  and genres are provider-or-file; `title` is outside even the
-  enrichment writable set.
-- **57% genre-map coverage.** The rest is junk like `Rand al'Thor
-  (Fictitious character)` — logged, never guessed (decision 5).
-- **CBR is in** (§8.15). What stays out is the **10 archives libarchive
-itself refuses** — one run of 2003-vintage Marvel Premiere files. Nothing
-here can reach them; another unrar could, at the cost of a dependency
-that is not already on the machine.
-- **foliate-js has been pinned at `78914ae` since M0** and never
-  updated, while upstream declares itself unstable. Updating is a
-  deliberate act with the whole UI suite behind it (§3).
+- **Hand-editing is authors and series only.** Title, synopsis and
+  genres stay provider-or-file; `title` is outside even the enrichment
+  writable set, because the file's title is what you see in your own
+  folders. §12's editor would change this deliberately.
+- **9% of books have no cover.** Their own files hold no image and no
+  provider matched them. A wrong cover is worse than none, so the
+  lettered tile stays.
+- **57% genre-map coverage.** The rest is genuine junk — `Rand al'Thor
+  (Fictitious character)`, `wierook32` — logged and never guessed
+  (decision 5).
+- **Ten comics cannot be opened.** libarchive refuses one run of
+  2003-vintage RAR archives. Another unrar would reach them, at the cost
+  of a dependency that is not already on the machine.
+- **foliate-js is pinned at `78914ae`** and has never been updated, while
+  upstream declares itself unstable. Updating is a deliberate act with
+  the whole UI suite behind it (§3).
+- **No Calibre interaction of any kind** (decision 3), **no format
+  conversion, no device sync, no DRM** (§1). Each is a product of its
+  own.
 - **The test database accumulates.** `.test-library/books.db` survives
-  between runs, so uniquely-named shelves pile up — 454 of them by the
-  time it was noticed. Harmless until a test counts globally, which one
-  did.
+  between runs, so uniquely-named shelves pile up. Harmless until a test
+  counts globally, which one did.
