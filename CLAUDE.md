@@ -981,6 +981,36 @@ the other two — a rule that could not see past the run it was in:
 > the shelf**, so it must agree; a filename saying `01` under a book
 > filed at #4 keeps its words, since nothing then connects them.
 
+**Two guards were too narrow, and running the pass across all of one
+author's formats found both.**
+
+> **"The title *is* the filename" was only ever a proxy** for "the file
+> said nothing about itself". Four Bio of a Space Tyrant EPUBs carry
+> `Anthony, Piers - Tyrant 1 - Refugee` in their own OPF while the file
+> on disk has the author appended a *second* time — so the two were not
+> equal and the pass walked past them. The file did speak; what it said
+> was a filename. A stored title leading with `Surname, First - ` came
+> out of somebody's folder wherever it now sits, and **the tidier of the
+> two names wins**: reading the file instead would have left "Refugee -
+> Anthony, Piers".
+
+> **A title never ends in `.txt`.** 12 books here do — `Volk.doc`,
+> `Running with the Demon.txt`, `Nanny Ogg's Cookbook.htm` — the mark of
+> a library converted from one format to another by somebody who kept the
+> old name. A closed list of known extensions, so `Mr. Norrell` is safe.
+
+Across all of Piers Anthony's formats that took **7 more titles**, filed
+the four Tyrant novels 1–4, and gave *Currant Events* its Xanth #28 —
+the last of those only because agreement now counts books already on the
+shelf (§8.13a), since every other Xanth book was filed in the earlier
+run.
+
+**And it split a series.** The four EPUBs are filed under **Tyrant**,
+from their filenames, while the PDF hand-filed earlier is under **Bio of
+a Space Tyrant**. Both names are honest and they are one series; nothing
+automatic can choose between a shorthand and a full name, so it is
+`PUT /api/books/{id}/series` again — §12.5's editor by another route.
+
 **The same shape is waiting on 241 more books across 49 authors** — 235
 PDFs and 6 PRCs — which is what `./run.sh names` reports library-wide.
 They are not done, because a pass this sharp should be aimed rather than

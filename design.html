@@ -986,6 +986,18 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
   <span class="eyebrow">A person's word settles the shelf, however the file spells it</span>
   <p>Hand-filing left <em>Isle of Women</em> still titled <code>Geodessey 01 - Isle of Women</code> — the shelf talking twice and disagreeing with itself — because the trim demanded that the filename spell the series the way the library does. It cannot: the misspelling is precisely why nothing corroborated it and why a person had to file it at all. <strong>The number is what ties the words to the shelf</strong>, so it must agree; a filename saying <code>01</code> under a book filed at #4 keeps its words.</p>
 </div>
+<div class="rule">
+  <span class="eyebrow">"The title IS the filename" was only ever a proxy</span>
+  <p>The guard means "the file said nothing about itself". Four Bio of a Space Tyrant EPUBs carry <code>Anthony, Piers - Tyrant 1 - Refugee</code> in their own OPF while the file on disk has the author appended a <em>second</em> time, so the two were not equal and the pass walked past them. The file did speak; what it said was a filename. <strong>The tidier of the two names wins</strong> — reading the file instead would have left "Refugee - Anthony, Piers".</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A title never ends in .txt</span>
+  <p>12 books here do — <code>Volk.doc</code>, <code>Running with the Demon.txt</code>, <code>Nanny Ogg's Cookbook.htm</code> — the mark of a library converted from one format to another by somebody who kept the old name. A closed list of known extensions, so <code>Mr. Norrell</code> is safe.</p>
+</div>
+
+<p>Across all of one author's formats that took <strong>7 more titles</strong>, filed the four Tyrant novels 1–4, and gave <em>Currant Events</em> its Xanth #28 — the last only because agreement now counts books already on the shelf. <strong>And it split a series:</strong> the four EPUBs are filed under <em>Tyrant</em> from their filenames while the PDF hand-filed earlier sits under <em>Bio of a Space Tyrant</em>. Both names are honest and they are one series; nothing automatic chooses between a shorthand and a full name.</p>
+
 <p><strong>241 more books across 49 authors</strong> — 235 PDFs and 6 PRCs — carry the same shape and are not done, because a pass this sharp should be aimed rather than loosed: <code>./run.sh names --author "Piers Anthony" --format pdf --apply</code>. A scope narrows <em>which</em> books are read, never how they are judged.</p>
 
 <h3>6.11c &nbsp;A co-author written into the title</h3>

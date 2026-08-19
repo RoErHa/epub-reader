@@ -119,6 +119,44 @@ class TestReadingTheName:
         assert book(gateway, "A Novella")["series_index"] == 8.5
 
 
+class TestTheNameIsNotAFile:
+    """A title never ends in `.txt`.
+
+    12 books carry one: `Anthony, Piers - Volk.doc`, `Brooks,Terry -
+    Word01 - Running with the Demon.txt`, `Nanny Ogg's Cookbook.htm` —
+    the mark of a library converted from one format to another by
+    somebody who kept the old name. Writing `Volk.doc` as a title, having
+    just decided what the title is, would be knowingly writing something
+    wrong.
+    """
+
+    @pytest.mark.parametrize("stem,expected", [
+        ("Anthony, Piers - Volk.doc", "Volk"),
+        ("Anthony, Piers - Novel - Ghost.doc", "Novel - Ghost"),
+        ("Anthony, Piers - Something.TXT", "Something"),
+        ("Anthony, Piers - Krondor The Assassins.htm", "Krondor The Assassins"),
+    ])
+    def test_a_file_extension_is_not_part_of_the_title(self, client, library,
+                                                       gateway, namer,
+                                                       stem, expected):
+        clear(library)
+        EpubBuilder(title=stem, author="Piers Anthony").build(
+            library / f"{stem}.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "Anthony")["title"] == expected
+
+    def test_a_title_that_merely_has_a_dot_is_kept(self, client, library,
+                                                   gateway, namer):
+        """`2001` and `Mr. Norrell` have dots in them and are not files."""
+        clear(library)
+        EpubBuilder(title="Anthony, Piers - Jonathan Strange & Mr. Norrell",
+                    author="Piers Anthony").build(library / "js.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "js")["title"] == "Jonathan Strange & Mr. Norrell"
+
+
 class TestWhatItRefuses:
     def test_a_series_of_one_is_a_misread(self, client, library, gateway,
                                           namer):
@@ -141,6 +179,43 @@ class TestWhatItRefuses:
         """The mark of a file that said nothing is that its title *is*
         the filename. A book that named itself is not this pass's
         business."""
+        clear(library)
+        EpubBuilder(title="Chaining the Lady", author="Piers Anthony").build(
+            library / "Anthony, Piers - Cluster 2 - Chaining The Lady.epub")
+        EpubBuilder(title="Cluster", author="Piers Anthony").build(
+            library / "Anthony, Piers - Cluster 1 - Cluster.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        assert book(gateway, "Chaining The Lady")["title"] == "Chaining the Lady"
+
+    def test_a_title_that_is_itself_a_filename(self, client, library,
+                                               gateway, namer):
+        """The guard is "the file said nothing about itself", and
+        `title == filename` was only ever a proxy for it.
+
+        Four Bio of a Space Tyrant EPUBs carry `Anthony, Piers - Tyrant 1
+        - Refugee` in their own OPF, while the file on disk has the
+        author appended a second time — so the two are not equal and the
+        pass walked past them. The file did speak; what it said was a
+        filename. A stored title that leads with `Surname, First - ` came
+        from somebody's folder wherever it now sits.
+        """
+        clear(library)
+        for n, name in ((1, "Refugee"), (2, "Mercenary")):
+            EpubBuilder(title=f"Anthony, Piers - Tyrant {n} - {name}",
+                        author="Piers Anthony").build(
+                library / f"Anthony, Piers - Tyrant {n} - {name} - Anthony, Piers.epub")
+        gateway.reindex()
+        namer.run(apply=True)
+        row = book(gateway, "Refugee")
+        assert row["title"] == "Refugee"
+        assert row["series"] == "Tyrant"
+        assert row["series_index"] == 1
+
+    def test_a_real_title_is_still_not_a_filename(self, client, library,
+                                                  gateway, namer):
+        """The widening must not reach a book that named itself
+        properly, however its file is called."""
         clear(library)
         EpubBuilder(title="Chaining the Lady", author="Piers Anthony").build(
             library / "Anthony, Piers - Cluster 2 - Chaining The Lady.epub")

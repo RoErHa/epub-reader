@@ -61,6 +61,15 @@ LOG = logging.getLogger("epub-reader.filenames")
 AUTHOR = re.compile(r"^(?P<surname>[^,\d]{2,40}),\s*(?P<given>[^-\d]{1,40}?)"
                     r"\s+-\s+(?P<rest>\S.*)$")
 
+# A title never ends in ".txt". 12 books here do — `Volk.doc`,
+# `Running with the Demon.txt`, `Nanny Ogg's Cookbook.htm` — the mark of
+# a library converted from one format to another by somebody who kept the
+# old name. Named formats only: a closed list cannot mistake `Mr. Norrell`
+# or a title ending in an initial for a file.
+EXTENSION = re.compile(
+    r"\.(?:doc|docx|txt|rtf|lit|pdb|htm|html|pdf|epub|mobi|prc|azw3?|zip)$",
+    re.I)
+
 # What is left once the author is off the front, when it names a shelf:
 # "Xanth 08 - Crewel Lye". Only read after SeriesFromNames has agreed
 # that the shelf is real.
@@ -107,6 +116,7 @@ class CreditsFromNames:
         there is nothing connecting these words to that shelf, and they
         stay part of the book.
         """
+        rest = EXTENSION.sub("", rest).strip()
         if not series:
             return rest
         match = SHELF.match(rest)
@@ -123,7 +133,7 @@ class CreditsFromNames:
                      formats: list[str] | None) -> list[dict]:
         plan = []
         for row in self._nameless(author, formats):
-            found = self.read(Path(row["path"]).stem)
+            found = self.read(self.source_name(row) or "")
             if not found:
                 continue
             if author and found["author"] != author:
@@ -163,12 +173,46 @@ class CreditsFromNames:
             sql += f" AND b.format IN ({','.join('?' * len(formats))})"
             params.extend(formats)
         rows = self._db.connection.execute(sql, params).fetchall()
-        # The mark of a file that said nothing about itself: what the
-        # library shows is the name of the file. Compared in Python
-        # because SQLite has no basename().
+        # The mark of a file that said nothing about itself. Compared in
+        # Python because SQLite has no basename().
         return [r for r in rows
-                if self._title_of(r["id"]) == Path(r["path"]).stem
+                if self._unnamed(r)
                 or (ours and self._wrote_title(r["id"]))]
+
+    def _unnamed(self, row) -> bool:
+        """Whether the title the library shows came out of a folder.
+
+        The obvious test is that it *is* the filename, and that was the
+        only test for a while. It is too narrow: four Bio of a Space
+        Tyrant EPUBs carry `Anthony, Piers - Tyrant 1 - Refugee` in their
+        own OPF while the file on disk has the author appended a second
+        time, so the two are not equal and the pass walked past them. The
+        file did speak; what it said was a filename.
+
+        So either the title is the filename, or the title is *shaped*
+        like one — leading with a surname, a comma and a forename, which
+        is how a shelf is written and not how a book is titled.
+        """
+        return self.source_name(row) is not None
+
+    def source_name(self, row) -> str | None:
+        """The string to read the book's facts out of.
+
+        Usually the filename, because usually the title *is* the
+        filename. When the stored title is itself filename-shaped it
+        wins, though: the Tyrant EPUBs carry a clean
+        `Anthony, Piers - Tyrant 1 - Refugee` in their OPF while the file
+        on disk has the author appended a second time, and reading the
+        file would leave "Refugee - Anthony, Piers" as the title. Take
+        the tidier of the two names for the same book.
+        """
+        title = self._title_of(row["id"])
+        stem = Path(row["path"]).stem
+        if title and AUTHOR.match(title):
+            return title
+        if title and title == stem:
+            return stem
+        return None
 
     def _wrote_title(self, book_id: int) -> bool:
         return self._db.connection.execute(
@@ -204,7 +248,7 @@ class CreditsFromNames:
         to be a shelf can come off and one that did not stays put."""
         plan = []
         for row in self._nameless(author, formats, ours=True):
-            found = self.read(Path(row["path"]).stem)
+            found = self.read(self.source_name(row) or Path(row["path"]).stem)
             if not found:
                 continue
             if author and found["author"] != author:
