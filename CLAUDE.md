@@ -43,7 +43,7 @@ static/vendor/foliate-js/            pinned submodule
 | | |
 | --- | --- |
 | Service | `epub-reader` |
-| launchd label | `com.roha.epub-reader` |
+| launchd label | `com.example.epub-reader` |
 | Port | **8770** — clear of dlna-gateway's 8765 and localfs's 8200 |
 | Database | `books.db` in the project directory |
 | Entry point | `epub_gateway.py` |
@@ -529,7 +529,7 @@ Sorting by **when we last asked** balances itself, needs no calendar, and picks 
 ./run.sh refresh --max 25   # more of it at once
 ```
 
-`com.roha.epub-reader.refresh.plist` runs that every Sunday at 04:12 — not on the hour and not at midnight, where every other cron job lives. Ten authors is thirty requests, some fifteen seconds of traffic, and a full round of 395 authors in about forty weeks.
+`com.example.epub-reader.refresh.plist` runs that every Sunday at 04:12 — not on the hour and not at midnight, where every other cron job lives. Ten authors is thirty requests, some fifteen seconds of traffic, and a full round of 395 authors in about forty weeks.
 
 The same budget then goes where books actually appear:
 
@@ -749,7 +749,7 @@ Four things the container change touched:
 | # | Decision | Consequence |
 | --- | --- | --- |
 | 1 | **Same stack as dlna-gateway** | FastAPI + hypercorn + SQLite/FTS5 + vanilla static SPA. No framework, no build step, no desktop shell. |
-| 2 | **Separate service** | Own port (8770), own plist (`com.roha.epub-reader`), own `books.db`. No coupling to dlna-gateway beyond shared conventions and TLS cert host. |
+| 2 | **Separate service** | Own port (8770), own plist (`com.example.epub-reader`), own `books.db`. No coupling to dlna-gateway beyond shared conventions and TLS cert host. |
 | 3 | **No Calibre interaction at all** | No `metadata.db` import, no `ebook-convert`, no library-folder reading. `origin` enum is `file/provider/user` only. All metadata is built here from providers and embedded file data. |
 | 4 | **Auto-apply at 0.90** | Below it, candidates go to the review queue rather than being written. |
 | 5 | **Standard genre subset** | ~40-term BISAC subset in `genres.tsv`, with `genre_map.tsv` translating provider strings. Unmapped values logged, not guessed. |
@@ -1423,7 +1423,7 @@ That change made the 186 misses worth asking about again, which is what a record
 | # | Decision | Consequence |
 | --- | --- | --- |
 | 1 | **Same stack as dlna-gateway** | FastAPI + hypercorn + SQLite/FTS5 + vanilla static SPA. No framework, no build step, no desktop shell. |
-| 2 | **Separate service** | Own port (8770), own plist (`com.roha.epub-reader`), own `books.db`. No coupling to dlna-gateway beyond shared conventions and TLS cert host. |
+| 2 | **Separate service** | Own port (8770), own plist (`com.example.epub-reader`), own `books.db`. No coupling to dlna-gateway beyond shared conventions and TLS cert host. |
 | 3 | **No Calibre interaction at all** | No `metadata.db` import, no `ebook-convert`, no library-folder reading. `origin` enum is `file/provider/user` only. All metadata is built here from providers and embedded file data. |
 | 4 | **Auto-apply at 0.90** | Below it, candidates go to the review queue rather than being written. |
 | 5 | **Standard genre subset** | ~40-term BISAC subset in `genres.tsv`, with `genre_map.tsv` translating provider strings. Unmapped values logged, not guessed. |
@@ -1468,7 +1468,7 @@ into `LIBRARY_ROOT` are picked up without a separate step. The scan also
 runs inside the server at startup, so a launchd-managed start behaves the
 same as a scripted one.
 
-`run.sh` is launchd-aware: when `com.roha.epub-reader` is loaded it drives
+`run.sh` is launchd-aware: when `com.example.epub-reader` is loaded it drives
 `launchctl` instead of a pidfile, so the script and the LaunchAgent can
 never both bind :8770.
 
@@ -1550,7 +1550,7 @@ static/toc.js       TableOfContents
 static/composer.js  NameComposer — asking for a name in the app, not the
                     browser; shelves are named here
 run.sh              start / stop / restart / status / scan / repair / refresh
-com.roha.epub-reader.refresh.plist   the weekly author refresh
+com.example.epub-reader.refresh.plist   the weekly author refresh
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder

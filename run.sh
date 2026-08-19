@@ -13,7 +13,7 @@
 # All configuration comes from the .env file — this script sets nothing itself
 # and passes no settings to the app. Secrets never appear here.
 #
-# It is launchd-aware. When com.roha.epub-reader is loaded, start/stop/restart
+# It is launchd-aware. When com.example.epub-reader is loaded, start/stop/restart
 # drive launchctl so this script and the LaunchAgent can never both bind :8770.
 # Otherwise it manages a background process with a pidfile under .run/.
 #
@@ -51,7 +51,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-LABEL="com.roha.epub-reader"
+# Which LaunchAgent to drive. Configuration, not a constant: baking one
+# person's reverse domain into a script anybody can run is how a public
+# repository ends up naming its author in six places. `com.example` is
+# reserved for exactly this (RFC 2606); set LAUNCHD_LABEL in .env to a
+# domain you own.
+LABEL_DEFAULT="com.example.epub-reader"
+LABEL="${LABEL_DEFAULT}"
 PYTHON=".venv/bin/python"
 RUN_DIR=".run"
 ENV_FILE=".env"
@@ -115,11 +121,24 @@ if [ ! -x "${PYTHON}" ]; then
   exit 1
 fi
 
+read_label() {
+  local value
+  value="$(sed -n 's/^[[:space:]]*LAUNCHD_LABEL[[:space:]]*=[[:space:]]*//p' \
+           "${ENV_FILE}" 2>/dev/null | tail -1 | tr -d "\"'" )"
+  # An `if`, not `[ … ] && …`: under `set -e` a trailing test that
+  # fails makes the function return 1, and the whole script exits —
+  # which it did, silently, for every reader who set nothing.
+  if [ -n "${value}" ]; then
+    LABEL="${value}"
+  fi
+}
+
 if [ ! -f "${ENV_FILE}" ]; then
   echo "✗  Configuration file not found: ${ENV_FILE}" >&2
   echo "   Copy .env.example to .env and set LIBRARY_ROOT." >&2
   exit 1
 fi
+read_label
 
 launchd_loaded() {
   launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1
@@ -350,7 +369,10 @@ do_status() {
     echo "✓  Running (pid ${pid})."
     return 0
   fi
-  echo "✗  Not running."
+  # Naming the agent even when nothing is running: it is configurable
+  # now, and "not running" is only useful if you know what was looked
+  # for.
+  echo "✗  Not running (launchd agent ${LABEL} is not loaded either)."
   return 3
 }
 

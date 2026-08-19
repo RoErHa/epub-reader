@@ -170,7 +170,7 @@ class TestTheWeeklyJob:
     """The plist that runs it. It is shipped as a template with a
     placeholder path, like the service plist beside it."""
 
-    PLIST = ROOT / "com.roha.epub-reader.refresh.plist"
+    PLIST = ROOT / "com.example.epub-reader.refresh.plist"
 
     def test_it_exists(self):
         assert self.PLIST.is_file()
@@ -179,7 +179,7 @@ class TestTheWeeklyJob:
         import plistlib
         with self.PLIST.open("rb") as handle:
             assert plistlib.load(handle)["Label"] == \
-                "com.roha.epub-reader.refresh"
+                "com.example.epub-reader.refresh"
 
     def test_it_runs_weekly(self):
         import plistlib
@@ -314,3 +314,63 @@ class TestTidyOnScan:
         env.write_text(ENV_BODY.format(library=library, state=state)
                        + "TIDY_ON_SCAN=false\n")
         assert "Names:" not in run("scan", env_file=env).stdout
+
+
+class TestTheLaunchdLabel:
+    """Which LaunchAgent this script drives is configuration.
+
+    It was a constant: one person's reverse domain baked into a script
+    anybody can run. The example says `com.example.epub-reader`, the
+    name reserved for exactly this (RFC 2606), and a reader who owns a
+    domain says so in their own `.env`.
+    """
+
+    # Assembled rather than written out, so this file does not itself
+    # contain the string it is here to forbid.
+    PERSONAL = "com." + "roha"
+
+    def _env(self, tmp_path, label=None):
+        library = tmp_path / "books"
+        library.mkdir()
+        EpubBuilder(title="A Book").build(library / "a.epub")
+        state = tmp_path / "state"
+        state.mkdir()
+        env = tmp_path / ".env.label"
+        body = ENV_BODY.format(library=library, state=state)
+        if label is not None:
+            body += f"LAUNCHD_LABEL={label}\n"
+        env.write_text(body)
+        return env
+
+    def test_the_label_comes_from_the_env(self, tmp_path):
+        env = self._env(tmp_path, "com.someone.epub-reader")
+        out = run("status", env_file=env).stdout
+        assert "com.someone.epub-reader" in out
+        assert self.PERSONAL not in out
+
+    def test_it_falls_back_to_the_example_name(self, tmp_path):
+        """A reader who sets nothing gets the reserved example domain,
+        never somebody else's."""
+        env = self._env(tmp_path)
+        result = run("status", env_file=env)
+        # 3 is "not running", which is the truth and not an error.
+        assert result.returncode in (0, 3), result.stderr
+        assert "com.example.epub-reader" in result.stdout
+        assert self.PERSONAL not in result.stdout
+
+    def test_nothing_ships_with_a_personal_label(self):
+        """The one that would have been missed: a grep over what is
+        actually committed."""
+        import subprocess
+        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT,
+                                 capture_output=True, text=True,
+                                 check=False).stdout.split()
+        for name in tracked:
+            path = ROOT / name
+            if not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            assert self.PERSONAL not in text, f"{name} still names a person"

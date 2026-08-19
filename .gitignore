@@ -46,3 +46,7 @@ library-manifest.json
 # .claude/settings.json meant for everyone would still be committed.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Coverage's data file: a binary full of absolute paths.
+.coverage
+htmlcov/

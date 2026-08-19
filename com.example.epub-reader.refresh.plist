@@ -14,15 +14,15 @@
   when everybody else's cron jobs run.
 
   Install:
-    cp com.roha.epub-reader.refresh.plist ~/Library/LaunchAgents/
+    cp com.example.epub-reader.refresh.plist ~/Library/LaunchAgents/
     # replace /path/to/epub-reader below with the real path first
-    launchctl load ~/Library/LaunchAgents/com.roha.epub-reader.refresh.plist
+    launchctl load ~/Library/LaunchAgents/com.example.epub-reader.refresh.plist
 
   Check it is registered:
     launchctl list | grep epub-reader.refresh
 
   Run it now rather than waiting for Sunday:
-    launchctl kickstart -k gui/$(id -u)/com.roha.epub-reader.refresh
+    launchctl kickstart -k gui/$(id -u)/com.example.epub-reader.refresh
 
   This does not serve anything and does not stay running: it wakes up,
   asks about ten authors, writes what it learns to the database, and
@@ -36,7 +36,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.roha.epub-reader.refresh</string>
+    <string>com.example.epub-reader.refresh</string>
 
     <key>WorkingDirectory</key>
     <string>/path/to/epub-reader</string>

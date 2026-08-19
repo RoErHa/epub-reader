@@ -5,16 +5,16 @@
   LaunchAgent for the epub-reader service.
 
   Install:
-    cp com.roha.epub-reader.plist ~/Library/LaunchAgents/
+    cp com.example.epub-reader.plist ~/Library/LaunchAgents/
     # replace /path/to/epub-reader below with the real path first
-    launchctl load ~/Library/LaunchAgents/com.roha.epub-reader.plist
+    launchctl load ~/Library/LaunchAgents/com.example.epub-reader.plist
 
   All configuration lives in .env — nothing is passed as an argument here.
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.roha.epub-reader</string>
+    <string>com.example.epub-reader</string>
 
     <key>WorkingDirectory</key>
     <string>/path/to/epub-reader</string>

@@ -153,19 +153,75 @@ identifies itself, and asks that its APIs not be used as a bulk backend.
 
 ## Requirements
 
-Python 3.12+, Node (for the tests only), and a folder of books. Nothing
-is ever written to your books.
+| | |
+| --- | --- |
+| **Python** | 3.13 or newer — the SQLite it bundles must be **3.44+**, which is checked on the way in and reported plainly if not |
+| **Node** | for the UI tests only; the app itself has no build step and no JavaScript dependencies to install |
+| **A folder of books** | anywhere. **Nothing is ever written to it** — it is opened read-only |
+| **Optional: `bsdtar`** | for comics packed with RAR (`.cbr`). It is libarchive, and it ships with macOS |
+
+Everything else is three Python packages — FastAPI, hypercorn, Pillow —
+plus a vendored copy of foliate-js. No database server, no message queue,
+no container, no cloud account.
 
 ## Setup
 
 ```sh
-git clone --recurse-submodules <this repo>
+git clone --recurse-submodules https://github.com/YOUR-NAME/epub-reader.git
 cd epub-reader
-python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 
-cp .env.example .env          # then set LIBRARY_ROOT
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt   # or requirements.txt to just run it
+
+cp .env.example .env          # then set LIBRARY_ROOT to your books folder
 ./run.sh start                # scans the library, then serves on :8770
 ```
+
+Open <http://localhost:8770>. That is the whole install.
+
+### The three platforms
+
+The service is plain Python and behaves the same everywhere; only the
+shell wrapper and the "start it at login" step differ.
+
+**macOS** — as above. `./run.sh` is launchd-aware: copy
+`com.example.epub-reader.plist` to `~/Library/LaunchAgents/`, edit the
+paths inside it, and `launchctl load` it to have the service start at
+login. Set `LAUNCHD_LABEL` in `.env` to match if you rename it.
+`bsdtar` is already installed, so `.cbr` comics work out of the box.
+
+**Linux** — identical, including `./run.sh`. For start-at-login use a
+systemd user unit instead of the plist:
+
+```ini
+# ~/.config/systemd/user/epub-reader.service
+[Service]
+WorkingDirectory=/path/to/epub-reader
+ExecStart=/path/to/epub-reader/.venv/bin/python epub_gateway.py --env .env
+Restart=on-failure
+[Install]
+WantedBy=default.target
+```
+
+`systemctl --user enable --now epub-reader`. For `.cbr` comics install
+libarchive's tools (`apt install libarchive-tools`, `dnf install
+bsdtar`); everything else needs nothing.
+
+**Windows** — `run.sh` is a bash script, so either use WSL (where the
+Linux instructions apply unchanged) or run the service directly, which
+is all `run.sh` does anyway:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+copy .env.example .env        # then set LIBRARY_ROOT
+.venv\Scripts\python epub_gateway.py --env .env
+```
+
+Paths in `.env` take Windows form (`LIBRARY_ROOT=C:\Users\you\Books`).
+For start-at-login, Task Scheduler with "run whether user is logged on or
+not". `.cbr` comics need `bsdtar` on `PATH` — it comes with Git for
+Windows and with libarchive.
 
 `./run.sh` also takes `stop`, `restart`, `status` and `scan`, and
 `start --foreground` to watch it run. Every start rescans, so books
@@ -230,10 +286,53 @@ it, and what a real 2,200-book library taught us — including several
 defects in the rendering engine, and a few of our own, that no synthetic
 fixture would have produced.
 
+## Built on other people's work
+
+**All of it is open source, and all of it is free — as in speech and as
+in beer.** There is nothing to buy, no account to open, no tier to
+upgrade, no telemetry and no service that can be withdrawn. It runs on a
+machine you own, against files you already have.
+
+### The reading engine
+
+| | |
+| --- | --- |
+| **[foliate-js](https://github.com/johnfactotum/foliate-js)** — MIT | Parsing, pagination, tables of contents, in-book search, and CFI generation and resolution: the genuinely hard part of annotating a book. Vendored as a pinned submodule and **never edited** — differences live in `static/reader.js`, the only file that imports it. |
+| **[zip.js](https://gildas-lormeau.github.io/zip.js/)** — BSD-3 | Reads the zip an EPUB is. Vendored by foliate-js. |
+| **[fflate](https://github.com/101arrowz/fflate)** — MIT | Inflate, small and fast. Vendored by foliate-js. |
+| **[PDF.js](https://mozilla.github.io/pdf.js/)** — Apache 2.0 | Draws PDF pages onto a canvas. Vendored by foliate-js. |
+
+### The service
+
+| | |
+| --- | --- |
+| **[FastAPI](https://fastapi.tiangolo.com/)** — MIT | The routes, the request models and the validation. |
+| **[hypercorn](https://github.com/pgjones/hypercorn)** — MIT | The ASGI server, and the TLS. |
+| **[pydantic](https://docs.pydantic.dev/)** — MIT | Request bodies that refuse what they should refuse. |
+| **[SQLite](https://sqlite.org/)** — public domain | The whole database, including FTS5 for search. It ships inside Python; there is no server to run. |
+| **[Pillow](https://python-pillow.org/)** — MIT-CMU | Cover thumbnails. |
+| **[pypdfium2](https://github.com/pypdfium2-team/pypdfium2)** — BSD-3 / Apache 2.0 | Renders page one of a PDF when that page is the cover. Ships as a wheel with the [PDFium](https://pdfium.googlesource.com/pdfium/) binary in it — no build step, no network. |
+| **[libarchive](https://www.libarchive.org/)** — BSD-2, as `bsdtar` | Reads comics packed with RAR. It ships with macOS; nothing is installed. |
+| **[python-dotenv](https://github.com/theskumar/python-dotenv)** — BSD-3 | Reads the one `.env` that configures everything. |
+
+### The metadata
+
+| | |
+| --- | --- |
+| **[Open Library](https://openlibrary.org/)** — Internet Archive, free API, [CC0 data](https://openlibrary.org/developers) | Authors, bibliographies, covers and the works lists behind *Also published*. Their limits are published and respected: one request a second anonymously, three for a client that identifies itself, and every answer cached so nothing is ever asked twice. They ask that bulk work use their [monthly data dumps](https://openlibrary.org/developers/dumps) instead, which is fair. |
+| **[BISAC subject headings](https://www.bisg.org/complete-bisac-subject-headings-list)** — Book Industry Study Group | The ~40-term genre vocabulary in `data/genres.tsv`. |
+| **Google Books** — free tier, optional | Broader synopses and categories. Unauthenticated requests are rate-limited to nothing useful, so it is off unless you set a key. |
+
+### The tools
+
+**[pytest](https://pytest.org/)** (MIT), **[Playwright](https://playwright.dev/)**
+(Apache 2.0), **[ruff](https://docs.astral.sh/ruff/)** (MIT),
+**[coverage.py](https://coverage.readthedocs.io/)** (Apache 2.0) — and
+**[Python](https://www.python.org/)** itself (PSF).
+
+Thank you to all of them. This is a few thousand lines of glue on top of
+a great deal of somebody else's careful work.
+
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
-
-Vendored and pinned as a submodule:
-[foliate-js](https://github.com/johnfactotum/foliate-js) (MIT), which in
-turn vendors zip.js (BSD-3), fflate (MIT) and PDF.js (Apache 2.0).
+MIT — see [LICENSE](LICENSE). Do what you like with it.

@@ -281,7 +281,7 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <table>
 <tbody>
 <tr><td>Service</td><td><code>epub-reader</code></td></tr>
-<tr><td>launchd label</td><td><code>com.roha.epub-reader</code></td></tr>
+<tr><td>launchd label</td><td><code>com.example.epub-reader</code></td></tr>
 <tr><td>Port</td><td class="num"><strong>8770</strong> — clear of dlna-gateway's 8765 and localfs's 8200</td></tr>
 <tr><td>Database</td><td><code>books.db</code> in the project directory</td></tr>
 <tr><td>Entry point</td><td><code>epub_gateway.py</code></td></tr>
@@ -870,7 +870,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
   <p>Surnames are not evenly spread. This library has <strong>49 authors under S and one under U</strong>, several letters with none at all, and a few sort names starting with a digit. One fortnight would make 147 requests and the next three, while the S authors waited a year regardless of what they published.</p>
 </div>
 
-<p>Sorting by <strong>when we last asked</strong> balances itself, needs no calendar, and picks up wherever it left off when a week is missed. <code>com.roha.epub-reader.refresh.plist</code> runs it every Sunday at 04:12 — not on the hour and not at midnight, where every other cron job lives. Ten authors is thirty requests, some fifteen seconds of traffic, and a full round of 395 authors in about forty weeks.</p>
+<p>Sorting by <strong>when we last asked</strong> balances itself, needs no calendar, and picks up wherever it left off when a week is missed. <code>com.example.epub-reader.refresh.plist</code> runs it every Sunday at 04:12 — not on the hour and not at midnight, where every other cron job lives. Ten authors is thirty requests, some fifteen seconds of traffic, and a full round of 395 authors in about forty weeks.</p>
 
 <div class="tablewrap">
 <table>
@@ -1291,7 +1291,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 </div></li>
 <li><span class="d-n">2</span><div class="d-b">
   <p>Separate service</p>
-  <p>Own port (8770), own plist (<code>com.roha.epub-reader</code>), own <code>books.db</code>. No coupling to dlna-gateway beyond shared conventions and the TLS cert host.</p>
+  <p>Own port (8770), own plist (<code>com.example.epub-reader</code>), own <code>books.db</code>. No coupling to dlna-gateway beyond shared conventions and the TLS cert host.</p>
 </div></li>
 <li><span class="d-n">3</span><div class="d-b">
   <p>No Calibre interaction at all — build our own</p>
@@ -1366,7 +1366,7 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
   <p><strong><code>start</code> and <code>restart</code> always scan the library first</strong>, so books dropped into <code>LIBRARY_ROOT</code> are picked up without a separate step. The scan also runs inside the server at startup, so a launchd-managed start behaves identically to a scripted one.</p>
 </div>
 
-<p><code>run.sh</code> is launchd-aware: when <code>com.roha.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
+<p><code>run.sh</code> is launchd-aware: when <code>com.example.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
 
 <h3>The review queue</h3>
 <p>Decision 4's bands are enforced on every run: at or above 0.90 we write, 0.60–0.90 waits for a human, below that the book is left alone and nothing is kept.</p>
