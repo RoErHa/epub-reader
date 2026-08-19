@@ -19,10 +19,10 @@ from __future__ import annotations
 import difflib
 import logging
 import re
-import time
 
 from epub_match import normalise_title, search_title
 from epub_names import title_sort_key
+from epub_provenance import Provenance
 from epub_search import SearchIndex
 
 LOG = logging.getLogger("epub-reader.titles")
@@ -156,6 +156,11 @@ class TitleFromWorks:
               JOIN book_author ba ON ba.book_id = b.id AND ba.position = 0
               JOIN author a ON a.id = ba.author_id
              WHERE b.missing_since IS NULL AND m.title IS NOT NULL
+               -- Stricter than `Candidates.clause` on purpose: this
+               -- pass leaves alone any title a provider has already
+               -- set, including one derived from a filename, because
+               -- asking a bibliography about a book somebody else has
+               -- already answered for is a request spent on nothing.
                AND NOT EXISTS (
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id AND f.field = 'title'
@@ -412,17 +417,8 @@ class TitleFromWorks:
             """,
             (change["to"], title_sort_key(change["to"]), change["id"]),
         )
-        cursor.execute(
-            """
-            INSERT INTO field_provenance (book_id, field, origin, source,
-                                          updated_at)
-            VALUES (?, 'title', 'provider', 'openlibrary-works', ?)
-            ON CONFLICT(book_id, field) DO UPDATE SET
-                origin = 'provider', source = 'openlibrary-works',
-                updated_at = excluded.updated_at
-            """,
-            (change["id"], int(time.time())),
-        )
+        Provenance(self._db).record(change["id"], "title", "provider",
+                                    "openlibrary-works")
         # Search holds its own copy of the title.
         self._search.reindex_book(change["id"])
         LOG.info("%r → %r", change["from"], change["to"])

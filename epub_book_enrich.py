@@ -14,6 +14,7 @@ import logging
 import time
 
 from epub_match import Candidate, MatchScorer, search_title
+from epub_provenance import Provenance
 from epub_providers import ProviderError
 
 LOG = logging.getLogger("epub-reader.enrich")
@@ -107,17 +108,8 @@ class BookEnricher:
                 f"UPDATE metadata SET {field} = ? WHERE book_id = ?",
                 (value, book_id),
             )
-            self._db.connection.execute(
-                """
-                INSERT INTO field_provenance
-                    (book_id, field, origin, source, updated_at)
-                VALUES (?, ?, 'provider', ?, ?)
-                ON CONFLICT(book_id, field) DO UPDATE SET
-                    origin = 'provider', source = excluded.source,
-                    updated_at = excluded.updated_at
-                """,
-                (book_id, field, candidate.source, now),
-            )
+            Provenance(self._db).record(book_id, field, "provider",
+                                        candidate.source, now=now)
             written.append(field)
         return written
 

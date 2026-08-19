@@ -24,6 +24,7 @@ import time
 
 from epub_match import normalise_title, search_title
 from epub_names import PersonName, fold
+from epub_provenance import Provenance
 from epub_providers import ProviderError
 
 LOG = logging.getLogger("epub-reader.dedupe")
@@ -320,17 +321,8 @@ class AuthorDeduplicator:
     def _record(self, book_ids: list[int]) -> None:
         now = int(time.time())
         for book_id in book_ids:
-            self._db.connection.execute(
-                """
-                INSERT INTO field_provenance (book_id, field, origin, source,
-                                              updated_at)
-                VALUES (?, 'authors', 'provider', 'dedupe', ?)
-                ON CONFLICT(book_id, field) DO UPDATE SET
-                    origin = 'provider', source = 'dedupe',
-                    updated_at = excluded.updated_at
-                """,
-                (book_id, now),
-            )
+            Provenance(self._db).record(book_id, "authors", "provider",
+                                        "dedupe", now=now)
 
     def merge(self, keeper_id: int, other_ids: list[int],
               name: str | None = None) -> dict:

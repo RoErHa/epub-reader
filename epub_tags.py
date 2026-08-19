@@ -26,6 +26,8 @@ import logging
 import re
 import time
 
+from epub_provenance import Candidates, Provenance
+
 LOG = logging.getLogger("epub-reader.tags")
 
 # Everything the scanners in this library actually wrote, and nothing
@@ -47,6 +49,7 @@ TAG = re.compile(
 class ScannerTags:
     def __init__(self, database) -> None:
         self._db = database
+        self._provenance = Provenance(database)
 
     @classmethod
     def strip(cls, title: str) -> str:
@@ -101,21 +104,7 @@ class ScannerTags:
                -- rather than a backslash because a backslash has to
                -- survive Python's string layer as well as SQLite's.
                AND (m.title LIKE '%(%' OR m.title LIKE '%#_%' ESCAPE '#')
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f
-                      WHERE f.book_id = b.id AND f.field = 'title'
-                        AND (f.origin = 'user' OR f.locked = 1))
-               -- A title a provider CONFIRMED outranks one read off a
-               -- filename. Within `provider`, `openlibrary` is what
-               -- somebody's catalogue asserts and `filename` is what we
-               -- inferred from a name — so a repaired fragment
-               -- (§8.13c) is not undone by the next scan reading the
-               -- broken name again.
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f2
-                      WHERE f2.book_id = b.id AND f2.field = 'title'
-                        AND f2.source = 'openlibrary')
-            """
+            """ + Candidates.clause("title", derived_from="title")
         ).fetchall()
 
     def run(self, apply: bool = False) -> dict:
@@ -131,15 +120,8 @@ class ScannerTags:
                       SET file_title = COALESCE(file_title, title), title = ?
                     WHERE book_id = ?""", (item["title"], item["id"]))
             # Recorded, or the next rescan writes the tag back.
-            self._db.connection.execute(
-                """
-                INSERT INTO field_provenance (book_id, field, origin, source,
-                                              updated_at)
-                VALUES (?, 'title', 'provider', 'title', ?)
-                ON CONFLICT(book_id, field) DO UPDATE SET
-                    origin = 'provider', source = 'title',
-                    updated_at = excluded.updated_at
-                """, (item["id"], now))
+            self._provenance.record(item["id"], "title", "provider", "title",
+                                    now=now)
             report["cleaned"] += 1
             LOG.info("book %s: %r -> %r", item["id"], item["was"], item["title"])
         return report

@@ -22,12 +22,12 @@ from __future__ import annotations
 import io
 import logging
 import re
-import time
 from pathlib import Path
 
 from epub_match import normalise_title, search_title
 from epub_names import PersonName, fold
 from epub_pdf import PdfCoverRenderer
+from epub_provenance import Candidates, Provenance
 
 LOG = logging.getLogger("epub-reader.covers")
 
@@ -60,10 +60,7 @@ class CoverBackfill:
                AND (m.cover_path IS NULL OR m.cover_path = '')
                AND b.format = 'pdf'
                -- A cover a reader threw away stays thrown away.
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f
-                      WHERE f.book_id = b.id AND f.field = 'cover'
-                        AND (f.origin = 'user' OR f.locked = 1))
+            """ + Candidates.clause("cover", derived_from="pdfium") + """
              ORDER BY b.path
             """
         ).fetchall()
@@ -110,17 +107,7 @@ class CoverBackfill:
     def _record(self, book_id: int, origin: str, source: str) -> None:
         """Or the next pass would ask again, and a reader who threw a
         cover away would get another one."""
-        self._db.connection.execute(
-            """
-            INSERT INTO field_provenance (book_id, field, origin, source,
-                                          locked, updated_at)
-            VALUES (?, 'cover', ?, ?, 0, ?)
-            ON CONFLICT(book_id, field) DO UPDATE SET
-                origin = excluded.origin, source = excluded.source,
-                updated_at = excluded.updated_at
-            """,
-            (book_id, origin, source, int(time.time())),
-        )
+        Provenance(self._db).record(book_id, "cover", origin, source)
 
     @staticmethod
     def summary(report: dict) -> str:
@@ -272,7 +259,12 @@ class ProviderCovers:
                AND b.duplicate_of IS NULL
                AND (m.cover_path IS NULL OR m.cover_path = '')
                AND m.title IS NOT NULL AND m.title <> ''
-               -- Asked before, or thrown away by hand: either way, done.
+               -- Asked before, or thrown away by hand: either way,
+               -- done. This is NOT `Candidates.clause` and must not
+               -- become it: that guard asks "may I write?", and this
+               -- asks "have we already been here?" — a recorded miss
+               -- (§8.13) blocks a second question while leaving the
+               -- field perfectly writable.
                AND NOT EXISTS (
                      SELECT 1 FROM field_provenance f
                       WHERE f.book_id = b.id AND f.field = 'cover')

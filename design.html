@@ -1448,6 +1448,15 @@ tools/              <span class="c">make_test_library.py</span></code></pre>
 <li><strong>Reopening a finished book does not un-finish it.</strong> The upsert preserves <code>finished</code>/<code>abandoned</code>; only an explicit status change clears it.</li>
 </ul>
 
+<h3>One place for the rule everything depends on</h3>
+<p>§5's provenance rule is the invariant the whole design rests on — and it was written <strong>eleven times</strong>. Every pass hand-rolled its own <code>INSERT INTO field_provenance … ON CONFLICT</code>, and eight carried their own copy of the guard that reads it back.</p>
+<div class="rule">
+  <span class="eyebrow">A rule that must be copied into N places will eventually be in N−1</span>
+  <p>Not a tidiness complaint: a rule added one afternoon — a title a provider <em>confirmed</em> outranks one <em>derived</em> from a filename — went into three of those eight by hand, and the pass it was missing from spent a scan undoing the other two's work.</p>
+</div>
+<p><code>Provenance</code> writes it and <code>Candidates</code> reads it. The guard exists <strong>twice on purpose</strong> — a method for one book, a SQL clause for a pass selecting thousands — because asking per book would mean one query per candidate. Two forms of one rule is exactly how they come to disagree, so a test drives both over every combination of origin, source and lock and asserts they never do.</p>
+<p><strong>Two guards were deliberately left alone</strong>, being different questions in the same shape: <code>ProviderCovers</code> asks "have we already been here?" rather than "may I write?", and <code>TitleFromWorks</code> refuses any title a provider has set, because asking a bibliography about a book somebody has already answered for is a request spent on nothing. Saying so in a comment is the point — an exception nobody wrote down is indistinguishable from an oversight.</p>
+
 <h2 id="s11"><span class="n">11</span>Conventions</h2>
 
 <ul>

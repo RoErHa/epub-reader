@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import difflib
 import logging
-import time
 
 from epub_match import normalise_title, search_title
 from epub_names import PersonName, fold
+from epub_provenance import Provenance
 from epub_providers import ProviderError
 
 LOG = logging.getLogger("epub-reader.repair")
@@ -320,15 +320,7 @@ class TitleAsAuthorRepair:
             " position) VALUES (?, ?, 'author', 0)",
             (book["id"], author_id),
         )
-        cursor.execute(
-            """
-            INSERT INTO field_provenance (book_id, field, origin, source,
-                                          updated_at)
-            VALUES (?, 'authors', 'provider', 'lookup', ?)
-            ON CONFLICT(book_id, field) DO UPDATE SET
-                origin = 'provider', updated_at = excluded.updated_at
-            """,
-            (book["id"], int(time.time())),
-        )
+        Provenance(self._db).record(book["id"], "authors", "provider",
+                                    "lookup")
         LOG.info("%r: author %r → %r", book["title"], book["author"],
                  person.display)

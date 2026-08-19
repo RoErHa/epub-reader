@@ -14,9 +14,9 @@ is the same rule §6.4 gives everything else, used deliberately.
 from __future__ import annotations
 
 import logging
-import time
 
 from epub_names import PersonName, title_sort_key
+from epub_provenance import Provenance
 
 LOG = logging.getLogger("epub-reader.credits")
 
@@ -107,14 +107,5 @@ class BookCredits:
         reader has decided something about this book, and no pass gets
         to overrule it.
         """
-        self._db.connection.execute(
-            """
-            INSERT INTO field_provenance (book_id, field, origin, source,
-                                          locked, updated_at)
-            VALUES (?, ?, 'user', 'hand', 1, ?)
-            ON CONFLICT(book_id, field) DO UPDATE SET
-                origin = 'user', source = 'hand', locked = 1,
-                updated_at = excluded.updated_at
-            """,
-            (book_id, field, int(time.time())),
-        )
+        Provenance(self._db).record(book_id, field, "user", "hand",
+                                    locked=True)

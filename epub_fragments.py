@@ -45,6 +45,7 @@ import re
 import time
 
 from epub_names import fold
+from epub_provenance import Candidates, Provenance
 from epub_titles import TitlePolish
 
 LOG = logging.getLogger("epub-reader.fragments")
@@ -67,6 +68,7 @@ class TitlesFromFragments:
     def __init__(self, database, provider) -> None:
         self._db = database
         self._provider = provider
+        self._provenance = Provenance(database)
 
     # ── the rule ──────────────────────────────────────────────────────
     @classmethod
@@ -170,11 +172,7 @@ class TitlesFromFragments:
               JOIN metadata m ON m.book_id = b.id
              WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
                AND m.title IS NOT NULL AND m.title <> ''
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f
-                      WHERE f.book_id = b.id AND f.field = 'title'
-                        AND (f.origin = 'user' OR f.locked = 1))
-        """
+        """ + Candidates.clause("title", derived_from="openlibrary")
         params: list = []
         if formats:
             sql += f" AND b.format IN ({','.join('?' * len(formats))})"
@@ -202,15 +200,8 @@ class TitlesFromFragments:
             # The title only. Open Library calls The Bamboo Bloodbath
             # Jason Striker #3 while the file calls it 02, and both are
             # right — the file is an omnibus of novels 3 and 4.
-            self._db.connection.execute(
-                """
-                INSERT INTO field_provenance (book_id, field, origin, source,
-                                              updated_at)
-                VALUES (?, 'title', 'provider', 'openlibrary', ?)
-                ON CONFLICT(book_id, field) DO UPDATE SET
-                    origin = 'provider', source = 'openlibrary',
-                    updated_at = excluded.updated_at
-                """, (item["id"], now))
+            self._provenance.record(item["id"], "title", "provider",
+                                    "openlibrary", now=now)
             report["mended"] += 1
             LOG.info("book %s: %r -> %r (asked %r)", item["id"], item["was"],
                      item["title"], item["asked"])

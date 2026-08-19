@@ -1492,6 +1492,8 @@ data/genres.tsv     ~40 BISAC terms; data/genre_map.tsv translates providers
 static/review.js    ReviewPanel — why it scored that, and what would change
 static/browse.js    Browser — mode strip, letter bar, drill-down
 static/detail.js    BookDetail — the book-detail screen
+epub_provenance.py  Provenance, Candidates — who said so, and whether we
+                    may overwrite them; the one place §5's rule lives
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
@@ -1844,6 +1846,40 @@ authors, 34 series, 258 genres.
   use those helpers rather than holding a reference.
 - **Reopening a finished book does not un-finish it.** The upsert preserves
   `finished`/`abandoned` status; only an explicit status change clears it.
+
+### 10.14 One place for the rule everything depends on
+
+§5's provenance rule is the invariant the whole design rests on — and it
+was written **eleven times**. Every pass hand-rolled its own
+`INSERT INTO field_provenance … ON CONFLICT`, and eight carried their own
+copy of the guard that reads it back.
+
+> **A rule that must be copied into N places will eventually be in
+> N−1.** Not a tidiness complaint: a rule added one afternoon — a title a
+> provider *confirmed* outranks one *derived* from a filename — went into
+> three of those eight by hand, and the pass it was missing from spent a
+> scan undoing the other two's work (§8.16).
+
+`Provenance` writes it and `Candidates` reads it. The guard exists
+**twice on purpose** — as a method for one book, as a SQL clause for a
+pass selecting thousands — because a pass that asked per book would run
+one query per candidate. Two forms of one rule is exactly how they come
+to disagree, so a test drives both over every combination of origin,
+source and lock and asserts they never do.
+
+**Two guards were deliberately left alone**, because they are different
+questions wearing the same shape:
+
+- `ProviderCovers` asks *"have we already been here?"*, not *"may I
+  write?"*. A recorded miss (§8.13) blocks a second question while
+  leaving the field perfectly writable.
+- `TitleFromWorks` refuses any title a provider has set, including one
+  derived from a filename — stricter than the shared guard, because
+  asking a bibliography about a book somebody has already answered for
+  is a request spent on nothing.
+
+Saying so in a comment is the point: an exception nobody wrote down is
+indistinguishable from an oversight.
 
 ## 11. Conventions
 

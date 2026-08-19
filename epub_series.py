@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 
 from epub_names import fold, title_sort_key
+from epub_provenance import Candidates, Provenance
 from epub_tags import ScannerTags
 
 LOG = logging.getLogger("epub-reader.series")
@@ -54,6 +55,7 @@ AGREEMENT = 2
 class SeriesFromNames:
     def __init__(self, database) -> None:
         self._db = database
+        self._provenance = Provenance(database)
 
     # ── reading the names ─────────────────────────────────────────────
     def plan(self, author: str | None = None,
@@ -116,10 +118,7 @@ class SeriesFromNames:
               LEFT JOIN author a ON a.id = ba.author_id
              WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
                AND m.series_id IS NULL
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f
-                      WHERE f.book_id = b.id AND f.field = 'series')
-        """
+        """ + Candidates.clause("series", derived_from="filename")
         params: list = []
         if author:
             sql += " AND a.name = ?"
@@ -181,17 +180,8 @@ class SeriesFromNames:
                 "UPDATE metadata SET series_id = ?, series_index = ?"
                 " WHERE book_id = ?", (series_id, item["index"], item["id"]))
             # Recorded, or the next rescan takes it straight back out.
-            self._db.connection.execute(
-                """
-                INSERT INTO field_provenance (book_id, field, origin, source,
-                                              updated_at)
-                VALUES (?, 'series', 'provider', 'filename', ?)
-                ON CONFLICT(book_id, field) DO UPDATE SET
-                    origin = 'provider', source = 'filename',
-                    updated_at = excluded.updated_at
-                """,
-                (item["id"], now),
-            )
+            self._provenance.record(item["id"], "series", "provider",
+                                    "filename", now=now)
             report["named"] += 1
         return report
 

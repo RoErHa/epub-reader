@@ -38,6 +38,7 @@ import re
 import time
 
 from epub_names import PersonName
+from epub_provenance import Candidates, Provenance
 
 LOG = logging.getLogger("epub-reader.coauthors")
 
@@ -53,6 +54,7 @@ SPLIT = re.compile(r"\s*(?:,|&|\band\b)\s*", re.IGNORECASE)
 class CoAuthorsInTitles:
     def __init__(self, database) -> None:
         self._db = database
+        self._provenance = Provenance(database)
 
     # ── reading it ────────────────────────────────────────────────────
     @classmethod
@@ -137,22 +139,9 @@ class CoAuthorsInTitles:
               JOIN metadata m ON m.book_id = b.id
              WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
                AND (m.title LIKE '%(%' OR m.file_title LIKE '%(%')
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f
-                      WHERE f.book_id = b.id
-                        AND f.field IN ('authors', 'title')
-                        AND (f.origin = 'user' OR f.locked = 1))
-               -- A title a provider CONFIRMED outranks one read off a
-               -- filename. Within `provider`, `openlibrary` is what
-               -- somebody's catalogue asserts and `filename` is what we
-               -- inferred from a name — so a repaired fragment
-               -- (§8.13c) is not undone by the next scan reading the
-               -- broken name again.
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f2
-                      WHERE f2.book_id = b.id AND f2.field = 'title'
-                        AND f2.source = 'openlibrary')
             """
+            + Candidates.clause("authors", derived_from="title")
+            + Candidates.clause("title", derived_from="title")
         ).fetchall()
 
     # ── writing it down ───────────────────────────────────────────────
@@ -194,26 +183,16 @@ class CoAuthorsInTitles:
                 (item["id"], author_id, position))
             position += 1
         if item["people"]:
-            self._record(item["id"], "authors", now)
+            self._provenance.record(item["id"], "authors", "provider",
+                                    "title", now=now)
 
     def _retitle(self, item: dict, now: int) -> None:
         self._db.connection.execute(
             """UPDATE metadata
                   SET file_title = COALESCE(file_title, title), title = ?
                 WHERE book_id = ?""", (item["title"], item["id"]))
-        self._record(item["id"], "title", now)
-
-    def _record(self, book_id: int, field: str, now: int) -> None:
-        """Recorded, or the next rescan puts the bracket straight back."""
-        self._db.connection.execute(
-            """
-            INSERT INTO field_provenance (book_id, field, origin, source,
-                                          updated_at)
-            VALUES (?, ?, 'provider', 'title', ?)
-            ON CONFLICT(book_id, field) DO UPDATE SET
-                origin = 'provider', source = 'title',
-                updated_at = excluded.updated_at
-            """, (book_id, field, now))
+        self._provenance.record(item["id"], "title", "provider",
+                                "title", now=now)
 
     @staticmethod
     def summary(report: dict) -> str:

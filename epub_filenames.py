@@ -52,6 +52,7 @@ from pathlib import Path
 
 from epub_coauthors import CoAuthorsInTitles
 from epub_names import PersonName
+from epub_provenance import Candidates, Provenance
 from epub_series import SeriesFromNames
 from epub_tags import ScannerTags
 
@@ -98,6 +99,7 @@ class CreditsFromNames:
     def __init__(self, database, series: SeriesFromNames | None = None) -> None:
         self._db = database
         self._series = series or SeriesFromNames(database)
+        self._provenance = Provenance(database)
 
     # ── reading the names ─────────────────────────────────────────────
     @classmethod
@@ -210,7 +212,7 @@ class CreditsFromNames:
         becomes the shelf talking. Without this the first answer stood
         for ever, because it no longer looked like a filename.
         """
-        sql = """
+        sql = ("""
             SELECT b.id, b.path, a.name AS author
               FROM book b
               JOIN metadata m ON m.book_id = b.id
@@ -218,21 +220,9 @@ class CreditsFromNames:
               LEFT JOIN author a ON a.id = ba.author_id
              WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
                AND m.title IS NOT NULL
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f
-                      WHERE f.book_id = b.id AND f.field IN ('authors', 'title')
-                        AND (f.origin = 'user' OR f.locked = 1))
-               -- A title a provider CONFIRMED outranks one read off a
-               -- filename. Within `provider`, `openlibrary` is what
-               -- somebody's catalogue asserts and `filename` is what we
-               -- inferred from a name — so a repaired fragment
-               -- (§8.13c) is not undone by the next scan reading the
-               -- broken name again.
-               AND NOT EXISTS (
-                     SELECT 1 FROM field_provenance f2
-                      WHERE f2.book_id = b.id AND f2.field = 'title'
-                        AND f2.source = 'openlibrary')
         """
+            + Candidates.clause("authors", derived_from="filename")
+            + Candidates.clause("title", derived_from="filename"))
         params: list = []
         if formats:
             sql += f" AND b.format IN ({','.join('?' * len(formats))})"
@@ -329,7 +319,8 @@ class CreditsFromNames:
                 "INSERT OR IGNORE INTO book_author (book_id, author_id, role,"
                 " position) VALUES (?, ?, 'author', ?)",
                 (item["id"], author_id, position))
-        self._record(item["id"], "authors", now)
+        self._provenance.record(item["id"], "authors", "provider",
+                                "filename", now=now)
 
     # ── what it is called ─────────────────────────────────────────────
     def _title_plan(self, author: str | None,
@@ -361,21 +352,10 @@ class CreditsFromNames:
             """UPDATE metadata
                   SET file_title = COALESCE(file_title, title), title = ?
                 WHERE book_id = ?""", (item["title"], item["id"]))
-        self._record(item["id"], "title", now)
+        self._provenance.record(item["id"], "title", "provider",
+                                "filename", now=now)
 
     # ── writing it down ───────────────────────────────────────────────
-    def _record(self, book_id: int, field: str, now: int) -> None:
-        """Recorded, or the next rescan takes it straight back out."""
-        self._db.connection.execute(
-            """
-            INSERT INTO field_provenance (book_id, field, origin, source,
-                                          updated_at)
-            VALUES (?, ?, 'provider', 'filename', ?)
-            ON CONFLICT(book_id, field) DO UPDATE SET
-                origin = 'provider', source = 'filename',
-                updated_at = excluded.updated_at
-            """, (book_id, field, now))
-
     def run(self, apply: bool = False, author: str | None = None,
             formats: list[str] | None = None) -> dict:
         """Authors, then series, then titles — §6.6's order, for the
