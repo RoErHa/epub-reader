@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>epub-reader architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Palette and faces inherited from design.html, which inherits them from
+   dlna-gateway-2.0/static/app.css. Deliberately dark-only, like both. */
+:root{
+  --ink:#F4F8FF;
+  --ink-dim:#B4C9E6;
+  --ink-dim-soft:#8DA5C6;
+  --bg:#0A1526;
+  --surface:#122139;
+  --raised:#1B2F4D;
+  --border:#2A4066;
+  --border-hi:#31507F;
+  --amber:#FFC24A;
+  --amber-d:#C98F1E;
+  --red:#FF8478;
+  --green:#4FD98C;
+  --r:6px;
+  --fh:'Syne',sans-serif;
+  --fm:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --fb:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --fs-sub:12px;
+  --fs-micro:11px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--fb);
+  font-size:15px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+a{color:var(--amber);text-decoration:none}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:2px}
+code{font-family:var(--fm);font-size:.88em;color:var(--ink-dim)}
+
+/* ── header ───────────────────────────────────────────────── */
+header{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:10px 20px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.logo{font-family:var(--fh);font-weight:800;font-size:17px;letter-spacing:.02em}
+.logo sup{color:var(--amber);font-size:9px;margin-left:1px}
+.sep{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.hdr-tag{
+  font-family:var(--fm);font-size:var(--fs-micro);
+  color:var(--bg);background:var(--amber);
+  padding:2px 8px;border-radius:99px;font-weight:500;
+}
+.hdr-right{
+  margin-left:auto;font-family:var(--fm);font-size:var(--fs-micro);
+  color:var(--ink-dim-soft);
+}
+
+/* ── shell ────────────────────────────────────────────────── */
+.wrap{
+  max-width:1180px;margin:0 auto;padding:40px 24px 96px;
+  display:grid;grid-template-columns:196px minmax(0,1fr);gap:48px;align-items:start;
+}
+nav.toc{position:sticky;top:76px}
+nav.toc ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:1px}
+nav.toc a{
+  display:flex;gap:10px;padding:5px 8px;border-radius:var(--r);
+  color:var(--ink-dim);font-size:13px;line-height:1.35;
+  transition:background .12s,color .12s;
+}
+nav.toc a:hover{background:var(--surface);color:var(--ink)}
+nav.toc .n{font-family:var(--fm);font-size:var(--fs-micro);color:var(--amber-d);min-width:14px}
+.eyebrow{
+  font-family:var(--fm);font-size:var(--fs-micro);letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-dim-soft);
+}
+main{min-width:0;display:flex;flex-direction:column;gap:6px}
+
+h1{font-family:var(--fh);font-weight:800;font-size:38px;line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{font-size:17px;color:var(--ink-dim);margin:14px 0 0;max-width:64ch;text-wrap:pretty}
+h2{
+  font-family:var(--fh);font-weight:700;font-size:22px;
+  margin:56px 0 0;padding-top:22px;border-top:1px solid var(--border);
+  display:flex;align-items:baseline;gap:12px;text-wrap:balance;
+}
+h2 .n{font-family:var(--fm);font-size:var(--fs-sub);color:var(--amber-d);font-weight:400}
+h3{font-family:var(--fh);font-weight:600;font-size:15px;margin:30px 0 0;color:var(--ink)}
+p{margin:14px 0 0;max-width:68ch;text-wrap:pretty}
+strong{color:var(--ink);font-weight:600}
+
+/* ── stat strip ───────────────────────────────────────────── */
+.stats{
+  margin-top:26px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
+  background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;
+}
+.stat{background:var(--surface);padding:13px 15px;display:flex;flex-direction:column;gap:3px}
+.stat b{
+  font-family:var(--fm);font-size:19px;font-weight:500;color:var(--amber);
+  font-variant-numeric:tabular-nums;line-height:1.2;
+}
+.stat span{font-size:var(--fs-micro);color:var(--ink-dim-soft);letter-spacing:.03em}
+
+/* ── the layer diagram ────────────────────────────────────── */
+.layers{
+  margin-top:26px;display:flex;flex-direction:column-reverse;gap:1px;
+  border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--border);
+}
+.layer{
+  background:var(--surface);padding:12px 15px;
+  display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:start;
+}
+.layer.root{background:var(--raised)}
+.layer-label{display:flex;flex-direction:column;gap:2px}
+.layer-label b{font-family:var(--fm);font-size:var(--fs-micro);color:var(--amber-d);font-weight:500}
+.layer-label span{font-size:var(--fs-micro);color:var(--ink-dim-soft);line-height:1.4}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--fm);font-size:var(--fs-sub);
+  padding:3px 8px;border:1px solid var(--border-hi);border-radius:var(--r);
+  background:var(--bg);color:var(--ink-dim);
+}
+.chip i{font-style:normal;font-size:var(--fs-micro);color:var(--ink-dim-soft);font-variant-numeric:tabular-nums}
+.chip.load{border-color:var(--amber);color:var(--ink)}
+.chip.load i{color:var(--amber)}
+.chip.entry{border-color:var(--border-hi);background:var(--raised);color:var(--ink)}
+.legend{margin-top:10px;font-family:var(--fm);font-size:var(--fs-micro);color:var(--ink-dim-soft)}
+
+/* ── rules, notes, columns ────────────────────────────────── */
+.rule{
+  margin-top:24px;padding:14px 16px 15px;
+  background:var(--surface);border-left:2px solid var(--amber);border-radius:0 var(--r) var(--r) 0;
+}
+.rule b{display:block;font-family:var(--fh);font-weight:600;font-size:14px;margin-bottom:5px;color:var(--ink)}
+.rule p{margin:0;color:var(--ink-dim);font-size:14px;max-width:none}
+.note{
+  margin-top:24px;padding:13px 16px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);
+}
+.note p{margin:0;font-size:14px;color:var(--ink-dim);max-width:none}
+.note p + p{margin-top:9px}
+.cols{margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 15px;display:flex;flex-direction:column;gap:7px;
+}
+.card h4{
+  font-family:var(--fm);font-size:var(--fs-micro);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--amber-d);margin:0;font-weight:500;
+}
+.card p{margin:0;font-size:13.5px;color:var(--ink-dim);max-width:none}
+.card .path{font-family:var(--fm);font-size:var(--fs-sub);color:var(--ink);line-height:1.7}
+
+/* ── tables ───────────────────────────────────────────────── */
+.tablewrap{margin-top:24px;overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:460px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--border)}
+thead th{
+  background:var(--surface);font-family:var(--fm);font-weight:500;
+  font-size:var(--fs-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim-soft);
+}
+tbody tr:last-child td{border-bottom:0}
+tbody td{color:var(--ink-dim)}
+tbody td:first-child{color:var(--ink)}
+td.num{font-family:var(--fm);font-variant-numeric:tabular-nums;text-align:right;color:var(--ink)}
+td.mono{font-family:var(--fm);font-size:var(--fs-sub)}
+.good{color:var(--green)}
+.warn{color:var(--red)}
+
+footer{
+  grid-column:1/-1;margin-top:64px;padding-top:20px;border-top:1px solid var(--border);
+  font-family:var(--fm);font-size:var(--fs-micro);color:var(--ink-dim-soft);
+  display:flex;flex-wrap:wrap;gap:14px;
+}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:28px;padding:28px 18px 72px}
+  nav.toc{position:static}
+  nav.toc ol{flex-direction:row;flex-wrap:wrap;gap:4px}
+  .layer{grid-template-columns:minmax(0,1fr);gap:9px}
+  h1{font-size:30px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">BOOKS<sup>2.0</sup></div>
+  <div class="sep"></div>
+  <span class="hdr-tag">ARCHITECTURE</span>
+  <div class="hdr-right">39 modules · 9,904 lines · 1,174 pytest · 428 playwright</div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#s1"><span class="n">1</span><span>The shape of it</span></a></li>
+    <li><a href="#s2"><span class="n">2</span><span>Seven layers</span></a></li>
+    <li><a href="#s3"><span class="n">3</span><span>Two foundations</span></a></li>
+    <li><a href="#s4"><span class="n">4</span><span>The composition root</span></a></li>
+    <li><a href="#s5"><span class="n">5</span><span>Three request paths</span></a></li>
+    <li><a href="#s6"><span class="n">6</span><span>Load-bearing boundaries</span></a></li>
+    <li><a href="#s7"><span class="n">7</span><span>What is stored where</span></a></li>
+    <li><a href="#s8"><span class="n">8</span><span>Where it strains</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<h1>epub-reader architecture</h1>
+<p class="lede">One FastAPI service on :8770, a vanilla static front end, and a SQLite index over books that never move. This page describes the code as it is — every number on it was measured from the source and the live database, not from the plan.</p>
+
+<div class="stats">
+  <div class="stat"><b>39</b><span>Python modules</span></div>
+  <div class="stat"><b>9,904</b><span>server lines</span></div>
+  <div class="stat"><b>2,394</b><span>static JS lines</span></div>
+  <div class="stat"><b>52</b><span>HTTP routes</span></div>
+  <div class="stat"><b>10</b><span>migrations</span></div>
+  <div class="stat"><b>0</b><span>import cycles</span></div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s1"><span class="n">01</span>The shape of it</h2>
+
+<p>Three things carry the whole design, and each one closes off a category of problem rather than solving an instance of it.</p>
+
+<div class="cols">
+  <div class="card">
+    <h4>Files stay put</h4>
+    <p>Books are indexed in place and never moved, renamed or written to. Identity is the content hash, so moving a file updates a row instead of creating a second book.</p>
+  </div>
+  <div class="card">
+    <h4>Every field remembers its source</h4>
+    <p><code>field_provenance</code> records whether a value came from the file, a provider or a person, and whether it is locked. That is what makes re-running a pass over the whole library safe.</p>
+  </div>
+  <div class="card">
+    <h4>The engine is a dependency</h4>
+    <p>foliate-js is pinned at <code>78914ae</code> and imported by exactly one file. Rendering, pagination and CFIs are not ours to write.</p>
+  </div>
+</div>
+
+<p>What is left after those three is the part worth building: the index, the browse UI, and the metadata repair that turns thirty years of other people's filing into something a reader can search.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s2"><span class="n">02</span>Seven layers</h2>
+
+<p>Modules are placed here by <strong>how deep they sit in the real import graph</strong> — layer 0 imports nothing of ours, and each layer above imports only from the ones below it. The number on each chip is its fan-in: how many other modules import it. Read it from the bottom up.</p>
+
+<div class="layers">
+
+  <div class="layer">
+    <div class="layer-label"><b>LAYER 0</b><span>Import nothing of ours</span></div>
+    <div class="chips">
+      <span class="chip load">epub_names <i>20</i></span>
+      <span class="chip load">epub_provenance <i>11</i></span>
+      <span class="chip">epub_search <i>3</i></span>
+      <span class="chip">epub_db <i>2</i></span>
+      <span class="chip">epub_browse <i>2</i></span>
+      <span class="chip">epub_config <i>2</i></span>
+      <span class="chip">epub_annotations <i>2</i></span>
+      <span class="chip">epub_rar <i>2</i></span>
+      <span class="chip">epub_forget <i>2</i></span>
+      <span class="chip">epub_security <i>1</i></span>
+    </div>
+  </div>
+
+  <div class="layer">
+    <div class="layer-label"><b>LAYER 1</b><span>Built on a foundation and nothing else</span></div>
+    <div class="chips">
+      <span class="chip load">epub_match <i>7</i></span>
+      <span class="chip">epub_metadata <i>4</i></span>
+      <span class="chip">epub_tags <i>3</i></span>
+      <span class="chip">epub_coauthors <i>2</i></span>
+      <span class="chip">epub_shelves <i>2</i></span>
+      <span class="chip">epub_reading <i>2</i></span>
+      <span class="chip">epub_credits <i>1</i></span>
+      <span class="chip">epub_genres <i>0</i></span>
+    </div>
+  </div>
+
+  <div class="layer">
+    <div class="layer-label"><b>LAYER 2</b><span>Format readers, providers, the HTTP surface</span></div>
+    <div class="chips">
+      <span class="chip load">epub_providers <i>6</i></span>
+      <span class="chip">epub_titles <i>3</i></span>
+      <span class="chip">epub_series <i>2</i></span>
+      <span class="chip">epub_pdf <i>2</i></span>
+      <span class="chip">epub_routes <i>2</i></span>
+      <span class="chip">epub_cbz <i>1</i></span>
+      <span class="chip">epub_mobi <i>1</i></span>
+      <span class="chip">epub_duplicates <i>1</i></span>
+    </div>
+  </div>
+
+  <div class="layer">
+    <div class="layer-label"><b>LAYER 3</b><span>The indexer and the maintenance passes</span></div>
+    <div class="chips">
+      <span class="chip">epub_index <i>1</i></span>
+      <span class="chip">epub_filenames <i>1</i></span>
+      <span class="chip">epub_covers <i>1</i></span>
+      <span class="chip">epub_dedupe <i>2</i></span>
+      <span class="chip">epub_repair <i>2</i></span>
+      <span class="chip">epub_refresh <i>2</i></span>
+      <span class="chip">epub_book_enrich <i>1</i></span>
+      <span class="chip">epub_fragments <i>1</i></span>
+      <span class="chip">epub_enrich <i>1</i></span>
+      <span class="chip">epub_maintenance_routes <i>1</i></span>
+    </div>
+  </div>
+
+  <div class="layer">
+    <div class="layer-label"><b>LAYER 4</b><span>Passes composed in dependency order</span></div>
+    <div class="chips">
+      <span class="chip">epub_maintenance <i>1</i></span>
+    </div>
+  </div>
+
+  <div class="layer root">
+    <div class="layer-label"><b>LAYER 5</b><span>Composition root — imports 28</span></div>
+    <div class="chips">
+      <span class="chip entry">epub_server <i>1</i></span>
+    </div>
+  </div>
+
+  <div class="layer root">
+    <div class="layer-label"><b>LAYER 6</b><span>Entry point — CLI, logging, hypercorn</span></div>
+    <div class="chips">
+      <span class="chip entry">epub_gateway <i>0</i></span>
+    </div>
+  </div>
+
+</div>
+<p class="legend">Amber marks a module four or more others depend on. Fan-in of 0 means nothing imports it: <code>epub_gateway</code> is the entry point, and <code>epub_genres</code> is loaded by data rather than by import.</p>
+
+<p>The graph is acyclic and shallow — <strong>seven layers over 39 modules</strong>, with the widest layer holding ten. Nothing in layers 0–2 knows that an HTTP server exists, which is why the passes can be driven equally from <code>run.sh</code> and from a route.</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s3"><span class="n">03</span>Two foundations</h2>
+
+<p>Twenty of the 39 modules import <code>epub_names</code>, and eleven import <code>epub_provenance</code>. Nothing else comes close. Both are small — 122 and 117 lines — and that is the point: they hold a rule rather than a subsystem.</p>
+
+<div class="rule">
+  <b>A name is normalised in one place or in none.</b>
+  <p><code>PersonName</code> and <code>title_sort_key</code> decide what <em>Le Guin, Ursula K.</em> sorts as, what counts as one word when an apostrophe joins two, and when an underscore is standing in for a space. Every pass that reads a filename asks the same question of the same code, because two implementations of one judgement is exactly how they come to disagree.</p>
+</div>
+
+<div class="rule">
+  <b>The provenance rule was written eleven times before it was written once.</b>
+  <p>Every pass hand-rolled its own <code>INSERT INTO field_provenance … ON CONFLICT</code>, and eight carried their own copy of the guard that reads it back. A rule that must be copied into N places will eventually be in N−1 — and it was, which cost a scan spent undoing its own work. <code>Provenance</code> writes it, <code>Candidates</code> reads it.</p>
+</div>
+
+<div class="note">
+  <p>The guard exists <strong>twice on purpose</strong>: as a method for one book, and as a SQL clause for a pass selecting thousands, because a pass that asked per book would run one query per candidate. A test drives both over every combination of origin, source and lock and asserts they never disagree.</p>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s4"><span class="n">04</span>The composition root</h2>
+
+<p><code>epub_server</code> imports 28 modules and is imported by one. It is where everything is wired together and the only place that knows the whole system exists. It is also 398 lines, because it composes rather than does.</p>
+
+<p>That took a deliberate cut. <code>EpubGateway._register_routes</code> was once <strong>530 lines holding 57 nested functions</strong> — more than half of a 945-line file, and the largest thing in the codebase was not a class at all. The routes are five classes now, grouped by what they are about rather than by what FastAPI needs.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Route class</th><th class="num">Routes</th><th>Answers for</th></tr></thead>
+<tbody>
+<tr><td class="mono">AppRoutes</td><td class="num">4</td><td>health, the shell, status, cover images</td></tr>
+<tr><td class="mono">BrowseRoutes</td><td class="num">14</td><td>authors, series, genres, formats, years, letters, search, detail</td></tr>
+<tr><td class="mono">ShelfRoutes</td><td class="num">9</td><td>stored shelves, smart shelves, membership</td></tr>
+<tr><td class="mono">ReadingRoutes</td><td class="num">8</td><td>position, status, annotations, the book's bytes</td></tr>
+<tr><td class="mono">MaintenanceRoutes</td><td class="num">17</td><td>the repair passes, the review queue, hand-editing</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="rule">
+  <b>Reaching into another object's privates only moves the problem.</b>
+  <p>The routes needed nineteen of the gateway's attributes, and a route class saying <code>gateway._browse</code> would be the same coupling spread over more files. <code>Services</code> is those collaborators — 21 of them plus the two identity strings the health check reports — named, public, and handed over once.</p>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s5"><span class="n">05</span>Three request paths</h2>
+
+<p>Everything the browser asks for takes one of three routes through the service, and they differ in what they are allowed to touch.</p>
+
+<div class="cols">
+  <div class="card">
+    <h4>Browse · read-only JSON</h4>
+    <p class="path">app.js → /api/* → BrowseQueries → SQLite</p>
+    <p>Sort keys are computed at ingest and stored as indexed columns, so browsing is a plain <code>ORDER BY</code>. Every listing joins through to a <em>present</em> book, which is why the status line cannot disagree with the shelf below it.</p>
+  </div>
+  <div class="card">
+    <h4>The book itself · bytes</h4>
+    <p class="path">reader.js → /api/books/{id}/file → disk</p>
+    <p>Addressed by id, never by path — 44% of a real library lives in subfolders. A RAR comic is repacked as a zip and an unpacked directory is zipped, both on the way out, so the reader, the positions and the highlights know nothing about either.</p>
+  </div>
+  <div class="card">
+    <h4>Maintenance · writes, with provenance</h4>
+    <p class="path">run.sh or POST → a pass → Provenance</p>
+    <p>Dry-run by default, database-only, and no file is ever renamed or written. What a pass changes it records, or the next scan would undo it.</p>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s6"><span class="n">06</span>Load-bearing boundaries</h2>
+
+<p>Four rules are structural rather than stylistic. Each one exists because breaking it has already cost something.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Boundary</th><th>Enforced by</th><th>Because</th></tr></thead>
+<tbody>
+<tr>
+  <td class="mono">static/reader.js</td>
+  <td>the only importer of foliate-js</td>
+  <td>upstream declares itself unstable at <code>version: 0.0.0</code>; churn lands in one file</td>
+</tr>
+<tr>
+  <td class="mono">epub_config.py</td>
+  <td>the only reader of <code>.env</code></td>
+  <td>one configuration source, so a TLS path is configuration rather than a guess</td>
+</tr>
+<tr>
+  <td class="mono">epub_provenance.py</td>
+  <td>the only writer of <code>field_provenance</code></td>
+  <td>the rule the whole design rests on, in one place instead of eleven</td>
+</tr>
+<tr>
+  <td class="mono">epub_security.py</td>
+  <td>a CSP on every response</td>
+  <td>EPUBs can carry JavaScript, and iframe sandboxing cannot contain it</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>What the policy actually allows</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Directive</th><th>Value</th><th>Why not tighter</th></tr></thead>
+<tbody>
+<tr><td class="mono">script-src</td><td class="mono good">'self'</td><td>a hostile EPUB's inline and external scripts both refuse to run — verified by breaking it and watching the test fail</td></tr>
+<tr><td class="mono">style-src</td><td class="mono">'self' 'unsafe-inline' blob:</td><td>foliate serves every resource as a <code>blob:</code> URL; without it each book loses its own typography</td></tr>
+<tr><td class="mono">frame-ancestors</td><td class="mono">'self'</td><td>WebKit propagates the page's policy into <code>blob:</code> documents, so <code>'none'</code> made every book refuse to load its own frame</td></tr>
+<tr><td class="mono">connect-src</td><td class="mono good">'self'</td><td>nothing in a book may call home</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <p><strong>A security test that passes for the wrong reason is worse than none.</strong> The containment test is verified by temporarily weakening <code>script-src</code> to allow <code>'unsafe-inline' blob:</code> and confirming it then fails — so it is not passing vacuously.</p>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s7"><span class="n">07</span>What is stored where</h2>
+
+<p>Sixteen tables plus FTS5's five shadow tables, ten forward-only migrations, and everything binary on disk rather than in SQLite. Counts below are the live library.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Holds</th><th>Table</th><th class="num">Rows</th></tr></thead>
+<tbody>
+<tr><td>Physical files, identified by hash</td><td class="mono">book</td><td class="num">2,662</td></tr>
+<tr><td>…of which folded away as duplicate copies</td><td class="mono">book.duplicate_of</td><td class="num">288</td></tr>
+<tr><td>The author's bibliography, owned or not</td><td class="mono">author_work</td><td class="num">29,100</td></tr>
+<tr><td>Who said each field, and whether it is locked</td><td class="mono">field_provenance</td><td class="num">2,234</td></tr>
+<tr><td>Authors, including rows no present book uses</td><td class="mono">author</td><td class="num">841</td></tr>
+<tr><td>Series</td><td class="mono">series</td><td class="num">236</td></tr>
+<tr><td>Questions already asked of a provider</td><td class="mono">provider_query</td><td class="num">134</td></tr>
+<tr><td>Position and status, shared across devices</td><td class="mono">reading_state</td><td class="num">53</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The 2,662 book rows show as <strong>2,374 books</strong>, because a hidden duplicate keeps its row and its path so the folding stays reversible. The same is true of authors: a repair leaves a row behind rather than deleting one another book might need, so every listing — and the status line with it — joins through to a present book.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Format</th><th class="num">Books</th><th>Read by</th></tr></thead>
+<tbody>
+<tr><td>EPUB</td><td class="num">1,324</td><td class="mono">epub_metadata</td></tr>
+<tr><td>PDF</td><td class="num">506</td><td class="mono">epub_pdf</td></tr>
+<tr><td>CBZ</td><td class="num">286</td><td class="mono">epub_cbz</td></tr>
+<tr><td>CBR</td><td class="num">205</td><td class="mono">epub_cbz + epub_rar</td></tr>
+<tr><td>PRC · MOBI · AZW3</td><td class="num">53</td><td class="mono">epub_mobi</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="s8"><span class="n">08</span>Where it strains</h2>
+
+<p>Written down so a later reader can tell a decision from an oversight.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Strain</th><th>State</th><th>Cost of removing it</th></tr></thead>
+<tbody>
+<tr>
+  <td>foliate-js pinned at <code>78914ae</code>, never updated, upstream unstable</td>
+  <td class="warn">accepted</td>
+  <td>a deliberate update with the whole UI suite behind it</td>
+</tr>
+<tr>
+  <td><code>epub_index</code> at 557 lines and <code>epub_gateway</code> at 507</td>
+  <td class="warn">the two over the ~400 the review asked for</td>
+  <td>another split; everything else already fits</td>
+</tr>
+<tr>
+  <td>Ten 2003-vintage RAR comics libarchive refuses</td>
+  <td class="warn">reported, skipped</td>
+  <td>a second unrar that is not already on the machine</td>
+</tr>
+<tr>
+  <td>9% of books carry no cover</td>
+  <td class="warn">lettered tile</td>
+  <td>nothing — a wrong cover is worse than none</td>
+</tr>
+<tr>
+  <td>57% genre-map coverage</td>
+  <td class="good">by design</td>
+  <td>guessing at <code>wierook32</code>, which the map refuses to do</td>
+</tr>
+<tr>
+  <td>Series from a provider</td>
+  <td class="warn">never built</td>
+  <td>unproven data; hand-filing answers it today</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p>The test suites are the check on all of it: <strong>1,174 pytest</strong> over 12,165 lines, and <strong>428 Playwright</strong> over 15 specs, run serially against Chromium and WebKit because position is shared server-side by design and Safari is the browser this is actually read in.</p>
+
+<footer>
+  <span>epub-reader · architecture</span>
+  <span>measured 2026-08-20</span>
+  <span>companion to design.html and CLAUDE.md</span>
+</footer>
+
+</main>
+</div>
+
+</body>
+</html>
