@@ -1618,7 +1618,9 @@ static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder
 tests/frontend/     Playwright specs
-tools/              make_test_library.py
+tools/              make_test_library.py; badges.py — the README's badge
+                    strip, rendered from the suites and checked by a test
+SECURITY.md         threat model, what is in scope, how to report it
 ```
 
 ### 10.2 Test isolation
