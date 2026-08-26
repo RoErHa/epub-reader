@@ -28,11 +28,13 @@ Three rendering models sit behind those seven: reflowed text, rasterised
 pages (PDF, via pdf.js), and images page by page (CBZ, CBR) — so the
 typography controls apply to the first and not the other two.
 
-**Books the shop locked are excluded**, not listed as titles that fail:
-50 here are Apple Books purchases whose every document is encrypted, and
-no reader outside Apple Books can open them. Encrypted *fonts* are a
-different thing entirely and stay — 8 books here obfuscate their fonts,
-the Earthsea novels among them, and they read perfectly.
+**Books the shop locked are excluded**, not listed as titles that fail.
+An Apple Books purchase has every document encrypted and no reader
+outside Apple Books can open it. There are none left in this library —
+it held 50 once — but the rule stays, because encrypted *fonts* are a
+different thing entirely: 8 books here obfuscate their fonts, the
+Earthsea novels among them, and excluding on the encryption file alone
+would lose all 8 books that read perfectly.
 
 ## What it does
 

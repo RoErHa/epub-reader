@@ -55,11 +55,13 @@ Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain
 
 ## 2.0 Books nobody can open
 
-**50 books in the library are Apple Books purchases**, encrypted with FairPlay: every document inside is ciphertext and the key lives in an Apple ID. Nothing here or anywhere else can open them, so they are **excluded at scan time** rather than listed as titles that fail.
+**Books the shop locked are excluded at scan time** rather than listed as titles that fail. Apple Books purchases are encrypted with FairPlay: every document inside is ciphertext and the key lives in an Apple ID, so nothing here or anywhere else can open them.
+
+> **Measured 2026-08-26: there are none left in this library** — 1,570 EPUBs walked, none DRM-locked. It held 50 when this was written, and they are simply not under `LIBRARY_ROOT` any more. The handling stays, and not out of sentiment: 8 books still carry `META-INF/encryption.xml` and **every one of them is font obfuscation**, so the rule that tells the two apart is the only thing standing between those 8 and being wrongly excluded.
 
 > **Encrypted fonts are not DRM.** `META-INF/encryption.xml` is also how fonts are obfuscated, which is ordinary and readable — 8 books here do it, the Earthsea novels among them. The difference is *what* is encrypted: documents mean DRM, fonts mean typography. Excluding on the presence of the file alone would have lost 8 books that work perfectly.
 
-A locked book is **not a failure** — nothing is wrong with the file or with us — so it is counted separately and says so: `50 locked by their shop`. It is recognised before the book is hashed or stored, or every scan would hash fifty books it is about to throw away.
+A locked book is **not a failure** — nothing is wrong with the file or with us — so it is counted separately and says so: `N locked by their shop`. It is recognised before the book is hashed or stored, or every scan would hash books it is about to throw away. That the count is 0 today is why a scan can report `Library unchanged`: a locked book counts as a change every time it is seen, so fifty of them would have meant fifty changes on every restart, for ever.
 
 Two references to a `book` row have **no cascade**, and both took a scan down in turn once books started being deleted: `book.duplicate_of`, where a hidden copy points at the copy that was kept, and `author_work.book_id`, where "Also published" links a work to the copy you own. Neither should vanish with the book — the hidden copy comes back into view, and the work stays on its author's shelf as one you no longer own.
 

@@ -331,12 +331,12 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 
 <!-- ─────────────────────────────────────────── -->
 <h3>Books nobody can open</h3>
-<p><strong>50 books in the library are Apple Books purchases</strong>, encrypted with FairPlay: every document inside is ciphertext and the key lives in an Apple ID. They are excluded at scan time rather than listed as titles that fail.</p>
+<p><strong>Books the shop locked are excluded at scan time</strong> rather than listed as titles that fail. Apple Books purchases are encrypted with FairPlay: every document inside is ciphertext and the key lives in an Apple ID. <strong>Measured 2026-08-26 there are none left here</strong> — 1,570 EPUBs walked, none locked; the library held 50 when this was written. The handling stays because 8 books still carry <code>META-INF/encryption.xml</code> and every one is font obfuscation, so the rule telling the two apart is all that keeps those 8 from being wrongly excluded.</p>
 <div class="rule">
   <span class="eyebrow">Encrypted fonts are not DRM</span>
   <p><code>META-INF/encryption.xml</code> is also how fonts are obfuscated, which is ordinary and readable — 8 books here do it, the Earthsea novels among them. The difference is <em>what</em> is encrypted: documents mean DRM, fonts mean typography. Excluding on the presence of the file alone would have lost 8 books that work perfectly.</p>
 </div>
-<p>A locked book is <strong>not a failure</strong> — nothing is wrong with the file or with us — so it is counted separately: <code>50 locked by their shop</code>. It is recognised before the book is hashed or stored, or every scan would hash fifty books it is about to throw away.</p>
+<p>A locked book is <strong>not a failure</strong> — nothing is wrong with the file or with us — so it is counted separately: <code>N locked by their shop</code>. It is recognised before the book is hashed or stored, or every scan would hash books it is about to throw away. That the count is 0 today is also why a scan can report <code>Library unchanged</code>: a locked book counts as a change every time it is seen, so fifty would have meant fifty changes on every restart, for ever.</p>
 <p>Two references to a <code>book</code> row have <strong>no cascade</strong>, and both took a scan down in turn once books started being deleted: <code>book.duplicate_of</code>, where a hidden copy points at the copy that was kept, and <code>author_work.book_id</code>, where "Also published" links a work to the copy you own. Neither should vanish with the book.</p>
 
 <h3>Scope: six formats, and one refusal</h3>
