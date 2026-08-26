@@ -385,8 +385,13 @@ class BrowseQueries:
     def status(self) -> dict:
         one = lambda sql: self._db.connection.execute(sql).fetchone()[0]  # noqa: E731
         return {
-            "books": one("SELECT COUNT(*) FROM book WHERE missing_since IS NULL"
-                         " AND duplicate_of IS NULL"),
+            # Joined to metadata, not counted off `book`: an archive we
+            # could not read gets a row and no metadata, so counting rows
+            # counted ten comics no list could ever show (§8.15). The
+            # `failed` count below is where they are reported.
+            "books": one("SELECT COUNT(*) FROM book b JOIN metadata m"
+                         " ON m.book_id = b.id WHERE b.missing_since IS NULL"
+                         " AND b.duplicate_of IS NULL"),
             "duplicates": one("SELECT COUNT(*) FROM book"
                               " WHERE duplicate_of IS NOT NULL"),
             "missing": one("SELECT COUNT(*) FROM book WHERE missing_since IS NOT NULL"),
@@ -404,6 +409,7 @@ class BrowseQueries:
             "series": one("""
                 SELECT COUNT(DISTINCT m.series_id) FROM metadata m
                   JOIN book b ON b.id = m.book_id AND b.missing_since IS NULL
+                   AND b.duplicate_of IS NULL
                  WHERE m.series_id IS NOT NULL
             """),
             "genres": one("""

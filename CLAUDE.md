@@ -4,7 +4,7 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0–M12 complete except M9's provider half. Running against the real library: 2,374 books in seven formats, 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
+**Status: M0–M12 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
 
 The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page.
 
@@ -497,6 +497,8 @@ Every pass records provenance for what it changes, or the next scan would undo i
 
 The status counts now join through to a **present** book, exactly as the browse lists do. A status line that disagrees with the screen below it is wrong however defensible each number is on its own.
 
+> **And the book count itself was the last one to learn it.** `authors` and `genres` were fixed here, `formats()` in §8.15 — while `books` went on counting rows, so the status line said **2,374** where every list showed **2,364**. The ten are the 2003-vintage CBRs libarchive refuses (§8.15): a `book` row, no `metadata` row, and every list joins metadata and cannot show them. They are not lost — `failed` is where they are reported, which is the number that should carry them. Fixed by the same join the other three already had, and `series` gained the `duplicate_of` filter its three siblings had and it did not.
+
 ### 6.13 A scan notices a deletion; it does not act on one
 
 A vanished book is marked `missing_since` and kept — §5 says it in as many words, "vanished; row never auto-deleted". That is why it leaves the shelves at once while your place in it survives, and it is what makes an unplugged drive a nuisance rather than a disaster. It is also the wrong answer for a book deleted on purpose, so `./run.sh forget` is a separate act. It says what would be lost before losing it, since highlights and reading positions go with the book.
@@ -853,7 +855,7 @@ Nora Roberts filed twice, and five books held as both an EPUB and a PDF,
 where the EPUB is the book and the PDF a picture of one. No file was
 deleted; `POST /api/books/restore-duplicates` shows them all again.
 
-The library: **2,374 books, 288 hidden, 577 authors, 235 series.**
+The library: **2,364 books on the shelves, 288 hidden, 577 authors, 235 series** — of 2,374 indexed, the ten refused comics being counted as failed rather than shown (§6.8).
 
 **A measurement of my own that was worthless.** I twice reported a count
 of "titles that are only a shelf label" — 31, then 45 — from a regex
@@ -1496,7 +1498,8 @@ since last time?
 ```
 epub_gateway.py     entry point — GatewayRunner, GatewayCLI, LoggingSetup
 epub_config.py      Config, ConfigError — the only reader of .env
-epub_security.py    ContentSecurityPolicy, SecurityHeaders, middleware
+epub_security.py    ContentSecurityPolicy, SecurityHeaders, SameOriginPolicy
+                    — what may run, and who may ask for a change
 epub_server.py      EpubGateway, BookLibrary — the app, and the read-only
                     library it serves
 epub_routes.py      Services, Routes, App/Browse/Shelf/Reading routes

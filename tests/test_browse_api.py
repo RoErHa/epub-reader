@@ -201,6 +201,24 @@ class TestTheStatusCountsWhatIsOnTheShelves:
         assert self.counts(stocked)["series"] == len(
             stocked.get("/api/series").json()["series"])
 
+    def test_a_book_that_could_not_be_read_is_not_counted(self, stocked, gateway):
+        """Ten CBRs here are 2003-vintage RAR that libarchive refuses
+        (§8.15). They get a `book` row and no `metadata` row, so anything
+        counting rows counts them and every list joins metadata and
+        cannot — the status line said 2,374 while the shelf showed 2,364.
+        §6.8 settled this for authors and genres and §8.15 for formats;
+        the book count itself was still counting rows."""
+        before = self.counts(stocked)["books"]
+        gateway.database.connection.execute(
+            "INSERT INTO book (content_hash, path, format, size_bytes, mtime,"
+            " added_at, index_error) VALUES ('deadbeef', 'Marvel Premiere"
+            " #03.cbr', 'cbr', 1, 1, 1, 'could not be read')")
+        after = self.counts(stocked)
+        assert after["books"] == before          # it is not on the shelves
+        assert after["books"] == len(
+            stocked.get("/api/books").json()["books"])
+        assert after["failed"] >= 1              # but it IS reported as failed
+
     def test_a_vanished_book_takes_its_author_with_it(self, stocked, gateway):
         # The author of a book that is no longer on disk is not on the
         # shelves either.
