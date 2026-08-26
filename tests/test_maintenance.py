@@ -251,35 +251,60 @@ class TestTheSetting:
 
 
 class TestThePace:
-    """Open Library publishes its limits: 1 request/second anonymously,
-    3/second for a client that identifies itself with an application
-    name and a contact address. We identify ourselves, and still leave
-    headroom — their APIs are explicitly not a bulk backend.
+    """Open Library publishes two limits, not one: **1 request/second
+    anonymously, 3/second for a client that identifies itself** with an
+    application name and a contact address. Which of the two applies to
+    us is therefore a fact about the configuration, not a constant — so
+    the default is read off `OPENLIBRARY_CONTACT_EMAIL`.
+
+    This class used to assert 2.0 for an env carrying no contact address
+    at all, with a docstring saying "we identify ourselves". The env did
+    not, and 2.0 is twice what an anonymous client is allowed.
     """
 
-    def test_the_default_leaves_headroom(self, tmp_path):
-        from epub_config import Config
-        env = TestTheCommand.env(tmp_path, tmp_path)
-        assert Config.from_file(env).provider_max_rps == 2.0
+    IDENTIFIED = "OPENLIBRARY_CONTACT_EMAIL=someone@example.com\n"
 
-    def test_the_pace_can_be_set(self, tmp_path):
+    def cfg(self, tmp_path, extra=""):
         from epub_config import Config
-        env = TestTheCommand.env(tmp_path, tmp_path,
-                                 extra="PROVIDER_MAX_RPS=1\n")
-        assert Config.from_file(env).provider_max_rps == 1.0
+        return Config.from_file(TestTheCommand.env(tmp_path, tmp_path, extra=extra))
+
+    # ── the default follows the entitlement ───────────────────────────
+    def test_anonymous_defaults_to_their_anonymous_rate(self, tmp_path):
+        assert self.cfg(tmp_path).provider_max_rps == 1.0
+
+    def test_identifying_ourselves_earns_headroom(self, tmp_path):
+        assert self.cfg(tmp_path, self.IDENTIFIED).provider_max_rps == 2.0
+
+    def test_a_blank_contact_address_is_not_identification(self, tmp_path):
+        assert self.cfg(tmp_path, "OPENLIBRARY_CONTACT_EMAIL=\n").provider_max_rps == 1.0
+
+    # ── an explicit value, and what still bounds it ───────────────────
+    def test_the_pace_can_be_set(self, tmp_path):
+        assert self.cfg(tmp_path, self.IDENTIFIED
+                        + "PROVIDER_MAX_RPS=1\n").provider_max_rps == 1.0
 
     def test_it_never_exceeds_what_they_allow_identified(self, tmp_path):
         # Three a second is their ceiling, not a target.
-        from epub_config import Config
-        env = TestTheCommand.env(tmp_path, tmp_path,
-                                 extra="PROVIDER_MAX_RPS=50\n")
-        assert Config.from_file(env).provider_max_rps == 3.0
+        assert self.cfg(tmp_path, self.IDENTIFIED
+                        + "PROVIDER_MAX_RPS=50\n").provider_max_rps == 3.0
 
-    def test_nonsense_falls_back_to_the_default(self, tmp_path):
-        from epub_config import Config
-        env = TestTheCommand.env(tmp_path, tmp_path,
-                                 extra="PROVIDER_MAX_RPS=banana\n")
-        assert Config.from_file(env).provider_max_rps == 2.0
+    def test_an_anonymous_client_cannot_ask_for_the_identified_rate(self, tmp_path):
+        # Their ceiling depends on who is asking, so the cap has to as
+        # well — otherwise the advice to fill the address in first is
+        # advice nothing enforces.
+        assert self.cfg(tmp_path, "PROVIDER_MAX_RPS=3\n").provider_max_rps == 1.0
+
+    # ── nonsense falls back to the right default, not a fixed one ─────
+    def test_nonsense_falls_back_to_the_anonymous_default(self, tmp_path):
+        assert self.cfg(tmp_path, "PROVIDER_MAX_RPS=banana\n").provider_max_rps == 1.0
+
+    def test_nonsense_falls_back_to_the_identified_default(self, tmp_path):
+        assert self.cfg(tmp_path, self.IDENTIFIED
+                        + "PROVIDER_MAX_RPS=banana\n").provider_max_rps == 2.0
+
+    def test_zero_is_not_a_pace(self, tmp_path):
+        assert self.cfg(tmp_path, self.IDENTIFIED
+                        + "PROVIDER_MAX_RPS=0\n").provider_max_rps == 2.0
 
     def test_the_fetcher_is_built_at_that_pace(self, tmp_path):
         from epub_providers import PoliteFetcher

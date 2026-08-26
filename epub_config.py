@@ -137,11 +137,34 @@ class Config:
         return self._values.get("TIDY_ON_SCAN", "").strip().lower() not in (
             "0", "false", "no", "off")
 
-    # Open Library allows 1 request/second anonymously and 3/second to a
-    # client that identifies itself, which we do. Two leaves headroom:
-    # their APIs are explicitly not a bulk data backend.
-    PROVIDER_RPS_DEFAULT = 2.0
+    # Open Library publishes TWO limits: 1 request/second anonymously and
+    # 3/second to a client that identifies itself with an application name
+    # and a contact address. Which one applies to us is a fact about the
+    # configuration — OPENLIBRARY_CONTACT_EMAIL is what does the
+    # identifying — so neither the default nor the cap can be a constant.
+    # Saying "which we do" here was wrong whenever that address was blank,
+    # and it shipped a default of 2 to clients allowed 1.
+    PROVIDER_RPS_ANONYMOUS = 1.0
+    PROVIDER_RPS_IDENTIFIED = 2.0   # headroom under their 3; not a bulk backend
     PROVIDER_RPS_CEILING = 3.0
+
+    @property
+    def _identified(self) -> bool:
+        """Whether we tell Open Library who is asking."""
+        return bool(self.provider_key("OPENLIBRARY_CONTACT_EMAIL"))
+
+    @property
+    def provider_rps_default(self) -> float:
+        return (self.PROVIDER_RPS_IDENTIFIED if self._identified
+                else self.PROVIDER_RPS_ANONYMOUS)
+
+    @property
+    def provider_rps_ceiling(self) -> float:
+        """Their ceiling depends on who is asking, so ours must too —
+        otherwise 'fill the contact address in before raising this' is
+        advice nothing enforces."""
+        return (self.PROVIDER_RPS_CEILING if self._identified
+                else self.PROVIDER_RPS_ANONYMOUS)
 
     @property
     def provider_max_rps(self) -> float:
@@ -149,10 +172,10 @@ class Config:
         try:
             rate = float(raw)
         except ValueError:
-            return self.PROVIDER_RPS_DEFAULT
+            return self.provider_rps_default
         if rate <= 0:
-            return self.PROVIDER_RPS_DEFAULT
-        return min(rate, self.PROVIDER_RPS_CEILING)
+            return self.provider_rps_default
+        return min(rate, self.provider_rps_ceiling)
 
     # A cover sweep is 400 lookups in one sitting, which is closer to
     # bulk than to browsing however politely it is paced — so it gets its
