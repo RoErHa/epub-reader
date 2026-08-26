@@ -1114,6 +1114,18 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11i &nbsp;No authentication, and the two things that follow from it</h3>
+<p>This is a personal service for one household, reached over a tailnet. It has <strong>no authentication</strong> and nothing here uses cookies — a decision rather than an omission. But two consequences of it were being left to luck.</p>
+<div class="rule">
+  <span class="eyebrow">A service with no authentication acts for whoever can reach the port</span>
+  <p><code>EPUB_BIND</code> now <strong>defaults to <code>127.0.0.1</code></strong> rather than <code>0.0.0.0</code>. Widening it is a deliberate edit onto a network you trust, with the reason written beside the setting. The old default meant that copying <code>.env.example</code> and filling in <code>LIBRARY_ROOT</code> — the whole setup, as the README describes it — published the library to the LAN.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">CORS withholds the reply, never the act</span>
+  <p>A cross-site request here cannot be <em>authenticated</em>, there being nothing to authenticate — and it does not need to be. <code>POST /api/books/forget-missing?apply=true&amp;force=true</code> drops reading positions and highlights. A bodiless POST is a CORS "simple request": sent with <strong>no preflight</strong>, with the same-origin policy hiding only the response from the calling page. The request still arrives and is still acted on, so any site open in a browser on the same machine could have driven every maintenance endpoint.</p>
+</div>
+<p><code>SameOriginPolicy</code> refuses a state-changing method whose <code>Origin</code> is not ours. <strong>Reading is never refused</strong> — a GET changes nothing, and the same-origin policy already stops a foreign page reading the answer. <strong>No <code>Origin</code> at all is allowed</strong>: curl, <code>run.sh</code> and the test suite send none, and a browser always sends one on these methods, so absence is a non-browser caller rather than the case being defended against. <strong><code>Origin: null</code> is refused</strong> along with everything else that is not us — a sandboxed frame splits to an empty netloc and matches no host. It is registered <em>inside</em> the headers middleware, Starlette running the last-added outermost, so a 403 still carries the security headers every other response does.</p>
+
 <h3>6.11h &nbsp;A shelf label is not a name, and dedupe found out</h3>
 <p>Running dedupe proposed nine works, and <strong>the ninth would have hidden a book</strong>: <em>The Serpent's Shadow</em> behind <em>The Gates of Sleep</em>, both Mercedes Lackey's Elemental Masters and both real novels. Two faults, one on top of the other, and the first was ours.</p>
 <div class="rule">

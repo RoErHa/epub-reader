@@ -46,7 +46,11 @@ from epub_routes import (
     ShelfRoutes,
 )
 from epub_search import SearchQueries
-from epub_security import SecurityHeaders, SecurityHeadersMiddleware
+from epub_security import (
+    SameOriginMiddleware,
+    SecurityHeaders,
+    SecurityHeadersMiddleware,
+)
 from epub_series import SeriesFromNames
 from epub_shelves import ShelfStore
 from epub_tags import ScannerTags
@@ -366,6 +370,10 @@ class EpubGateway:
 
     def _build(self) -> FastAPI:
         app = FastAPI(title=SERVICE, version=VERSION, docs_url=None, redoc_url=None)
+        # Added first so it ends up INSIDE the headers middleware:
+        # Starlette runs the last-added outermost, and a 403 should
+        # still carry the security headers every other response does.
+        app.add_middleware(SameOriginMiddleware)
         app.add_middleware(SecurityHeadersMiddleware, headers=self._headers)
         app.mount(
             "/static", StaticFiles(directory=self._static), name="static"

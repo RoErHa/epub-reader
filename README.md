@@ -263,12 +263,28 @@ Set `TAILSCALE_CERT_HOST`, and either put `<host>.crt` and `<host>.key`
 next to the `.env` file or point `TLS_CERT_FILE` / `TLS_KEY_FILE` at
 them. A missing certificate is reported plainly rather than guessed at.
 
-## Tests
+## Code quality
+
+| | |
+| --- | --- |
+| Python modules | 39 |
+| Tests | **1,181 pytest** across 45 files, **428 Playwright** across 15 specs |
+| Linting | **ruff, 0 findings** — enforced by a test, not by hope |
 
 ```sh
 .venv/bin/python -m pytest    # code
 npx playwright test           # UI, against Chromium and WebKit
+.venv/bin/ruff check .        # linting — also run by tests/test_lint.py
 ```
+
+**The linter was added late and found 116 things and no bugs**, which is
+the point twice over: none of it was wrong, and nothing had been
+checking. The tell was eleven *unused* `# noqa` comments — suppressions
+written for a linter that had never existed. `ruff.toml` selects rules
+rather than taking a default, and the two genuine false positives are
+suppressed with the reason written next to them rather than blankly.
+`tests/test_lint.py` runs ruff and fails on anything, because a tidy-up
+nobody enforces lasts until the next commit.
 
 The UI suite runs against **both engines on purpose**: this is mostly
 read in Safari, and a Chromium-only suite once stayed green while books
@@ -290,6 +306,23 @@ PDF support needed no relaxation of that policy: pdf.js runs its parser
 in a Web Worker, and a same-origin worker is already allowed. A test
 watches the console for refusals while a PDF opens, so if that stops
 being true it is a failing test rather than a blank page.
+
+**There is no authentication, and that is the shape of the thing**: it is
+a personal service for one household, so it acts for whoever can reach
+the port. Two consequences are handled rather than hoped about.
+
+`EPUB_BIND` **defaults to loopback**, and widening it onto a tailnet or a
+LAN is a deliberate edit with the reason written next to it.
+
+And a request from somebody else's page is refused. Nothing here uses
+cookies, so a cross-site request cannot be *authenticated* — but it does
+not need to be: `POST /api/books/forget-missing?apply=true&force=true`
+drops reading positions and highlights for whoever can reach the port. A
+bodiless POST is a CORS "simple request", sent with no preflight, and
+CORS withholds only the *reply* — so it never prevents the act. Every
+state-changing method therefore checks `Origin`, and a foreign one is a
+403. Requests with no `Origin` at all are allowed, because curl, `run.sh`
+and the test suite send none and only a browser can be made to forge one.
 
 ## Design notes
 

@@ -12,9 +12,11 @@ data: images that rendering a book legitimately needs.
 """
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 
 class ContentSecurityPolicy:
@@ -89,3 +91,50 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         return self._headers.apply(await call_next(request))
+
+
+class SameOriginPolicy:
+    """Whether a request is allowed to change anything.
+
+    There is no authentication here and nothing uses cookies, so a
+    cross-site request cannot be *authenticated* — but it does not need
+    to be. The service acts for whoever can reach the port, and
+    `POST /api/books/forget-missing?apply=true&force=true` drops reading
+    positions and highlights. A bodiless POST is a CORS "simple request":
+    it is sent without a preflight and only the *reply* is withheld from
+    the caller, so CORS never prevents the act. Checking `Origin` does.
+    """
+
+    unsafe_methods = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    def allows(self, method: str, origin: str | None, host: str | None) -> bool:
+        if method.upper() not in self.unsafe_methods:
+            return True          # reading changes nothing
+        if not origin:
+            # curl, `run.sh` and the test suite send no Origin at all.
+            # Only a browser can be made to forge one, and a browser
+            # always sends it on these methods — so absence is a
+            # non-browser caller, not an attack to defend against.
+            return True
+        # `Origin: null` (a sandboxed frame) splits to an empty netloc and
+        # is refused with everything else that is not us.
+        return urlsplit(origin).netloc.lower() == (host or "").lower()
+
+
+class SameOriginMiddleware(BaseHTTPMiddleware):
+    """Refuses a state-changing request that came from somebody else's
+    page."""
+
+    def __init__(self, app, policy: SameOriginPolicy | None = None) -> None:
+        super().__init__(app)
+        self._policy = policy or SameOriginPolicy()
+
+    async def dispatch(self, request: Request, call_next):
+        if not self._policy.allows(request.method,
+                                   request.headers.get("origin"),
+                                   request.headers.get("host")):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Cross-site requests are refused."},
+            )
+        return await call_next(request)

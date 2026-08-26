@@ -99,3 +99,48 @@ class TestHeaderRendering:
 
     def test_header_name_is_enforcing_not_report_only(self):
         assert ContentSecurityPolicy().header_name == "Content-Security-Policy"
+
+
+class TestCrossSiteRequests:
+    """The service has no authentication and binds a port on a machine
+    somebody else's browser can also reach. Nothing here uses cookies, so
+    a cross-site POST cannot be authenticated — but it does not need to
+    be: `POST /api/books/forget-missing?apply=true&force=true` acts on
+    whoever can reach the port. A bodiless POST is a "simple request", so
+    it is sent without a preflight and CORS never gets a say; only the
+    *response* is hidden from the caller. Refusing a foreign `Origin` is
+    what stops the request being acted on in the first place.
+    """
+
+    def test_a_foreign_origin_cannot_post(self, client):
+        r = client.post("/api/shelves", json={"name": "Stolen"},
+                        headers={"Origin": "https://evil.example"})
+        assert r.status_code == 403
+
+    def test_a_foreign_origin_cannot_put(self, client):
+        r = client.put("/api/books/1/status", json={"status": "finished"},
+                       headers={"Origin": "https://evil.example"})
+        assert r.status_code == 403
+
+    def test_a_foreign_origin_cannot_delete(self, client):
+        r = client.delete("/api/shelves/1",
+                          headers={"Origin": "https://evil.example"})
+        assert r.status_code == 403
+
+    def test_our_own_origin_is_allowed(self, client):
+        r = client.post("/api/shelves", json={"name": "Mine"},
+                        headers={"Origin": "http://testserver"})
+        assert r.status_code < 400
+
+    def test_a_request_with_no_origin_is_allowed(self, client):
+        # curl, `run.sh`, and this suite send no Origin at all. Refusing
+        # those would break every non-browser caller to defend against a
+        # browser, which is the only thing that can be made to forge one.
+        r = client.post("/api/shelves", json={"name": "From The Shell"})
+        assert r.status_code < 400
+
+    def test_reading_is_never_refused(self, client):
+        # A GET changes nothing, and the same-origin policy already stops
+        # a foreign page reading the answer.
+        r = client.get("/api/status", headers={"Origin": "https://evil.example"})
+        assert r.status_code == 200

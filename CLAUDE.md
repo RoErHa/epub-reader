@@ -820,6 +820,47 @@ joins through to a present book, so an empty series cannot show (§6.8).
 #5 is genuinely missing rather than misfiled: *Statesman* is not in the
 library, which is the gap-finder working.
 
+### 8.18 No authentication, and the two things that follow from it
+
+This is a personal service for one household, reached over a tailnet. It
+has **no authentication** and nothing here uses cookies, which is a
+decision rather than an omission — but two consequences of it were being
+left to luck.
+
+> **A service with no authentication acts for whoever can reach the
+> port.** So `EPUB_BIND` now **defaults to `127.0.0.1`** rather than
+> `0.0.0.0`. Widening it is a deliberate edit onto a network you trust,
+> with the reason written beside the setting. The old default meant that
+> copying `.env.example` and filling in `LIBRARY_ROOT` — the whole setup,
+> as the README describes it — published the library to the LAN.
+
+The second is sharper, because no amount of binding carefully fixes it:
+
+> **CORS withholds the reply, never the act.** A cross-site request here
+> cannot be *authenticated*, there being nothing to authenticate — and it
+> does not need to be. `POST /api/books/forget-missing?apply=true&force=true`
+> drops reading positions and highlights. A bodiless POST is a CORS
+> "simple request": it is sent with **no preflight**, and the same-origin
+> policy hides only the response from the calling page. The request still
+> arrives, and is still acted on. Any site open in a browser on the same
+> machine could have driven every maintenance endpoint.
+
+`SameOriginPolicy` refuses a state-changing method whose `Origin` is not
+ours. Three details it turns on:
+
+- **Reading is never refused.** A `GET` changes nothing, and the
+  same-origin policy already stops a foreign page reading the answer.
+- **No `Origin` at all is allowed.** curl, `run.sh` and the test suite
+  send none, and a browser always sends one on these methods — so absence
+  is a non-browser caller, not the case being defended against. Refusing
+  it would break every script to guard against a browser.
+- **`Origin: null` is refused**, along with everything else that is not
+  us: a sandboxed frame splits to an empty netloc and matches no host.
+
+It is registered **inside** the headers middleware — Starlette runs the
+last-added outermost — so a 403 still carries the security headers every
+other response does.
+
 ### 8.17 A shelf label is not a name, and dedupe found out
 
 Running `dedupe` proposed nine works, and **the ninth would have hidden a
@@ -2209,6 +2250,12 @@ a later reader can tell a decision from an oversight.
 - **No Calibre interaction of any kind** (decision 3), **no format
   conversion, no device sync, no DRM** (§1). Each is a product of its
   own.
+- **There is no authentication.** It is a personal service for one
+  household on a tailnet, and adding accounts would be a product of its
+  own. What follows from it is handled rather than hoped about: the bind
+  address defaults to loopback, and a state-changing request from
+  somebody else's page is refused (§8.18). Reachability is the whole
+  access control, which is why widening `EPUB_BIND` is a deliberate act.
 - **The test database accumulates.** `.test-library/books.db` survives
   between runs, so uniquely-named shelves pile up. Harmless until a test
   counts globally, which one did.
