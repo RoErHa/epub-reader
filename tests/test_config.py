@@ -148,3 +148,37 @@ class TestTLS:
     def test_tls_is_optional_and_silence_means_plain_http(self, tmp_path):
         cfg = Config.from_file(write_env(tmp_path))
         assert cfg.require_tls_files() is None
+
+
+class TestBindingSeveralAddresses:
+    """`EPUB_BIND` takes a comma-separated list, because the useful
+    answer is usually more than one address: a tailnet address for the
+    devices this is read on, and loopback for the tests and `run.sh`.
+
+    Before this it was pasted straight into one `host:port` string, so
+    `100.x.x.x,127.0.0.1` became the hostname `100.x.x.x,127.0.0.1` and
+    the service died on startup with a `gaierror` — having, until it was
+    restarted, gone on serving 0.0.0.0 from the old configuration.
+    """
+
+    def test_one_address_is_a_list_of_one(self, tmp_path):
+        cfg = Config.from_file(write_env(tmp_path))
+        assert cfg.bind_addresses == ["0.0.0.0"]
+
+    def test_several_addresses_are_split(self, tmp_path):
+        body = MINIMAL_ENV.replace("EPUB_BIND=0.0.0.0",
+                                   "EPUB_BIND=100.100.100.100,127.0.0.1")
+        cfg = Config.from_file(write_env(tmp_path, body))
+        assert cfg.bind_addresses == ["100.100.100.100", "127.0.0.1"]
+
+    def test_spacing_around_the_commas_is_forgiven(self, tmp_path):
+        body = MINIMAL_ENV.replace("EPUB_BIND=0.0.0.0",
+                                   "EPUB_BIND= 100.100.100.100 , 127.0.0.1 ")
+        cfg = Config.from_file(write_env(tmp_path, body))
+        assert cfg.bind_addresses == ["100.100.100.100", "127.0.0.1"]
+
+    def test_a_stray_comma_is_not_an_empty_address(self, tmp_path):
+        body = MINIMAL_ENV.replace("EPUB_BIND=0.0.0.0",
+                                   "EPUB_BIND=127.0.0.1,")
+        cfg = Config.from_file(write_env(tmp_path, body))
+        assert cfg.bind_addresses == ["127.0.0.1"]

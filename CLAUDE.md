@@ -834,6 +834,19 @@ left to luck.
 > copying `.env.example` and filling in `LIBRARY_ROOT` — the whole setup,
 > as the README describes it — published the library to the LAN.
 
+> **And the useful answer is usually more than one address**, which the
+> code could not express. A tailnet address serves the iPad and the
+> phone; loopback serves `run.sh` and the tests. `EPUB_BIND` takes a
+> comma-separated list, so `100.x.x.x,127.0.0.1` binds both. Until this,
+> the whole value was pasted into one `host:port` string and became a
+> hostname with a comma in it — the service died on startup with a
+> `gaierror`, and went on serving `0.0.0.0` from the configuration it had
+> already loaded, which is the worst of both: the tightening looked
+> applied and was not. Naming an address rather than `0.0.0.0` also means
+> the service cannot start until that interface exists; with Tailscale
+> that is a few seconds after login, which the LaunchAgent's `KeepAlive`
+> rides out by retrying.
+
 The second is sharper, because no amount of binding carefully fixes it:
 
 > **CORS withholds the reply, never the act.** A cross-site request here

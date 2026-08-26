@@ -317,7 +317,8 @@ class GatewayRunner:
 
     def hypercorn_config(self) -> HypercornConfig:
         cfg = HypercornConfig()
-        cfg.bind = [f"{self._config.bind}:{self._config.port}"]
+        cfg.bind = [f"{address}:{self._config.port}"
+                    for address in self._config.bind_addresses]
         cfg.accesslog = "-"
         cfg.errorlog = "-"
         # Raises ConfigError with an explanation if TLS is asked for but
@@ -351,7 +352,7 @@ class GatewayRunner:
             SERVICE,
             VERSION,
             scheme,
-            cfg.bind[0],
+            ", ".join(cfg.bind),
             self._config.library_root,
         )
         asyncio.run(serve(self._gateway.app, cfg))

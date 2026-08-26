@@ -84,6 +84,15 @@ class Config:
         return self._values["EPUB_BIND"]
 
     @property
+    def bind_addresses(self) -> list[str]:
+        """Every address to answer on, because the useful answer is
+        usually more than one: a tailnet address for the devices this is
+        read on, and loopback for `run.sh` and the tests. Pasted into a
+        single `host:port` it became a hostname with a comma in it, and
+        the service died on startup with a `gaierror`."""
+        return [a.strip() for a in self.bind.split(",") if a.strip()]
+
+    @property
     def library_root(self) -> Path:
         return self._as_path("LIBRARY_ROOT")
 
