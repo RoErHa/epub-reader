@@ -50,3 +50,9 @@ library-manifest.json
 # Coverage's data file: a binary full of absolute paths.
 .coverage
 htmlcov/
+
+# One-off duplicate-file report and its deletion script. They list real
+# paths out of LIBRARY_ROOT, so they are local working files, not repo
+# content — this repo is meant to be publishable.
+duplicate-files.md
+delete-duplicates.sh
