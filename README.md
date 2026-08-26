@@ -16,13 +16,15 @@ seven formats, but it is a personal project rather than a product.
 
 **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR** — including EPUBs that were never
 zipped and are stored as directories, which are zipped on the way out so
+nothing downstream needs to know.
+
 **Comics packed with RAR** are read through libarchive — which macOS
 ships as `/usr/bin/bsdtar` — and repacked as a zip on the way out, the
 same trick an unpacked EPUB gets. That is 205 more comics. libarchive
 refuses ten of them, one run of 2003-vintage archives, and those are
 reported and skipped rather than taking a scan down.
 
-Three rendering models sit behind those six: reflowed text, rasterised
+Three rendering models sit behind those seven: reflowed text, rasterised
 pages (PDF, via pdf.js), and images page by page (CBZ, CBR) — so the
 typography controls apply to the first and not the other two.
 
