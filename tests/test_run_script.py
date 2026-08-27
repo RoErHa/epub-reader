@@ -374,3 +374,128 @@ class TestTheLaunchdLabel:
             except (UnicodeDecodeError, OSError):
                 continue
             assert self.PERSONAL not in text, f"{name} still names a person"
+
+
+class TestLaunchdAgentSurvivesARestart:
+    """A LaunchAgent that a restart uninstalls is worse than none.
+
+    `do_stop` boots the agent out, which is right — a stopped service
+    must not be resurrected by `KeepAlive` a second later. But `do_start`
+    then asked whether the agent was loaded, found that it was not
+    because the stop had just unloaded it, and started a plain process
+    with a pidfile instead. One `./run.sh restart` therefore demoted the
+    service to something launchd knew nothing about, silently, and it no
+    longer came back at login.
+
+    launchctl is faked here: a marker file stands in for "the agent is
+    loaded", so the branch can be driven without touching the real
+    launchd or the real port.
+    """
+
+    LABEL = "com.test.epub-reader"
+
+    FAKE_LAUNCHCTL = """#!/bin/bash
+# Records what it was asked, and keeps a marker file standing in for
+# "this agent is loaded".
+echo "$*" >>"${LAUNCHCTL_LOG}"
+case "$1" in
+  print)     [ -f "${LAUNCHCTL_MARKER}" ] ;;
+  bootstrap) touch "${LAUNCHCTL_MARKER}" ;;
+  bootout)   rm -f "${LAUNCHCTL_MARKER}" ;;
+  kickstart) [ -f "${LAUNCHCTL_MARKER}" ] ;;
+  *)         : ;;
+esac
+"""
+
+    @pytest.fixture(autouse=True)
+    def no_stray_process(self, tmp_path):
+        """A test that drives the launchd branch must never leave a real
+        service behind — which is exactly what the bug did, since falling
+        through to the pidfile path starts one."""
+        yield
+        pidfile = ROOT / ".run" / f"{(tmp_path / '.env.run').name}.pid"
+        if pidfile.is_file():
+            import contextlib
+            import os
+            import signal
+            with contextlib.suppress(ValueError, ProcessLookupError,
+                                     PermissionError):
+                os.kill(int(pidfile.read_text().strip()), signal.SIGTERM)
+            pidfile.unlink()
+
+    def _world(self, tmp_path, loaded):
+        """A fake launchctl on PATH, a fake HOME with the plist in it."""
+        library = tmp_path / "books"
+        library.mkdir()
+        EpubBuilder(title="First Book").build(library / "first.epub")
+        state = tmp_path / "state"
+        state.mkdir()
+        env_file = tmp_path / ".env.run"
+        env_file.write_text(
+            ENV_BODY.format(library=library, state=state)
+            + f"LAUNCHD_LABEL={self.LABEL}\n"
+        )
+
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        fake = bin_dir / "launchctl"
+        fake.write_text(self.FAKE_LAUNCHCTL)
+        fake.chmod(0o755)
+
+        home = tmp_path / "home"
+        agents = home / "Library" / "LaunchAgents"
+        agents.mkdir(parents=True)
+        (agents / f"{self.LABEL}.plist").write_text("<plist/>")
+
+        marker = tmp_path / "loaded"
+        if loaded:
+            marker.write_text("")
+
+        import os
+        env = dict(os.environ)
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["HOME"] = str(home)
+        env["LAUNCHCTL_LOG"] = str(tmp_path / "launchctl.log")
+        env["LAUNCHCTL_MARKER"] = str(marker)
+        return env_file, env, marker
+
+    def _run(self, *args, env_file, env):
+        argv = ["bash", str(SCRIPT), "--env", str(env_file), *args]
+        return subprocess.run(argv, cwd=ROOT, capture_output=True,
+                              text=True, timeout=120, check=False, env=env)
+
+    def test_restart_leaves_the_agent_loaded(self, tmp_path):
+        """The regression: after a restart the service is still launchd's,
+        not a pidfile's."""
+        env_file, env, marker = self._world(tmp_path, loaded=True)
+        result = self._run("restart", env_file=env_file, env=env)
+        assert result.returncode == 0, result.stderr
+        assert marker.exists(), (
+            "restart booted the agent out and never loaded it again"
+        )
+        assert "launchd" in result.stdout
+        assert "Logs:" not in result.stdout, (
+            "restart fell through to the pidfile path"
+        )
+
+    def test_start_loads_an_agent_that_is_installed_but_stopped(self, tmp_path):
+        """A stopped agent is booted out, not deleted — its plist is
+        still there, so starting means loading it again."""
+        env_file, env, marker = self._world(tmp_path, loaded=False)
+        result = self._run("start", env_file=env_file, env=env)
+        assert result.returncode == 0, result.stderr
+        assert marker.exists(), "an installed agent was not loaded"
+        assert "Logs:" not in result.stdout
+
+    def test_an_install_with_no_agent_still_uses_the_pidfile(self, tmp_path):
+        """The fallback is untouched: no plist means no launchd, and the
+        script starts a plain process as it always did."""
+        env_file, env, _ = self._world(tmp_path, loaded=False)
+        plist = Path(env["HOME"]) / "Library" / "LaunchAgents" / f"{self.LABEL}.plist"
+        plist.unlink()
+        try:
+            result = self._run("start", env_file=env_file, env=env)
+            assert result.returncode == 0, result.stderr
+            assert "Logs:" in result.stdout
+        finally:
+            self._run("stop", env_file=env_file, env=env)

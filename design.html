@@ -1390,6 +1390,11 @@ npx playwright test             <span class="c"># UI tests (regenerates its own 
 
 <p><code>run.sh</code> is launchd-aware: when <code>com.example.epub-reader</code> is loaded it drives <code>launchctl</code> rather than a pidfile, so the script and the LaunchAgent can never both bind :8770.</p>
 
+<div class="rule">
+  <span class="eyebrow">A stopped agent is booted out, not deleted</span>
+  <p>Being loaded is the wrong question to ask before starting. Stopping the service boots the agent out — which is right, or <code>KeepAlive</code> would resurrect it a second later — so <code>do_start</code> then asked whether launchd had the job, was told no <em>because the stop had just removed it</em>, and started a plain process with a pidfile instead. One <code>./run.sh restart</code> therefore demoted the service to something launchd knew nothing about, silently, and it stopped coming back at login. What tells a service somebody stopped from an install that never had an agent is the <strong>plist</strong>: that file survives a bootout and is only ever removed by hand. Found by installing the agent and immediately restarting to check it — the install worked, and the check undid it.</p>
+</div>
+
 <h3>The review queue</h3>
 <p>Decision 4's bands are enforced on every run: at or above 0.90 we write, 0.60–0.90 waits for a human, below that the book is left alone and nothing is kept.</p>
 <ul>

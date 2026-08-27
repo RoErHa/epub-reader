@@ -876,6 +876,36 @@ It is registered **inside** the headers middleware — Starlette runs the
 last-added outermost — so a 403 still carries the security headers every
 other response does.
 
+### 8.19 A restart that uninstalled the service
+
+`run.sh` is launchd-aware, and the comment at the top says why: when the
+agent is loaded it drives `launchctl` rather than a pidfile, so the
+script and the LaunchAgent can never both bind :8770. That much was
+true. What it did not say is that `restart` is a stop followed by a
+start, and the two disagreed about what had just happened.
+
+> **A stopped agent is booted out, not deleted.** `do_stop` boots it
+> out, which is right — a service somebody stopped must not be
+> resurrected by `KeepAlive` a second later. But `do_start` then asked
+> whether the agent was loaded, was told no *because the stop had just
+> unloaded it*, and started a plain process with a pidfile instead. One
+> `./run.sh restart` demoted the service to something launchd knew
+> nothing about, **silently**, and it no longer came back at login.
+
+What tells the two cases apart is not the job but the **plist**: it
+survives a bootout and is only ever removed by hand. `agent_plist()`
+looks for `~/Library/LaunchAgents/<LAUNCHD_LABEL>.plist`, and a `start`
+that finds one bootstraps it rather than starting a process launchd
+cannot see. That fixes `stop` then `start` as well, which had the same
+hole and left the same stray process.
+
+**Found by installing the agent and then restarting to check it**, which
+is the check undoing the thing it was checking. `launchctl` is faked in
+the tests — a marker file standing in for "loaded" — so the branch is
+driven without the real launchd or the real port, and the test asserts
+what the bug got wrong: after a restart the agent is still loaded, and
+nothing reports a pidfile.
+
 ### 8.17 A shelf label is not a name, and dedupe found out
 
 Running `dedupe` proposed nine works, and **the ninth would have hidden a
@@ -1613,6 +1643,9 @@ static/toc.js       TableOfContents
 static/composer.js  NameComposer — asking for a name in the app, not the
                     browser; shelves are named here
 run.sh              start / stop / restart / status / scan / repair / refresh
+                    — launchd-aware; see §8.19 for what that cost once
+com.example.epub-reader.plist           the service itself, KeepAlive so
+                    a named bind address can wait for its interface
 com.example.epub-reader.refresh.plist   the weekly author refresh
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList

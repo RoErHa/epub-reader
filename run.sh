@@ -144,6 +144,14 @@ launchd_loaded() {
   launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1
 }
 
+# Stopping an agent boots it out, so "is it loaded?" cannot tell a
+# service somebody stopped from an install that never had an agent at
+# all. Its plist can: that file survives a bootout and is only ever
+# removed by hand.
+agent_plist() {
+  echo "${HOME}/Library/LaunchAgents/${LABEL}.plist"
+}
+
 running_pid() {
   [ -f "${PID_FILE}" ] || return 1
   local pid
@@ -305,6 +313,16 @@ do_start() {
   if launchd_loaded; then
     echo "▶  ${LABEL} is managed by launchd — starting it there."
     launchctl kickstart "gui/$(id -u)/${LABEL}"
+    echo "✓  Started under launchd."
+    return 0
+  fi
+
+  # A stopped agent is booted out, not deleted. Without this, one stop —
+  # and `restart` is a stop — demoted the service to a pidfile for ever,
+  # silently, and it stopped coming back at login.
+  if [ -f "$(agent_plist)" ]; then
+    echo "▶  ${LABEL} is installed as a LaunchAgent — loading it."
+    launchctl bootstrap "gui/$(id -u)" "$(agent_plist)"
     echo "✓  Started under launchd."
     return 0
   fi
