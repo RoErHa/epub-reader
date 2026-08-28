@@ -241,7 +241,7 @@ class AppRoutes(Routes):
             return JSONResponse(status)
 
         @app.get("/api/covers/{bucket}/{filename}")
-        def cover(bucket: str, filename: str) -> FileResponse:
+        def cover(bucket: str, filename: str, request: Request) -> Response:
             if not bucket.isalnum() or "/" in filename or ".." in filename:
                 raise HTTPException(status_code=400, detail="Invalid cover path.")
             path = (self.services.config.cover_cache / bucket / filename).resolve()
@@ -253,7 +253,15 @@ class AppRoutes(Routes):
                 ) from None
             if not path.is_file():
                 raise HTTPException(status_code=404, detail="No such cover.")
-            return FileResponse(path, media_type="image/jpeg")
+            # The grid asks for a couple of thousand of these on every
+            # visit. Revalidated rather than given a lifetime: the same
+            # URL holds a different picture when a better cover turns up,
+            # and a cache told not to ask is the one thing no restart
+            # here can take back.
+            return Revalidation(request).answer(
+                Revalidation.of_file("cover1", path),
+                lambda: FileResponse(path, media_type="image/jpeg"),
+            )
 
 
 class BrowseRoutes(Routes):

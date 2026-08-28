@@ -9,6 +9,7 @@ RAR, and an EPUB that was never zipped.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from fastapi import Response
 
@@ -68,6 +69,21 @@ class Revalidation:
     def weak(cls, recipe: str, content_hash: str) -> str:
         """For a body we build: the same book, not the same bytes."""
         return "W/" + cls.strong(recipe, content_hash)
+
+    @classmethod
+    def of_file(cls, recipe: str, path) -> str:
+        """For a file whose *name* does not identify its contents.
+
+        A cover is keyed by the book's hash and rewritten in place when
+        a better one turns up (§8.12, §8.13), so the URL says which book
+        and not which picture. Size and mtime are what identify it —
+        the one case where Starlette's own answer is the honest one.
+        Hashing two thousand thumbnails on every browse would cost more
+        than the bytes it saves, and this is the reason that URL may not
+        be told it is immutable, however much it looks it.
+        """
+        stat = Path(path).stat()
+        return cls.strong(recipe, f"{stat.st_size:x}-{stat.st_mtime_ns:x}")
 
     @classmethod
     def _parse(cls, header: str | None) -> frozenset[str]:

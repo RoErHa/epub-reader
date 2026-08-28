@@ -307,3 +307,60 @@ class TestAComicPackedWithRar:
         assert len(calls) == 1
         assert comic.get(url, headers={"If-None-Match": tag}).status_code == 304
         assert len(calls) == 1, "the comic was unpacked to answer a 304"
+
+
+class TestCovers:
+    """The browse grid asks for a couple of thousand thumbnails, and
+    every one of them was sent in full on every visit.
+
+    A cover is **not** immutable, however much its URL looks it.
+    `CoverStore` keys the file by the *book's* content hash, not the
+    picture's, so `covers --apply` writing a better cover, or a reader
+    saying one is wrong (§8.13) and a later pass fetching another, both
+    land on the same URL with different bytes. `max-age` would pin a
+    wrong cover in somebody's browser for as long as it ran, and — being
+    on the iPad rather than here — no restart could take it back.
+    Revalidating costs a request and keeps the picture correctable.
+    """
+
+    @pytest.fixture
+    def illustrated(self, client, library, gateway):
+        EpubBuilder(title="With A Cover", author="A Reader",
+                    cover=True).build(library / "with-a-cover.epub")
+        gateway.reindex()
+        return client
+
+    def cover_url(self, illustrated):
+        return next(b["cover"] for b in illustrated.get("/api/books").json()["books"]
+                    if b.get("cover"))
+
+    def test_a_cover_comes_with_a_validator(self, illustrated):
+        res = illustrated.get(self.cover_url(illustrated))
+        assert res.status_code == 200
+        assert res.headers["etag"].startswith('"cover1-')
+
+    def test_asking_again_costs_a_header(self, illustrated):
+        url = self.cover_url(illustrated)
+        tag = illustrated.get(url).headers["etag"]
+        again = illustrated.get(url, headers={"If-None-Match": tag})
+        assert again.status_code == 304
+        assert again.content == b""
+
+    def test_it_is_never_cached_without_asking(self, illustrated):
+        """The one thing a revert cannot undo is a cache that was told
+        not to ask. So it is always told to ask."""
+        control = illustrated.get(self.cover_url(illustrated)).headers["cache-control"]
+        assert control == Revalidation.CONTROL
+        assert "max-age" not in control and "immutable" not in control
+
+    def test_a_replaced_cover_is_a_new_validator(self, illustrated, gateway):
+        """The same URL, different bytes — the case `max-age` would get
+        wrong. The validator follows the file, not the name."""
+        url = self.cover_url(illustrated)
+        before = illustrated.get(url).headers["etag"]
+        path = (gateway._config.cover_cache / url.split("/api/covers/")[1])
+        path.write_bytes(path.read_bytes() + b"\x00repainted")
+        assert illustrated.get(url).headers["etag"] != before
+
+    def test_a_cover_that_is_not_there_is_still_a_404(self, illustrated):
+        assert illustrated.get("/api/covers/ab/abcdef.jpg").status_code == 404

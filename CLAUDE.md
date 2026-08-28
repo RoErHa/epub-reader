@@ -960,6 +960,24 @@ that becomes **315 MB sent and 3.7 s of repacking**; the median CBR is
 hundred bytes, and **the archive is not unpacked at all**, which is the
 assertion the test makes rather than merely counting bytes.
 
+**The covers went the same way, and stopped short of where they could
+have gone.** The browse grid asks for a couple of thousand thumbnails on
+every visit, and their URLs look immutable — `/api/covers/ad/adeb97….jpg`
+is a hash. It is the **book's** hash, though, not the picture's:
+`CoverStore.save` writes by `content_hash`, so a better cover found by
+`covers --apply`, or one a reader called wrong (§8.13) and a later pass
+replaced, lands on the same URL with different bytes.
+
+> **A cache told not to ask is the one thing no restart here can take
+> back.** `max-age`, let alone `immutable`, lives in the iPad rather than
+> on this machine, so a wrong cover would sit there for as long as the
+> lifetime ran with nothing on the server able to reach it. Covers
+> revalidate like everything else: a 304 instead of 20-30 kB, and the
+> picture stays correctable. Their validator is the file's size and
+> mtime — the one place where Starlette's own answer is the honest one,
+> because the name genuinely does not identify the contents and hashing
+> two thousand thumbnails per browse would cost more than it saves.
+
 `epub_caching.py` is one class for one rule, the shape `epub_provenance`
 already takes: the two built responses and the plain file all go through
 `answer(etag, build)`, and `build` is a **callable** precisely so that a
