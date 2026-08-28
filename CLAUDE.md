@@ -954,11 +954,13 @@ back to a heuristic, which is how a header ends up never being offered
 back. `private, no-cache` is the pair of it: store this, and ask before
 using it.
 
-**Measured on the real library**: the largest comic is 289 MB of RAR
-that becomes **315 MB sent and 3.7 s of repacking**; the median CBR is
-16 MB and 0.23 s. A second open of either is now a 304 — a couple of
-hundred bytes, and **the archive is not unpacked at all**, which is the
-assertion the test makes rather than merely counting bytes.
+**Measured on the running service**, which is the only measurement
+that counts: the largest comic is 289 MB of RAR that becomes **315 MB
+and 28.7 s** on the first open, and **0 bytes in 12 ms** on the second.
+The median CBR is 16 MB, 0.23 s of that being the repacking. A cover
+goes from 45 kB to nothing, two thousand times per browse. And **the
+archive is not unpacked at all** to answer a 304 — the assertion the
+test makes, rather than merely counting bytes.
 
 **The covers went the same way, and stopped short of where they could
 have gone.** The browse grid asks for a couple of thousand thumbnails on
