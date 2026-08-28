@@ -1114,6 +1114,25 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11k &nbsp;Page turns, measured — and they are not the cost</h3>
+<p>§3 records that foliate's paginator uses CSS multi-column, "same slowness and CSS quirks", and one real section laid out <strong>8,120,880 px wide</strong>. So when the iPad's battery came up, page turns were the obvious suspect, and I said so before measuring. <strong>The measurement says otherwise</strong>, on a three-book instance holding real books.</p>
+<table>
+<tr><th>What</th><th>Measured</th></tr>
+<tr><td>turn latency, key press to <code>relocate</code></td><td><strong>5.4 ms</strong> (worst of 12: 6.0 ms)</td></tr>
+<tr><td>CPU for ten turns over ten seconds</td><td><strong>151 ms</strong> — 15 ms a turn</td></tr>
+<tr><td>CPU for forty turns over ten seconds</td><td>365 ms — 9 ms a turn, so it does not degrade</td></tr>
+<tr><td><strong>a book sitting open, ten seconds</strong></td><td><strong>1 ms, 0 layouts, 0 style recalcs</strong></td></tr>
+<tr><td>ten seconds of scrolling, scrolled flow</td><td>91 ms — cheaper than turning</td></tr>
+</table>
+<p>A page every twenty seconds is a <strong>duty cycle under a tenth of a percent</strong>. Whatever is draining that battery, it is not this.</p>
+<div class="rule">
+  <span class="eyebrow">A page turn measures the whole section, not the page</span>
+  <p>Every relocate calls <code>getVisibleRange</code>, which walks the section with a <code>TreeWalker</code> calling <code>getBoundingClientRect</code> on each node. Its pruning asks whether a node is outside the visible band — and in a multi-column strip every container spans the entire strip, so almost nothing is pruned. Measured: <strong>4,992 rect calls per turn</strong> on a section of 1,554 elements, about 3.2 per element, against 184 on a section of 62. The cost is O(the section), not O(what is on screen) — which matters only at size, and 68% of a 250-book sample have a largest section between 100 and 400 kB.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">A measurement that changes what it measures</span>
+  <p>The first run was pointed at the live service, and opening a book writes reading position — server-side and shared, by design. It moved a real place in <em>The Kindly Ones</em> from 0.072 to 0.477 and invented three "Reading now" rows. Recovered exactly, because SQLite in WAL mode leaves the <em>old</em> pages in the main file until a checkpoint: the database opened without its <code>-wal</code> was the state from before. <code>tools/turn_cost.mjs</code> now refuses port 8770 outright, because a rule that only lives in a lesson is one somebody repeats.</p>
+</div>
 <h3>6.11j &nbsp;A validator nothing acted on</h3>
 <p>Reading on the iPad drains the battery, and the first place to look was our own traffic. There is no polling here — no <code>setInterval</code>, no <code>requestAnimationFrame</code>, and the loading overlay's two infinite animations stop on both the success and the failure path — so what is left is the radio, which is the expensive part of reading over a tailnet. <strong>Every book response carried an ETag and nothing ever acted on one.</strong></p>
 <div class="rule">

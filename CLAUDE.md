@@ -906,6 +906,55 @@ driven without the real launchd or the real port, and the test asserts
 what the bug got wrong: after a restart the agent is still loaded, and
 nothing reports a pidfile.
 
+### 8.21 Page turns, measured — and they are not the cost
+
+§3 records that foliate's paginator uses CSS multi-column, "same slowness
+and CSS quirks", and §10.6 has a section that laid out **8,120,880 px
+wide**. So when the iPad's battery came up, page turns were the obvious
+suspect, and I said so before measuring. **The measurement says
+otherwise**, on a three-book instance holding real books:
+
+| | |
+| --- | --- |
+| turn latency, key press to `relocate` | **5.4 ms** (worst of 12: 6.0 ms) |
+| CPU for ten turns over ten seconds | **151 ms** — 15 ms a turn |
+| CPU for forty turns over ten seconds | 365 ms — 9 ms a turn, so it does not degrade |
+| **a book sitting open, ten seconds** | **1 ms, 0 layouts, 0 style recalcs** |
+| ten seconds of scrolling, scrolled flow | 91 ms — cheaper than turning |
+
+A page every twenty seconds is a **duty cycle under a tenth of a
+percent**. Whatever is draining that battery, it is not this.
+
+What the measurement did find is the *shape* of the cost, which is worth
+writing down before somebody optimises the wrong end of it:
+
+> **A page turn measures the whole section, not the page.** Every
+> relocate calls `getVisibleRange`, which walks the section with a
+> `TreeWalker` calling `getBoundingClientRect` on each node. Its pruning
+> asks whether a node is outside the visible band — and in a multi-column
+> strip every container spans the entire strip, so almost nothing is
+> pruned. Measured: **4,992 rect calls per turn** on a section of 1,554
+> elements, about 3.2 per element, against 184 on a section of 62. The
+> cost is O(the section), not O(what is on screen).
+
+That matters only at size, and **68% of a 250-book sample have a largest
+section between 100 and 400 kB** with 32% below and 1% above — Cyclops,
+measured above at 117,000 characters, is the ordinary case rather than
+the bad one. An iPad is several times slower than this Mac, so call it
+50 ms a turn there: perceptible if you look for it, and still nothing
+against a screen that is on.
+
+> **A measurement that changes what it measures.** The first run was
+> pointed at the live service, and opening a book writes reading
+> position — server-side and shared, by design (decision 7). It moved a
+> real place in *The Kindly Ones* from 0.072 to 0.477 and invented three
+> "Reading now" rows. Recovered exactly, because SQLite in WAL mode
+> leaves the *old* pages in the main file until a checkpoint: the
+> database opened without its `-wal` was the state from before. §10.2
+> made this rule for the UI suite; `tools/turn_cost.mjs` now refuses port
+> 8770 outright, because a rule that only lives in a lesson is one
+> somebody repeats.
+
 ### 8.20 A validator nothing acted on
 
 Reading on the iPad drains the battery, and the first place to look was
@@ -1736,7 +1785,9 @@ static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder
 tests/frontend/     Playwright specs
 tools/              make_test_library.py; badges.py — the README's badge
-                    strip, rendered from the suites and checked by a test
+                    strip, rendered from the suites and checked by a test;
+                    turn_cost.mjs — what a page turn costs, and why it is
+                    not what drains a battery (§8.21)
 SECURITY.md         threat model, what is in scope, how to report it
 ```
 
