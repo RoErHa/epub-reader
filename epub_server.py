@@ -26,6 +26,7 @@ from epub_enrich import AuthorEnricher
 from epub_filenames import CreditsFromNames
 from epub_forget import ForgetMissing
 from epub_fragments import TitlesFromFragments
+from epub_hypotheses import NameHypotheses
 from epub_index import LibraryIndexer
 from epub_maintenance import LibraryRepair
 from epub_maintenance_routes import MaintenanceRoutes
@@ -211,6 +212,11 @@ class EpubGateway:
         # clock (§8.13).
         self._fragments = TitlesFromFragments(self._database,
                                               self._open_library)
+        # The names §8.13a cannot read, put to the catalogue as
+        # hypotheses. Same fetcher, same reason: a scoped run is tens of
+        # requests, and every one of them is cached for ever (§12.1).
+        self._hypotheses = NameHypotheses(self._database, self._open_library,
+                                          series=self._series)
         self._enricher = AuthorEnricher(
             self._database, self._open_library, cover_root=config.cover_cache,
         )
@@ -325,6 +331,14 @@ class EpubGateway:
         """Finish the titles that were cut off, in one line."""
         return TitlesFromFragments.summary(
             self._fragments.run(apply=apply, author=author, formats=formats))
+
+    def read_hypotheses(self, apply: bool = False,
+                        author: str | None = None,
+                        formats: list[str] | None = None) -> str:
+        """The names nothing here can read, put to a catalogue, in one
+        line."""
+        return NameHypotheses.summary(
+            self._hypotheses.run(apply=apply, author=author, formats=formats))
 
     def clean_tags(self, apply: bool = False) -> str:
         """Take the scanner's notes out of the titles, in one line."""

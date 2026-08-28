@@ -242,6 +242,34 @@ class FragmentsCommand:
         return 0
 
 
+class HypothesesCommand:
+    """`--hypotheses`: the names that are clear to a person, not to the code.
+
+    `Colleen McCullough - Masters of Rome 1 - First Man in Rome` has no
+    comma, so §8.13a sees no author and everything asked of an author is
+    lost with it. Cut the name every way, ask Open Library which reading
+    is real, and keep the one whose author's own works hold the book.
+    """
+
+    def __init__(self, config: Config, apply: bool = False,
+                 author: str | None = None,
+                 formats: list[str] | None = None) -> None:
+        self._config = config
+        self._apply = apply
+        self._author = author
+        self._formats = formats
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.read_hypotheses(apply=self._apply,
+                                          author=self._author,
+                                          formats=self._formats))
+        finally:
+            gateway.close()
+        return 0
+
+
 class TagsCommand:
     """`--tags`: what the scanner wrote into the title.
 
@@ -400,18 +428,24 @@ class GatewayCLI:
         )
         parser.add_argument(
             "--author",
-            help="With --names or --fragments: only this author.",
+            help="With --names, --fragments or --hypotheses: only this author.",
         )
         parser.add_argument(
             "--format",
             action="append",
             dest="formats",
-            help="With --names or --fragments: only this format (repeatable).",
+            help=("With --names, --fragments or --hypotheses: only this"
+                  " format (repeatable)."),
         )
         parser.add_argument(
             "--fragments",
             action="store_true",
             help="Finish titles that were cut off, then exit.",
+        )
+        parser.add_argument(
+            "--hypotheses",
+            action="store_true",
+            help="Ask a catalogue to read the names nothing here can, then exit.",
         )
         parser.add_argument(
             "--tags",
@@ -478,6 +512,10 @@ class GatewayCLI:
             return FragmentsCommand(config, apply=args.apply,
                                     author=args.author,
                                     formats=args.formats).run()
+        if args.hypotheses:
+            return HypothesesCommand(config, apply=args.apply,
+                                     author=args.author,
+                                     formats=args.formats).run()
         if args.tags:
             return TagsCommand(config, apply=args.apply).run()
         if args.coauthors:

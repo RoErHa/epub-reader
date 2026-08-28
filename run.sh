@@ -41,6 +41,9 @@
 #   ./run.sh tags --apply       # ...and take them out
 #   ./run.sh fragments --author "Piers Anthony"          # finish cut-off titles
 #   ./run.sh fragments --author "Piers Anthony" --apply
+#   ./run.sh hypotheses         # ask a catalogue to read the names we cannot
+#   ./run.sh hypotheses --apply # ...and keep the reading it confirms
+#   ./run.sh hypotheses --format pdf --apply
 #   ./run.sh covers             # find books whose own first page is their cover
 #   ./run.sh covers --apply     # ...and give them it
 #   ./run.sh covers --online --apply   # ...and ask a provider for the rest
@@ -82,7 +85,7 @@ while [ $# -gt 0 ]; do
     --online)     ONLINE=1; shift ;;
     --author)     AUTHOR="${2:?--author needs a name}"; shift 2 ;;
     --format)     FORMAT="${2:?--format needs a format}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|tags|forget|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|hypotheses|tags|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -251,6 +254,25 @@ do_fragments() {
   fi
 }
 
+do_hypotheses() {
+  # A name with no comma in it — "Colleen McCullough - Masters of Rome 1 -
+  # First Man in Rome" — is invisible to §8.13a and obvious to a reader.
+  # Cut it every way, ask which reading a catalogue confirms, and keep
+  # only the one whose author's own works hold the book. One or two
+  # requests per candidate segment, all of them cached, so it takes a
+  # scope like the other asking passes do.
+  local scope=()
+  [ -n "${AUTHOR}" ] && scope+=(--author "${AUTHOR}")
+  [ -n "${FORMAT}" ] && scope+=(--format "${FORMAT}")
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Reading the names nothing here can read…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --hypotheses ${scope[@]+"${scope[@]}"} --apply
+  else
+    echo "▶  Asking what those names say (nothing will change)…"
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --hypotheses ${scope[@]+"${scope[@]}"}
+  fi
+}
+
 do_tags() {
   # "(v2.1)", "(not ocr)", "(uc)" — a closed vocabulary, never any
   # bracket: the same titles carry "(The Murderbot Diaries)".
@@ -404,6 +426,7 @@ case "${COMMAND}" in
   names)   do_names ;;
   coauthors) do_coauthors ;;
   fragments) do_fragments ;;
+  hypotheses) do_hypotheses ;;
   tags)    do_tags ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;

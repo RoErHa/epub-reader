@@ -229,7 +229,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M0–M12 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: the names that are clear to a person and not to the code — §12 lists everything open, in the order it is worth doing.</div>
+<div class="status">Status: M0–M13 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -799,6 +799,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr><td>A co-author written into the title</td><td><code>./run.sh coauthors [--apply]</code></td><td><code>epub_coauthors.py</code></td></tr>
 <tr><td>What the scanner wrote into the title</td><td><code>./run.sh tags [--apply]</code></td><td><code>epub_tags.py</code></td></tr>
 <tr><td>A title that was cut off</td><td><code>./run.sh fragments [--apply]</code></td><td><code>epub_fragments.py</code></td></tr>
+<tr><td>A name only a person could read</td><td><code>./run.sh hypotheses [--apply]</code></td><td><code>epub_hypotheses.py</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -1087,6 +1088,51 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <p><strong>A bug this found in <code>run.sh</code>:</strong> the usage block was <code>sed -n '3,38p'</code>, a fixed line range, so every command added pushed the last one off the end — <code>fragments</code> fell out of the help the moment <code>tags</code> was added, silently. It now reads to the closing rule rather than to a number somebody has to remember, and a test asserts that <em>every</em> command appears.</p>
 
+<h3>6.11l &nbsp;A filename read as a hypothesis rather than an answer</h3>
+<p><strong>§12's first open item, built.</strong> §6.11b reads one rigid shape — <code>Surname, First - …</code> — and believes it outright, which is why it needs a comma at the head and why it walks past every name below.</p>
+
+<pre><code>Colleen McCullough - Masters of Rome 1 - First Man in Rome.pdf
+Andrew Loomis - Drawing the Head and Hands.pdf
+RAINBOWS END by Vernor Vinge.pdf
+Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></pre>
+
+<p>Every one is instantly legible to a reader, and one missing comma costs all three facts: no author, so nobody for <code>SeriesFromNames</code> to agree with and nobody to ask a title of (§6.6). <strong>So the filename stops being the answer and becomes a hypothesis</strong> — cut every plausible way, put to Open Library, and kept only where the answer comes back corroborated.</p>
+
+<p><strong>Measured first, and the measurement is what shaped the rule.</strong> Of 2,364 books on the shelves, 292 carry a name nothing here can read once comics are set aside — a comic's name is a series and an issue, not an author and a title — and <strong>69 of those have more than one segment to split</strong>. All 128 distinct candidate segments went to the catalogue: <strong>42 of the 69 names anchor, which is 61%</strong>, against the 20% that would have made this a different piece of work.</p>
+
+<div class="rule">
+  <span class="eyebrow">Anchoring is not enough, and the same measurement is why</span>
+  <p>Open Library confirms <code>Jack Ryan</code>, <code>Star Wars</code>, <code>Star Trek</code>, <code>Ancient Egypt</code>, <code>Autumn leaves</code>, <code>Marcus Aurelius</code> and <code>Wizards of the Coast</code> as authors. <code>Jack Ryan 1 - Without Remorse</code> is Tom Clancy's, correctly credited already, and Jack Ryan is its protagonist. A pass that stopped at "the name is an author" would credit a novel to its own hero, a history of Rome to the emperor it is about, and a style guide to its publisher.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">The anchor must account for the other end of the name</span>
+  <p>Ask that author's own works whether they hold the book — §6.3's rule that a title is matched against one bibliography and never against a global title search. Measured over the same sample: <strong>13 of 16 genuine names accounted for, and 0 of 8 impostors.</strong> The three it missed are left exactly as they were, which is the direction a mistake here should fall.</p>
+</div>
+
+<p><strong>Two departures from the plan as written, both argued out by the measurement.</strong> The plan proposed a local certainty — one side of the name being an author we already hold — but that table holds <code>Wiley</code>, <code>Daddy</code>, <code>bos</code> and <code>scribner</code>, because earlier passes wrote whatever the files said into it; it would have answered 9% of the population and vouched for a scanner handle. And there is <strong>no review queue</strong>: the rule turned out binary, and a queue that only ever receives decided items is furniture. The dry run is the review, as it is for every other pass in §6.3.</p>
+
+<div class="rule">
+  <span class="eyebrow">A safety test can pass for the wrong reason, so break the thing it guards</span>
+  <p>The Jack Ryan test passed with the works check <em>deleted</em> — because <code>Jack Ryan 1</code> ends in a number, so the shelf rule had already refused it as a person and the works check never ran. It was proving the wrong rule. Rewritten against four impostors that really do reach it, all four fail the moment the check is broken, which is what makes them worth having.</p>
+</div>
+
+<div class="rule">
+  <span class="eyebrow">A shelf is no more a book than it is a person</span>
+  <p>The number rule cuts both ways, and the second edge cost three books to find. <code>Conn Iggulden - Emperor 1 - The Gates of Rome</code> offers both <code>Emperor 1</code> and <code>The Gates of Rome</code> as the book, and Open Library holds an Iggulden work called <em>Emperor</em> — so the shelf label matched, being offered first, and all three novels would have been retitled <code>Emperor 1</code>, <code>Emperor 2</code>, <code>Emperor 3</code>. Found by auditing the dry run, which is §6.10's "apply, then audit" taken in the safer order.</p>
+</div>
+
+<p><strong>Measured on the real library, dry-run against a copy of the database so nothing could reach the live one: 22 books credited, 10 filed under a series, 22 retitled, from 183 questions in three minutes.</strong> Every one was read afterwards and every one is right — the Masters of Rome novels, Iggulden's Emperor trilogy and three Erevis Cale books arrive as three facts each, and two books credited to whoever ran the scanner get their authors: <code>On Writing</code> was <strong>scribner</strong>'s, and <em>Rainbows End</em> was <strong>Daddy</strong>'s.</p>
+
+<p>Two it declined are the rule falling the right way: the filename says <code>Masters of Rome 7 - Anthony and Cleopatra</code> where McCullough wrote <em>Antony</em>, and Open Library's 200-work cap does not hold <em>Another Name for Dawn</em>. Neither is guessed at.</p>
+
+<p><strong>It reaches a provider, so it is not in <code>tidy()</code></strong> — §6.11g's rule exactly: what costs nothing may be done for you on every restart, what costs a request may not. <code>./run.sh hypotheses</code>, scoped like <code>names</code> and <code>fragments</code>, with every question and answer cached in <code>provider_query</code> so the second run asks nothing at all. What it writes is recorded as <code>openlibrary</code> and not <code>filename</code>, so §6.4's ranking keeps the next scan from putting the run-on name back — and it is the one place <code>title</code> is writable outside the review queue, because the gate has already established that neither the file nor its name can be read.</p>
+
+<div class="rule">
+  <span class="eyebrow">The catalogue supplies the reading, never the spelling</span>
+  <p>Open Library offers <em>Fortune's Favourites</em> for our <code>Fortunes Favourites</code>, and both are better than what we hold. It also offers <em>Emperor</em> for <em>The Gates of Rome</em>. The apostrophe is cosmetic and the wrong book is not, so the title kept is the file's own words; <code>file_title</code> makes every rename reversible, and §12's editor is the answer for the rest.</p>
+</div>
+
 <h3>6.11f &nbsp;Browsing by what a book is</h3>
 <p>A sixth grouping beside Authors, Titles, Series, Genres and Years. Six formats are indexed and <strong>four are worth browsing by</strong>: <code>prc</code> and <code>azw3</code> are the same Palm container as <code>mobi</code>, and somebody after a comic does not care whether the pictures are zipped or RAR'd.</p>
 <div class="tablewrap">
@@ -1298,6 +1344,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <tr class="self"><td class="num">✅ M10</td><td>Shelving from the browse list, without opening the book</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M11</td><td>The name is the metadata: author, series and title from one filename; a co-author freed from a title; the scanner's notes taken off; a truncated title finished by a provider</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M12</td><td>Comics packed with RAR; browsing by format; a scan that reads what it finds</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M13</td><td>A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book</td><td class="num win">done</td></tr>
 <tr><td class="num">🔄 M9</td><td>Series from filenames ✅; what no filename can reach is filed by hand ✅; series from a provider still open</td><td class="num">—</td></tr>
 </tbody>
 </table>
@@ -1593,51 +1640,19 @@ tools/              <span class="c">make_test_library.py</span></code></pre>
 <li><strong>A scan reads what it finds.</strong> The passes that cost nothing run on every start, so dropping a book in and restarting is the whole workflow.</li>
 <li><strong>Duplicate copies folded to one row per work</strong>, audited each time and reversible; no file was ever deleted.</li>
 <li><strong>A linter, a single place for the provenance rule, and the routes split into classes</strong> — the three findings of a review, taken in order.</li>
+<li><strong>A filename read as a hypothesis</strong> rather than an answer, for the names §6.11b's one rigid shape cannot reach. Measured at <strong>61% anchoring</strong> against the 20% that would have made it a different piece of work; 22 books credited, filed and retitled, and every impostor an anchor alone would have admitted refused by asking that author's own works (§6.11l).</li>
 </ul>
 
 <h3>Still open</h3>
 
-<h4>1 — The names that are clear to a person and not to the code</h4>
-<p><strong>This is the next piece of work.</strong> Piers Anthony's filenames were obvious to a reader and opaque to the code, and closing that gap is the job. It is deliberately <em>not</em> a general enrichment sweep: <code>Dune - Frank Herbert</code> needs nothing from anybody, and asking about it would be an afternoon spent confirming what we already hold.</p>
-
-<div class="rule">
-  <span class="eyebrow">The gate comes first, and most books never pass it</span>
-  <p>A name goes to a provider only when nothing here can already read it. Three kinds of certainty, all local and all free: one side of the name is an author we already hold (573 of them); the shape is one §6.11b already reads; or the file's own metadata agrees with its name. Only what survives all three is asked about.</p>
-</div>
-
-<div class="rule">
-  <span class="eyebrow">The filename stops being the answer and becomes a hypothesis</span>
-  <p>§6.11b believes one rigid shape outright, which is why it needs a comma at the head, why it fires on 241 books and no others, and why <code>10 is Better Than 01 - Heather Jarman</code> had to be <em>refused</em> rather than understood. The new pass cuts a name every plausible way, asks Open Library which reading is real, and keeps the one that comes back corroborated.</p>
-</div>
-
-<ol>
-<li><strong>Split into candidates, not into an answer</strong> — both orderings, every separator, with and without a leading number.</li>
-<li><strong>Anchor on whichever end confirms.</strong> Ask whether the candidate author exists, or whether the candidate title does. A name where neither end confirms is left alone and said so.</li>
-<li><strong>Find the other end through the anchor</strong> — a known author's works, never a global title search. "Second Chance" matches hundreds of books; <em>this author's</em> Second Chance is one question with one answer.</li>
-<li><strong>Score into the bands that already exist</strong> — decision 4's ≥0.90 / 0.60–0.90 and the review queue, which already stores why it scored that and which fields would change. A second queue would only disagree with the first.</li>
-</ol>
-
-<div class="rule">
-  <span class="eyebrow">Here a provider's answer wins, because nothing else is offering</span>
-  <p>Everywhere else the file leads and enrichment fills silence. The gate has already established that neither the file nor its name can be read, so a confirmed reading is the only evidence in the room. That also settles <code>title</code>: outside the enrichment writable set for every book whose name we <em>can</em> read, writable for the ones we cannot.</p>
-</div>
-
-<div class="rule">
-  <span class="eyebrow">Every question asked is written down, hits and misses alike</span>
-  <p>Several hypotheses per book is where "asked once, ever" stops being enough: <code>author.fetched_at</code> records that we asked about a <em>person</em>, and this asks about a <em>string</em>. It needs a query → answer cache keyed on the question, or the second run costs what the first did.</p>
-</div>
-
-<p><strong>Measure before building it</strong>, as the cover work did twice: 30 real unreadable filenames through the splitter, counting how many anchor at all. If the answer is 20% this is a different piece of work, and better to know that on the first morning.</p>
-
-
-<h4>2 — Names that are damaged: the open web</h4>
-<p>Tiers 0 and 1 are built — a co-author freed from a title (§6.11c), and a truncated title finished by trimming it back to a whole word and asking a provider (§6.11d). <strong>Tier 2 is not</strong>, and the gate on it still holds: a catalogue can only match what it holds, while a search engine indexes the long tail. It needs <strong>a real search API, never scraping</strong>, reads <strong>result titles and snippets only</strong>, applies tier 1's prefix rule plus the author appearing in the same result, and requires two independent results to agree before writing anything. One query per string, ever.</p>
+<h4>1 — Names that are damaged: the open web</h4>
+<p><strong>This is the next piece of work, and the smallest thing left.</strong> Tiers 0 and 1 are built — a co-author freed from a title (§6.11c), and a truncated title finished by trimming it back to a whole word and asking a provider (§6.11d) — and §6.11l has since taken the names a catalogue could read. <strong>Tier 2 is not built</strong>, and the gate on it still holds: a catalogue can only match what it holds, while a search engine indexes the long tail. It needs <strong>a real search API, never scraping</strong>, reads <strong>result titles and snippets only</strong>, applies tier 1's prefix rule plus the author appearing in the same result, and requires two independent results to agree before writing anything. One query per string, ever.</p>
 <p><strong>Do not build it until the free tiers have been measured against what is left.</strong> They were, and they left very little: the population tier 2 could reach is now a handful of books, and it is the only part of this that costs money.</p>
 
-<h4>3 — Fetch each matched work's own record</h4>
+<h4>2 — Fetch each matched work's own record</h4>
 <p>Open Library's <em>search</em> results carry no synopsis and no publisher, so auto-apply writes almost nothing: of 2,364 books shown, <strong>2,097 have no synopsis, 2,058 no genre and 1,769 no first-published year</strong>. One extra request per book fixes all three — and it is the same call that confirms a candidate above, so they are one piece of work rather than two.</p>
 
-<h4>4 — Editing a book's metadata</h4>
+<h4>3 — Editing a book's metadata</h4>
 <p><strong>Series is not coming from a provider.</strong> §6 said it would and it was never built; Open Library's search results are thin enough that its series data is unproven, and nothing measured here says it can tell Xanth #8 from Xanth #9. The answer is the reader's own hand. Hand-editing today is <strong>authors and series only</strong>; it should be the whole record — title, series and number, synopsis, genre — because that is the only thing that reaches a book the machinery cannot: the truncated <code>Bamboo Bloodbath &amp; Ninj</code>, the clipped <code>The Caterpillars Questi</code>, a series nobody else has heard of. It costs no requests, and the machinery exists already: what a person says is <code>origin = 'user'</code>, locked, and no pass overrules it.</p>
 <p><strong>1,434 books have no series.</strong> Filenames gave what they could and hand-filing reached the rest that could be proved; most of what is left either genuinely stands alone or needs a person.</p>
 
