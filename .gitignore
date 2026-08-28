@@ -12,6 +12,7 @@ __pycache__/
 !.env.example
 books.db
 books.db-*
+books.db.backup-*
 *.log
 *.log.*
 cover_cache/
