@@ -906,6 +906,67 @@ driven without the real launchd or the real port, and the test asserts
 what the bug got wrong: after a restart the agent is still loaded, and
 nothing reports a pidfile.
 
+### 8.20 A validator nothing acted on
+
+Reading on the iPad drains the battery, and the first place to look was
+our own traffic. There is no polling here — no `setInterval`, no
+`requestAnimationFrame`, and the loading overlay's two infinite
+animations stop on both the success and the failure path — so what is
+left is the radio, which is the expensive part of reading over a
+tailnet. **Every book response carried an ETag and nothing ever acted on
+one.**
+
+> **Starlette computes the validator and answers 304 only from
+> `StaticFiles`.** `FileResponse` sets an `etag` header in
+> `set_stat_headers` and never reads `If-None-Match`; the 304 lives in
+> `StaticFiles.is_not_modified`, which this app does not use. So every
+> re-open of a book downloaded the book again, with the answer to
+> "should I?" already in the response nobody was asked about.
+
+Two of these responses are not files at all. **412 books of the 2,364 on
+the shelves are built on the way out** — 195 comics packed with RAR
+(§8.15) and 217 EPUBs that were never zipped (§8.5), 4.4 GB of them —
+and that is what shapes the rule:
+
+> **The validator names the source, never the bytes we hand over.**
+> Hashing the response would mean doing the packing in order to discover
+> it need not be sent, which is the whole cost being avoided.
+> `book.content_hash` is stored already, identifies the book by what is
+> in it (§5), and is better than an mtime besides: a library copied to a
+> new disk keeps its validators, and a book replaced by a better scan
+> loses them, which is exactly right in both directions.
+
+> **The recipe is part of what the reader is holding.** A repacked comic
+> is not the archive on disk, so the tag names the packing and carries a
+> version of it — `W/"cbz1-…"`, `W/"epub1-…"`, `"file1-…"`. Change how
+> we pack and every cached copy is stale, which is a thing to say rather
+> than to hope about.
+
+> **A file's own bytes get a strong validator; a body we build gets a
+> weak one.** A zip carries the mtimes of what went into it, so packing
+> the same book twice is the same book and not the same bytes. It also
+> keeps a weak tag out of `If-Range`, which is the one use a weak
+> validator may not be put to.
+
+**And a validator alone would have changed nothing.** With no
+`Cache-Control` at all a browser has no freshness information and falls
+back to a heuristic, which is how a header ends up never being offered
+back. `private, no-cache` is the pair of it: store this, and ask before
+using it.
+
+**Measured on the real library**: the largest comic is 289 MB of RAR
+that becomes **315 MB sent and 3.7 s of repacking**; the median CBR is
+16 MB and 0.23 s. A second open of either is now a 304 — a couple of
+hundred bytes, and **the archive is not unpacked at all**, which is the
+assertion the test makes rather than merely counting bytes.
+
+`epub_caching.py` is one class for one rule, the shape `epub_provenance`
+already takes: the two built responses and the plain file all go through
+`answer(etag, build)`, and `build` is a **callable** precisely so that a
+304 cannot call it. It is its own module rather than a fourth idea
+inside the routes — which §10.15 had already cut down once, and which
+this would have taken back over 600 lines.
+
 ### 8.17 A shelf label is not a name, and dedupe found out
 
 Running `dedupe` proposed nine works, and **the ninth would have hidden a
@@ -1634,6 +1695,9 @@ static/browse.js    Browser — mode strip, letter bar, drill-down
 static/detail.js    BookDetail — the book-detail screen
 epub_provenance.py  Provenance, Candidates — who said so, and whether we
                     may overwrite them; the one place §5's rule lives
+epub_caching.py     Revalidation — a book the reader already has costs a
+                    header, not a book; the validator names the source,
+                    because one that costs a repack is not a saving
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device

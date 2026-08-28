@@ -1114,6 +1114,28 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11j &nbsp;A validator nothing acted on</h3>
+<p>Reading on the iPad drains the battery, and the first place to look was our own traffic. There is no polling here — no <code>setInterval</code>, no <code>requestAnimationFrame</code>, and the loading overlay's two infinite animations stop on both the success and the failure path — so what is left is the radio, which is the expensive part of reading over a tailnet. <strong>Every book response carried an ETag and nothing ever acted on one.</strong></p>
+<div class="rule">
+  <span class="eyebrow">Starlette computes the validator and answers 304 only from StaticFiles</span>
+  <p><code>FileResponse</code> sets an <code>etag</code> header in <code>set_stat_headers</code> and never reads <code>If-None-Match</code>; the 304 lives in <code>StaticFiles.is_not_modified</code>, which this app does not use. So every re-open of a book downloaded the book again, with the answer to "should I?" already in the response nobody was asked about.</p>
+</div>
+<p>Two of these responses are not files at all. <strong>412 books of the 2,364 on the shelves are built on the way out</strong> — 195 comics packed with RAR and 217 EPUBs that were never zipped, 4.4 GB of them — and that is what shapes the rule.</p>
+<div class="rule">
+  <span class="eyebrow">The validator names the source, never the bytes we hand over</span>
+  <p>Hashing the response would mean doing the packing in order to discover it need not be sent, which is the whole cost being avoided. <code>book.content_hash</code> is stored already, identifies the book by what is in it, and is better than an mtime besides: a library copied to a new disk keeps its validators, and a book replaced by a better scan loses them — right in both directions.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">The recipe is part of what the reader is holding</span>
+  <p>A repacked comic is not the archive on disk, so the tag names the packing and carries a version of it — <code>W/"cbz1-…"</code>, <code>W/"epub1-…"</code>, <code>"file1-…"</code>. Change how we pack and every cached copy is stale, which is a thing to say rather than to hope about.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">A file's own bytes get a strong validator; a body we build gets a weak one</span>
+  <p>A zip carries the mtimes of what went into it, so packing the same book twice is the same book and not the same bytes. It also keeps a weak tag out of <code>If-Range</code>, the one use a weak validator may not be put to.</p>
+</div>
+<p><strong>And a validator alone would have changed nothing.</strong> With no <code>Cache-Control</code> at all a browser has no freshness information and falls back to a heuristic, which is how a header ends up never being offered back. <code>private, no-cache</code> is the pair of it: store this, and ask before using it.</p>
+<p><strong>Measured on the real library:</strong> the largest comic is 289 MB of RAR that becomes <strong>315 MB sent and 3.7 s of repacking</strong>; the median CBR is 16 MB and 0.23 s. A second open of either is now a 304 — a couple of hundred bytes, and <strong>the archive is not unpacked at all</strong>, which is the assertion the test makes rather than merely counting bytes. <code>epub_caching.py</code> is one class for one rule, the shape <code>epub_provenance</code> already takes: <code>answer(etag, build)</code> takes a <strong>callable</strong> precisely so that a 304 cannot call it.</p>
+
 <h3>6.11i &nbsp;No authentication, and the two things that follow from it</h3>
 <p>This is a personal service for one household, reached over a tailnet. It has <strong>no authentication</strong> and nothing here uses cookies — a decision rather than an omission. But two consequences of it were being left to luck.</p>
 <div class="rule">

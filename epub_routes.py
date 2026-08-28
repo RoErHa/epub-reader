@@ -23,12 +23,13 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from epub_annotations import AnnotationError
 from epub_browse import BrowseError
+from epub_caching import Revalidation
 from epub_rar import RarArchive, RarError, repack
 from epub_reading import STATUSES
 from epub_shelves import SMART, ShelfError, ShelfExists
@@ -179,6 +180,24 @@ class Routes:
                     continue
                 archive.write(inner, name)
         return buffer.getvalue()
+
+    def repacked(self, path: Path) -> Response:
+        """A comic packed with RAR, packed as a zip on the way out.
+
+        Held in memory and not streamed, because libarchive gives us the
+        entries and not a stream — which is why it is the response most
+        worth not building twice.
+        """
+        try:
+            body = repack(RarArchive(path))
+        except RarError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return Response(
+            content=body,
+            media_type="application/vnd.comicbook+zip",
+            headers={"Content-Disposition":
+                     f'inline; filename="{path.stem}.cbz"'},
+        )
 
     def book_file(self, row):
         path = (self.services.library.root / row["path"]).resolve()
@@ -499,38 +518,43 @@ class ReadingRoutes(Routes):
             return Response(status_code=204)
 
         @app.get("/api/books/{book_id}/file")
-        def get_book(book_id: int) -> FileResponse:
+        def get_book(book_id: int, request: Request) -> Response:
             # Addressed by id, not by path: 44% of a real library lives in
             # subfolders, and a relative path with slashes cannot be a
             # single path segment.
-            path = self.book_file(self.book_or_404(book_id))
+            row = self.book_or_404(book_id)
+            path = self.book_file(row)
+            # A book the reader already has costs a header rather than a
+            # book. The validator is the source's hash and the way we
+            # packed it, so nothing below is built to answer a 304.
+            fresh = Revalidation(request)
             if RarArchive.is_rar(path):
                 # A comic packed with RAR, packed as a zip. foliate reads
                 # a zip; the reader, the positions and the highlights
                 # carry on knowing nothing about it (§8.5's path).
-                try:
-                    body = repack(RarArchive(path))
-                except RarError as exc:
-                    raise HTTPException(status_code=422,
-                                        detail=str(exc)) from None
-                return Response(
-                    content=body,
-                    media_type="application/vnd.comicbook+zip",
-                    headers={"Content-Disposition":
-                             f'inline; filename="{path.stem}.cbz"'},
+                return fresh.answer(
+                    Revalidation.weak("cbz1", row["content_hash"]),
+                    lambda: self.repacked(path),
                 )
             if path.is_dir():
                 # foliate reads a zip, so a book that was never zipped
                 # is zipped on the way out. Everything downstream — the
                 # reader, CFI positions, highlights — carries on
                 # knowing nothing about it.
-                return Response(
-                    content=self.zip_unpacked(path),
-                    media_type="application/epub+zip",
-                    headers={"Content-Disposition":
-                             f'inline; filename="{path.name}"'},
+                return fresh.answer(
+                    Revalidation.weak("epub1", row["content_hash"]),
+                    lambda: Response(
+                        content=self.zip_unpacked(path),
+                        media_type="application/epub+zip",
+                        headers={"Content-Disposition":
+                                 f'inline; filename="{path.name}"'},
+                    ),
                 )
             media = self.services.media_types.get(
                 path.suffix.lower(), "application/octet-stream"
             )
-            return FileResponse(path, media_type=media)
+            # Sent exactly as it sits on disk, so the validator is strong.
+            return fresh.answer(
+                Revalidation.strong("file1", row["content_hash"]),
+                lambda: FileResponse(path, media_type=media),
+            )

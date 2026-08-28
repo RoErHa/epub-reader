@@ -200,7 +200,7 @@ footer{
   <div class="logo">BOOKS<sup>2.0</sup></div>
   <div class="sep"></div>
   <span class="hdr-tag">ARCHITECTURE</span>
-  <div class="hdr-right">39 modules · 9,904 lines · 1,174 pytest · 428 playwright</div>
+  <div class="hdr-right">40 modules · 10,125 lines · 1,231 pytest · 428 playwright</div>
 </header>
 
 <div class="wrap">
@@ -225,7 +225,7 @@ footer{
 <p class="lede">One FastAPI service on :8770, a vanilla static front end, and a SQLite index over books that never move. This page describes the code as it is — every number on it was measured from the source and the live database, not from the plan.</p>
 
 <div class="stats">
-  <div class="stat"><b>39</b><span>Python modules</span></div>
+  <div class="stat"><b>40</b><span>Python modules</span></div>
   <div class="stat"><b>9,904</b><span>server lines</span></div>
   <div class="stat"><b>2,394</b><span>static JS lines</span></div>
   <div class="stat"><b>52</b><span>HTTP routes</span></div>
@@ -275,6 +275,7 @@ footer{
       <span class="chip">epub_rar <i>2</i></span>
       <span class="chip">epub_forget <i>2</i></span>
       <span class="chip">epub_security <i>1</i></span>
+      <span class="chip">epub_caching <i>1</i></span>
     </div>
   </div>
 
@@ -346,12 +347,12 @@ footer{
 </div>
 <p class="legend">Amber marks a module four or more others depend on. Fan-in of 0 means nothing imports it: <code>epub_gateway</code> is the entry point, and <code>epub_genres</code> is loaded by data rather than by import.</p>
 
-<p>The graph is acyclic and shallow — <strong>seven layers over 39 modules</strong>, with the widest layer holding ten. Nothing in layers 0–2 knows that an HTTP server exists, which is why the passes can be driven equally from <code>run.sh</code> and from a route.</p>
+<p>The graph is acyclic and shallow — <strong>seven layers over 40 modules</strong>, with the widest layer holding ten. Nothing in layers 0–2 knows that an HTTP server exists, which is why the passes can be driven equally from <code>run.sh</code> and from a route.</p>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s3"><span class="n">03</span>Two foundations</h2>
 
-<p>Twenty of the 39 modules import <code>epub_names</code>, and eleven import <code>epub_provenance</code>. Nothing else comes close. Both are small — 122 and 117 lines — and that is the point: they hold a rule rather than a subsystem.</p>
+<p>Twenty of the 40 modules import <code>epub_names</code>, and eleven import <code>epub_provenance</code>. Nothing else comes close. Both are small — 122 and 117 lines — and that is the point: they hold a rule rather than a subsystem.</p>
 
 <div class="rule">
   <b>A name is normalised in one place or in none.</b>
@@ -438,6 +439,11 @@ footer{
   <td class="mono">epub_provenance.py</td>
   <td>the only writer of <code>field_provenance</code></td>
   <td>the rule the whole design rests on, in one place instead of eleven</td>
+</tr>
+<tr>
+  <td class="mono">epub_caching.py</td>
+  <td>the only sender of an <code>ETag</code></td>
+  <td>a book the reader already has costs a header, and the validator names the source because one that costs a repack is not a saving</td>
 </tr>
 <tr>
   <td class="mono">epub_security.py</td>
@@ -545,7 +551,7 @@ footer{
 </table>
 </div>
 
-<p>The test suites are the check on all of it: <strong>1,174 pytest</strong> over 12,165 lines, and <strong>428 Playwright</strong> over 15 specs, run serially against Chromium and WebKit because position is shared server-side by design and Safari is the browser this is actually read in.</p>
+<p>The test suites are the check on all of it: <strong>1,231 pytest</strong> over 12,799 lines, and <strong>428 Playwright</strong> over 15 specs, run serially against Chromium and WebKit because position is shared server-side by design and Safari is the browser this is actually read in.</p>
 
 <footer>
   <span>epub-reader · architecture</span>
