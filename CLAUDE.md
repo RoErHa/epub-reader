@@ -1007,12 +1007,13 @@ using it.
 that counts: the largest comic is 289 MB of RAR that becomes **315 MB
 and 28.7 s** on the first open, and **0 bytes in 12 ms** on the second.
 The median CBR is 16 MB, 0.23 s of that being the repacking. A cover
-goes from 45 kB to nothing, two thousand times per browse. And **the
+goes from 45 kB to nothing, up to two hundred of them on a
+single browse page — which is what `limit` defaults to. And **the
 archive is not unpacked at all** to answer a 304 — the assertion the
 test makes, rather than merely counting bytes.
 
 **The covers went the same way, and stopped short of where they could
-have gone.** The browse grid asks for a couple of thousand thumbnails on
+have gone.** The browse grid asks for up to two hundred thumbnails on
 every visit, and their URLs look immutable — `/api/covers/ad/adeb97….jpg`
 is a hash. It is the **book's** hash, though, not the picture's:
 `CoverStore.save` writes by `content_hash`, so a better cover found by
@@ -1027,7 +1028,7 @@ replaced, lands on the same URL with different bytes.
 > picture stays correctable. Their validator is the file's size and
 > mtime — the one place where Starlette's own answer is the honest one,
 > because the name genuinely does not identify the contents and hashing
-> two thousand thumbnails per browse would cost more than it saves.
+> two hundred thumbnails per browse would cost more than it saves.
 
 `epub_caching.py` is one class for one rule, the shape `epub_provenance`
 already takes: the two built responses and the plain file all go through

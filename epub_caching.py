@@ -78,7 +78,7 @@ class Revalidation:
         a better one turns up (§8.12, §8.13), so the URL says which book
         and not which picture. Size and mtime are what identify it —
         the one case where Starlette's own answer is the honest one.
-        Hashing two thousand thumbnails on every browse would cost more
+        Hashing two hundred thumbnails on every browse would cost more
         than the bytes it saves, and this is the reason that URL may not
         be told it is immutable, however much it looks it.
         """
