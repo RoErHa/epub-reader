@@ -17,7 +17,11 @@ export default defineConfig({
   reporter: process.env.CI ? 'list' : [['list']],
   use: {
     baseURL: BASE,
-    trace: 'on-first-retry'
+    trace: 'on-first-retry',
+    // A worker answering requests would sit between a spec and the
+    // server it is testing, and four specs intercept requests with
+    // page.route. pwa.spec.js turns it back on for itself.
+    serviceWorkers: 'block'
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

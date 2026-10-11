@@ -10,6 +10,7 @@ import { ReaderSettings } from '/static/settings.js'
 import { Annotations } from '/static/annotations.js'
 import { NameComposer } from '/static/composer.js'
 import { TableOfContents } from '/static/toc.js'
+import { Installation } from '/static/install.js'
 
 class PositionStore {
   /** Reading position lives on the server so every device shares it
@@ -505,3 +506,4 @@ class BooksApp {
 
 const app = new BooksApp(document)
 app.start()
+new Installation(navigator, window).register()

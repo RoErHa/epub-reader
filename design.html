@@ -1160,6 +1160,18 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11l &nbsp;Installable, and what the worker will not touch</h3>
+<p>The design said a PWA manifest and service worker were carried over from dlna-gateway. Neither existed. Now <code>/manifest.webmanifest</code> and <code>/sw.js</code> make the library an app on the iPad's home screen, opened in its own window, with an open-book icon in amber on the family navy, painted by <code>tools/make_icons.py</code>.</p>
+<div class="rule">
+  <span class="eyebrow">The worker keeps the shell, and nothing else</span>
+  <p>It answers only <code>/</code> and <code>/static/</code>, network first, so a deploy is seen at the next load and the cache is the answer only when the network has none. Reading position is server-side and shared, and a book is revalidated by its own ETag, so a worker answering <code>/api</code> from a cache would be wrong about both. A test proves it: breaking the rule fails three tests in both engines.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">Served from the root, and always asked about</span>
+  <p>A worker controls only what sits under its own URL, so <code>/static/sw.js</code> could never control the app at <code>/</code>. It goes out with <code>no-cache</code>, because a stale worker is the one cache no restart here can clear.</p>
+</div>
+<p>Only a secure origin may have a worker: the tailnet name over TLS, and loopback. The LAN address is plain HTTP (<code>EPUB_PLAIN_BIND</code>), and there the app runs as a web page, as it always did. The rest of the Playwright suite runs with workers blocked, because four specs intercept requests and a worker would sit between them and the server. <code>pwa.spec.js</code> turns them back on for itself. WebKit's offline emulation refuses a request before the worker is asked, so there the test checks the cached shell rather than an offline launch.</p>
+
 <h3>6.11k &nbsp;Page turns, measured — and they are not the cost</h3>
 <p>§3 records that foliate's paginator uses CSS multi-column, "same slowness and CSS quirks", and one real section laid out <strong>8,120,880 px wide</strong>. So when the iPad's battery came up, page turns were the obvious suspect, and I said so before measuring. <strong>The measurement says otherwise</strong>, on a three-book instance holding real books.</p>
 <table>
@@ -1572,7 +1584,10 @@ static/reader.js    <span class="k">ReaderEngine — THE ONLY importer of foliat
 static/app.js       <span class="c">BooksApp, BookList</span>
 tests/              <span class="c">pytest + epub_fixtures.EpubBuilder</span>
 tests/frontend/     <span class="c">Playwright specs</span>
-tools/              <span class="c">make_test_library.py</span></code></pre>
+static/install.js   <span class="c">Installation — registers the service worker where it may</span>
+static/sw.js        <span class="c">ShellCache — served at /sw.js; the shell, never /api</span>
+static/manifest.webmanifest, static/icons/  <span class="c">the installed app</span>
+tools/              <span class="c">make_test_library.py; make_icons.py</span></code></pre>
 
 <h3>What M1 established</h3>
 <ul>

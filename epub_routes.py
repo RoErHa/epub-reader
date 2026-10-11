@@ -234,6 +234,25 @@ class AppRoutes(Routes):
         def index() -> FileResponse:
             return FileResponse(self.services.shell, media_type="text/html")
 
+        # Served from the root, not /static/: a worker controls only what
+        # sits under its own URL. Always revalidated, because a stale
+        # worker is the one cache no restart here can clear.
+        @app.get("/sw.js")
+        def service_worker() -> FileResponse:
+            return FileResponse(
+                self.services.static / "sw.js",
+                media_type="text/javascript",
+                headers={"Cache-Control": "no-cache"},
+            )
+
+        @app.get("/manifest.webmanifest")
+        def manifest() -> FileResponse:
+            return FileResponse(
+                self.services.static / "manifest.webmanifest",
+                media_type="application/manifest+json",
+                headers={"Cache-Control": "no-cache"},
+            )
+
         @app.get("/api/status")
         def index_status() -> JSONResponse:
             status = self.services.browse.status()

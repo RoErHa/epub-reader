@@ -51,7 +51,7 @@ static/vendor/foliate-js/            pinned submodule
 | Entry point | `epub_gateway.py` |
 | TLS | same Tailscale cert host as dlna-gateway, read from `.env` |
 
-Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, PWA manifest + service worker, rotating `gateway.log`.
+Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, rotating `gateway.log`. The PWA manifest and service worker were listed here too and did not exist until §8.23.
 
 ## 2.0 Books nobody can open
 
@@ -1227,6 +1227,42 @@ apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §12.3's editor is the answer for the rest.
 
+### 8.23 Installable, and what the worker will not touch
+
+§2 said a PWA manifest and service worker were carried over from
+dlna-gateway. Neither existed. `/manifest.webmanifest` and `/sw.js` now
+make the library an app on the iPad's home screen, in its own window,
+with an open-book icon in amber on the family navy. The icon is painted
+by `tools/make_icons.py`, and the PNGs are committed.
+
+> **The worker keeps the shell, and nothing else.** It answers `/` and
+> `/static/` only, network first, so a deploy is seen at the next load
+> and the cache is the answer only when the network has none. Reading
+> position is server-side and shared (decision 7), and a book is
+> revalidated by its own ETag (§8.20), so a worker answering `/api` from
+> a cache would be wrong about both. Verified by breaking it: letting
+> the worker take everything fails three tests across both engines.
+
+> **Served from the root, and always asked about.** A worker controls
+> only what sits under its own URL, so `/static/sw.js` could never
+> control the app at `/`. It is sent with `no-cache`, because a stale
+> worker is the one cache no restart here can clear.
+
+Only a secure origin may have a worker: the tailnet name over TLS, and
+loopback. The LAN address is plain HTTP (§8.18), and there
+`Installation` simply does not register and the app runs as a web page,
+as it always did. Loopback is in `EPUB_PLAIN_BIND` too: it is a secure
+origin without a certificate, and Tailscale's certificate could not
+name it anyway.
+
+**The rest of the UI suite runs with workers blocked**
+(`serviceWorkers: 'block'`). Four specs intercept requests with
+`page.route`, and a worker would sit between them and the server.
+`pwa.spec.js` allows them for itself. Under Playwright's offline
+emulation, WebKit refuses a request before the worker is asked, so it
+failed with the shell sitting in the cache. There the spec asserts the
+cache contents instead, and the offline launch is checked in Chromium.
+
 ### 8.16 A book dropped in is a book filed
 
 §6.6 said dropping books into `LIBRARY_ROOT` and restarting was the whole
@@ -1927,6 +1963,11 @@ epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
 static/composer.js  NameComposer — asking for a name in the app, not the
                     browser; shelves are named here
+static/install.js   Installation — registers the service worker where a
+                    browser allows one (§8.23)
+static/sw.js        ShellCache — served at /sw.js; keeps the shell, never
+                    /api
+static/manifest.webmanifest, static/icons/   the installed app
 run.sh              start / stop / restart / status / scan / repair / refresh
                     / names / hypotheses / coauthors / tags / fragments
                     — launchd-aware; see §8.19 for what that cost once
@@ -1937,7 +1978,7 @@ static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
 static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder
 tests/frontend/     Playwright specs
-tools/              make_test_library.py; badges.py — the README's badge
+tools/              make_test_library.py; make_icons.py; badges.py — the README's badge
                     strip, rendered from the suites and checked by a test;
                     turn_cost.mjs — what a page turn costs, and why it is
                     not what drains a battery (§8.21)
