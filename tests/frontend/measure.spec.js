@@ -101,5 +101,53 @@ test('on an iPad in portrait, the gutter is narrow', async ({ page }) => {
         p.getBoundingClientRect().left
     }).catch(() => Infinity)
     return left - stage.x
-  }).toBeLessThan(30)
+  }).toBeLessThan(23)
+})
+
+// Where the book's frame sits inside the stage, top and bottom.
+async function frameInset (page) {
+  const stage = await page.locator('#reader-stage').boundingBox()
+  const frame = blobFrame(page)
+  if (!frame) return { top: Infinity, bottom: Infinity }
+  const box = await frame.evaluate(() => {
+    const r = frameElement.getBoundingClientRect()
+    return { top: r.top, bottom: r.bottom }
+  }).catch(() => null)
+  if (!box) return { top: Infinity, bottom: Infinity }
+  return { top: box.top - stage.y, bottom: stage.y + stage.height - box.bottom }
+}
+
+test.describe('on an iPad in portrait, top and bottom', () => {
+  test.use({ viewport: { width: 810, height: 1080 }, hasTouch: true })
+
+  test('the page starts and ends close to the edges', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await expect.poll(async () => (await frameInset(page)).top).toBeLessThan(28)
+    await expect.poll(async () => (await frameInset(page)).bottom).toBeLessThan(28)
+  })
+
+  test('a device that saved the old margin gets the new one', async ({ page }) => {
+    // Every setting is written back whole, so the iPad that read under
+    // the 48 px margin has it stored — a default alone would not reach it.
+    await page.addInitScript(key => {
+      localStorage.setItem(key, JSON.stringify({ margin: 48 }))
+    }, DISPLAY)
+    await page.goto('/')
+    await openBook(page, BOOK)
+    await expect.poll(async () => (await frameInset(page)).top).toBeLessThan(28)
+  })
+
+  test('the back arrow sits in the header, clear of the words', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, BOOK)
+    const back = await page.locator('#reader-back').boundingBox()
+    const header = await page.locator('header').boundingBox()
+    expect(back.y).toBeGreaterThanOrEqual(header.y - 1)
+    expect(back.y + back.height).toBeLessThanOrEqual(header.y + header.height + 1)
+    expect(back.width).toBeGreaterThanOrEqual(40)
+    // ...and it is not hidden behind the title it shares the bar with.
+    const title = await page.locator('.hdr-book').boundingBox()
+    expect(back.x + back.width).toBeLessThanOrEqual(title.x)
+  })
 })

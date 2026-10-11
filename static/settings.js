@@ -27,13 +27,22 @@ export class ReaderSettings {
     font: 'default',
     fontSize: 100, // percent
     lineHeight: 1.5,
-    margin: 48,
     columns: 1,
     flow: 'paginated',
     sort: 'title'
   }
 
   static LIMITS = { fontSize: [70, 220], lineHeight: [1.0, 2.4] }
+
+  /* The page's edges are not a preference — nothing offers them — so
+   * they are constants rather than settings. A setting is written back
+   * whole, and a device that once stored a margin would keep it for
+   * ever whatever this file later said. Sized for an iPad in portrait,
+   * which is where this is read: 20 px above and below, and a gutter
+   * either side of about 22 pt.
+   */
+  static MARGIN = '20px'
+  static GAP = '2.7%'
 
   #values = null
   #storage = null
@@ -101,8 +110,8 @@ export class ReaderSettings {
   rendererAttributes () {
     return {
       flow: this.#values.flow,
-      margin: `${this.#values.margin}px`,
-      gap: '3%',
+      margin: ReaderSettings.MARGIN,
+      gap: ReaderSettings.GAP,
       'max-column-count': String(this.#values.columns)
     }
   }

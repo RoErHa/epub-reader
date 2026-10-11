@@ -1252,8 +1252,22 @@ one column; **Columns → 2** turns a landscape iPad into a two-page spread.
 > **And the gutter is half what foliate would choose.** Filling the pane
 > left foliate's 6% gap — 49 pt a side on an iPad in portrait, which is
 > how this is actually read — and that still read as wide margins on the
-> device. At **3%** it is 25 pt: room for a thumb, and nothing more. A
-> test holds the iPad-portrait gutter under 30 pt.
+> device. At **2.7%** it is about 22 pt: room for a thumb, and nothing
+> more. A test holds the iPad-portrait gutter under 23 pt.
+
+> **Top and bottom went the same way, and the back arrow had to move
+> for it.** foliate's 48 px band above and below the page came down to
+> **20 px** — but the 48 was what kept the first line clear of the round
+> back arrow in the stage's corner. On a touch screen the arrow now
+> takes the logo's place in the header while a book is open, and the
+> page runs up to the header's edge.
+
+> **A margin is not a setting, so it is no longer stored as one.**
+> `ReaderSettings` writes its values back whole, so every device that
+> had opened a book carried `margin: 48` in `localStorage`, and a new
+> default would never have reached it. Nothing offered the margin as a
+> control; it is `ReaderSettings.MARGIN` and `GAP` now, constants, and a
+> stale stored value is ignored. A test stores the old one and checks.
 
 ### 8.24 The whole record, by hand
 

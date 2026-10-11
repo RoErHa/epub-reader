@@ -661,10 +661,15 @@ body[data-read-theme="black"]{
   body[data-panels="open"] .tab-bar{padding-right:48px}
   #browser{width:100%}
   #reader{width:100%}
-  #reader-back{display:flex}
-  /* The back arrow sits where a heading would start; the cover can
-     take it, a word cannot. */
-  #editor h1{padding-left:52px;min-height:44px;display:flex;align-items:center}
+  /* The back arrow takes the logo's place in the header, so the page
+     below it can run close to the top edge without a word under it. */
+  #reader-back{
+    display:flex;position:fixed;z-index:20;
+    top:calc(env(safe-area-inset-top, 0px) + 2px);
+  }
+  body[data-view="read"] header .logo,
+  body[data-view="read"] header .sep{display:none}
+  body[data-view="read"] header{padding-left:calc(env(safe-area-inset-left, 0px) + 60px);min-height:48px}
   body[data-view="browse"] #reader{display:none}
   body[data-view="read"] #browser{display:none}
   /* The header's book title would crowd out the search box. */
