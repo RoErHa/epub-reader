@@ -1228,6 +1228,28 @@ apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
 
+### 8.25 The words use the pane they are given
+
+**On the iPad a third of the screen was margin.** foliate's paginator
+caps a column at **720 px** unless told otherwise, and nothing here told
+it — so in landscape the text was a 720 px strip in a 1080 pt pane, with
+some 200 pt of empty page either side, and on a wide Mac window the
+same. Measured before changing anything: the text column was **67%** of
+the pane on an iPad in landscape, 83% in portrait, 60% on a 1728 px Mac.
+
+> **The measure is set from the pane, not from a constant.** `ReaderEngine`
+> sets `max-inline-size` from the width it is actually given: one column
+> fills it, two split it, and the paginator's own 6% gap is the gutter —
+> about 45 pt a side on the iPad. A `ResizeObserver` on the stage keeps
+> it true when the iPad turns. Portrait keeps one column whatever was
+> asked, which is foliate's rule and the right one, so there the one
+> column fills the pane as well; scrolled flow has no columns at all.
+
+Now **over 86% of the pane** at every size `tests/frontend/measure.spec.js`
+checks — both iPad orientations, a phone, a wide Mac window, a rotation,
+and two columns in landscape. The cost is long lines on a wide screen in
+one column; **Columns → 2** turns a landscape iPad into a two-page spread.
+
 ### 8.24 The whole record, by hand
 
 **§12.3, built.** Hand-editing was who wrote a book and where it sits in a

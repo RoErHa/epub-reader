@@ -1160,6 +1160,13 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11n &nbsp;The words use the pane they are given</h3>
+<p><strong>On the iPad a third of the screen was margin.</strong> foliate's paginator caps a column at 720 px unless told otherwise, and nothing here told it — so in landscape the text was a 720 px strip in a 1080 pt pane. Measured first: the text column was 67% of the pane on an iPad in landscape, 83% in portrait, 60% on a wide Mac window.</p>
+<div class="rule">
+  <span class="eyebrow">The measure is set from the pane, not from a constant</span>
+  <p><code>ReaderEngine</code> sets <code>max-inline-size</code> from the width it is given: one column fills it, two split it, and the paginator's own gap is the gutter — about 45 pt a side on the iPad. A <code>ResizeObserver</code> keeps it true when the iPad turns. Portrait keeps one column whatever was asked, so there it fills the pane too. Now over 86% of the pane at every size the tests check; <strong>Columns → 2</strong> makes a landscape iPad a two-page spread.</p>
+</div>
+
 <h3>6.11m &nbsp;The whole record, by hand</h3>
 <p>Hand-editing was who wrote a book and where it sits in a series. That reaches the files that lie about their author and the books no filename numbers — but not <code>Bamboo Bloodbath &amp; Ninj</code>, which names two novels and was cut off mid-word, nor a synopsis no file carried. <strong>✎ Edit</strong> on the book detail now opens the whole record: title, authors, series and number, first published, genres and synopsis. <code>PATCH /api/books/{id}/metadata</code> is the route; every field a person changes is <code>origin = 'user'</code>, locked, and no scan or pass touches it again.</p>
 <div class="rule">

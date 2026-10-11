@@ -27,6 +27,7 @@ export class ReaderEngine {
   #forcedScrolled = false
   #listeners = { relocate: [], load: [], selection: [] }
   #marks = new Map()     // cfi → colour, everything drawn on this book
+  #resize = null         // follows the pane, so the measure can
 
   constructor (host) {
     this.#host = host
@@ -114,6 +115,8 @@ export class ReaderEngine {
     const view = document.createElement('foliate-view')
     this.#host.append(view)
     this.#view = view
+    this.#resize = new ResizeObserver(() => this.#applyAttributes())
+    this.#resize.observe(this.#host)
 
     view.addEventListener('relocate', e => this.#emit('relocate', {
       fraction: e.detail.fraction ?? 0,
@@ -263,6 +266,8 @@ export class ReaderEngine {
   close () {
     this.#marks.clear()
     this.#forcedScrolled = false
+    this.#resize?.disconnect()
+    this.#resize = null
     if (!this.#view) return
     this.#view.remove()
     this.#view = null
@@ -358,7 +363,27 @@ export class ReaderEngine {
     // A book that cannot be paginated stays scrolled whatever the
     // settings say — a blank page is not a preference.
     if (this.#forcedScrolled) attributes.flow = 'scrolled'
+    const measure = this.#measure(attributes)
+    if (measure) attributes['max-inline-size'] = measure
     return attributes
+  }
+
+  /* The words use the pane they are given.
+   *
+   * foliate caps a column at 720 px unless told otherwise, which on an
+   * iPad in landscape left a third of the screen as margin either side
+   * of a narrow strip. So the column is sized from the pane: one column
+   * fills it, two split it, and the paginator's own gap is the gutter.
+   * Portrait keeps one column whatever was asked — foliate's rule, and
+   * the right one — so there the one column fills the pane too, as it
+   * does in scrolled flow, which has no columns at all.
+   */
+  #measure ({ flow, 'max-column-count': count }) {
+    const { width, height } = this.#host.getBoundingClientRect()
+    if (!width) return null
+    const columns = Math.max(1, Number(count) || 1)
+    const spread = flow === 'scrolled' || height > width ? 1 : columns
+    return `${Math.floor(width / spread)}px`
   }
 
   #applyStyles () {
