@@ -61,6 +61,7 @@ class EpubBuilder:
     language: str = "en"
     scripted: bool = False
     subjects: list[str] = field(default_factory=list)
+    description: str | None = None
     series: str | None = None
     series_index: float | None = None
     first_published: str | None = None
@@ -141,6 +142,9 @@ class EpubBuilder:
         subjects = "".join(
             f"    <dc:subject>{escape(s)}</dc:subject>\n" for s in self.subjects
         )
+        if self.description is not None:
+            subjects += (f"    <dc:description>{escape(self.description)}"
+                         "</dc:description>\n")
         meta = ""
         if self.series is not None:
             meta += f'    <meta name="calibre:series" content="{escape(self.series)}"/>\n'

@@ -229,7 +229,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M0–M13 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
+<div class="status">Status: M0–M14 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -940,7 +940,7 @@ CREATE VIRTUAL TABLE book_fts USING fts5(
 
 <h3>6.11a &nbsp;Saying it yourself</h3>
 <p>Three books stayed wrong after every automatic pass, each in a way no rule could reach: <strong>The Light of All That Falls</strong> is book three of the Licanius Trilogy, its file says nothing, and its filename carries no number. So <code>PUT /api/books/{id}/series</code> joins <code>PUT /api/books/{id}/authors</code> — and, like it, what you say is <code>origin = 'user'</code>, locked, and never touched again by a scan or by any pass.</p>
-<p>That is the whole of hand-editing today: <strong>who wrote it, and where it sits in a series</strong>. Title, synopsis and genres remain provider-or-file only; <code>title</code> is deliberately outside even the enrichment writable set, because the file's title is what you see in your own folders.</p>
+<p>That was the whole of hand-editing until §6.11m opened up the rest of the record. <code>title</code> stays outside the <em>enrichment</em> writable set, because the file's title is what you see in your own folders and changing it silently would disorient; a person changing it on purpose is not silent.</p>
 
 <div class="rule">
   <span class="eyebrow">A subtitle is part of the title when you are telling two books apart</span>
@@ -1130,7 +1130,7 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 
 <div class="rule">
   <span class="eyebrow">The catalogue supplies the reading, never the spelling</span>
-  <p>Open Library offers <em>Fortune's Favourites</em> for our <code>Fortunes Favourites</code>, and both are better than what we hold. It also offers <em>Emperor</em> for <em>The Gates of Rome</em>. The apostrophe is cosmetic and the wrong book is not, so the title kept is the file's own words; <code>file_title</code> makes every rename reversible, and §12's editor is the answer for the rest.</p>
+  <p>Open Library offers <em>Fortune's Favourites</em> for our <code>Fortunes Favourites</code>, and both are better than what we hold. It also offers <em>Emperor</em> for <em>The Gates of Rome</em>. The apostrophe is cosmetic and the wrong book is not, so the title kept is the file's own words; <code>file_title</code> makes every rename reversible, and §6.11m's editor is the answer for the rest.</p>
 </div>
 
 <h3>6.11f &nbsp;Browsing by what a book is</h3>
@@ -1159,6 +1159,19 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Everything in brackets is the scanner talking, and the year among it is the <em>edition</em> — a 2025 scan of a 1985 comic is not a 1985 work. The issue number is worth keeping because it orders a run: <code>Shadowman 004</code> is the fourth Shadowman. The cover is the first page, sorted, because scanners pad their filenames and <code>002</code> really does come before <code>010</code>.</p>
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
+
+<h3>6.11m &nbsp;The whole record, by hand</h3>
+<p>Hand-editing was who wrote a book and where it sits in a series. That reaches the files that lie about their author and the books no filename numbers — but not <code>Bamboo Bloodbath &amp; Ninj</code>, which names two novels and was cut off mid-word, nor a synopsis no file carried. <strong>✎ Edit</strong> on the book detail now opens the whole record: title, authors, series and number, first published, genres and synopsis. <code>PATCH /api/books/{id}/metadata</code> is the route; every field a person changes is <code>origin = 'user'</code>, locked, and no scan or pass touches it again.</p>
+<div class="rule">
+  <span class="eyebrow">Only what changed is sent</span>
+  <p>The form shows every field, but saving it is not a decision about every field. An untouched title sent back would be locked as the reader's, and the file's typo with it. So the form sends the fields whose words moved, the route changes only the fields it is given, and a field given as <code>null</code> is cleared — the same distinction the highlight notes draw. A field changed by you is marked <em>yours</em> the next time the form opens.</p>
+</div>
+<div class="rule">
+  <span class="eyebrow">A title has three copies</span>
+  <p>The column, its sort key and the search row. Six passes rewrote the first, five forgot the sort key and all six forgot search — so on the real library <strong>378 books sorted under the filename they no longer carried</strong> (<em>Refugee</em> filed under <code>anthony, piers tyrant 1 refugee</code>) and <strong>837 search rows no longer said what their book did</strong>. <code>TitleWriter</code> is now the one place a title is written, a test refuses a seventh, and every scan puts right a sort key or search row that has drifted: 0.12 s the first time, 0.01 s after.</p>
+</div>
+<p><strong>A second fault, found by building on it:</strong> 356 books carry a synopsis, and the detail screen had never shown one. The column was selected and then dropped on the way to JSON, so every book said it carried no description of its own. An editor that saved synopses nobody could see would have been the third copy of the same mistake.</p>
+<p>All or nothing: every value is checked before any is written, because half a save is a record nobody asked for. A year of 0, or one past next year, is refused with the reason. Your files are not touched — <code>file_title</code> keeps what the file said, so a rename stays reversible.</p>
 
 <h3>6.11l &nbsp;Installable, and what the worker will not touch</h3>
 <p>The design said a PWA manifest and service worker were carried over from dlna-gateway. Neither existed. Now <code>/manifest.webmanifest</code> and <code>/sw.js</code> make the library an app on the iPad's home screen, opened in its own window, with an open-book icon in amber on the family navy, painted by <code>tools/make_icons.py</code>.</p>
@@ -1361,6 +1374,7 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <tr class="self"><td class="num">✅ M11</td><td>The name is the metadata: author, series and title from one filename; a co-author freed from a title; the scanner's notes taken off; a truncated title finished by a provider</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M12</td><td>Comics packed with RAR; browsing by format; a scan that reads what it finds</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M13</td><td>A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M14</td><td>The whole record by hand — title, authors, series, year, genres, synopsis — and a title's sort key and search row kept with it</td><td class="num win">done</td></tr>
 <tr><td class="num">🔄 M9</td><td>Series from filenames ✅; what no filename can reach is filed by hand ✅; series from a provider still open</td><td class="num">—</td></tr>
 </tbody>
 </table>
@@ -1659,6 +1673,7 @@ tools/              <span class="c">make_test_library.py; make_icons.py</span></
 <li><strong>A scan reads what it finds.</strong> The passes that cost nothing run on every start, so dropping a book in and restarting is the whole workflow.</li>
 <li><strong>Duplicate copies folded to one row per work</strong>, audited each time and reversible; no file was ever deleted.</li>
 <li><strong>A linter, a single place for the provenance rule, and the routes split into classes</strong> — the three findings of a review, taken in order.</li>
+<li><strong>The whole record by hand</strong> — title, authors, series and number, year, genres and synopsis, each kept as yours and locked. Building it found 378 books sorting under a filename they no longer carried and a detail screen that had never shown a synopsis (§6.11m).</li>
 <li><strong>A filename read as a hypothesis</strong> rather than an answer, for the names §6.11b's one rigid shape cannot reach. Measured at <strong>61% anchoring</strong> against the 20% that would have made it a different piece of work; 22 books credited, filed and retitled, and every impostor an anchor alone would have admitted refused by asking that author's own works (§6.11l).</li>
 </ul>
 
@@ -1671,15 +1686,10 @@ tools/              <span class="c">make_test_library.py; make_icons.py</span></
 <h4>2 — Fetch each matched work's own record</h4>
 <p>Open Library's <em>search</em> results carry no synopsis and no publisher, so auto-apply writes almost nothing: of 2,364 books shown, <strong>2,097 have no synopsis, 2,058 no genre and 1,769 no first-published year</strong>. One extra request per book fixes all three — and it is the same call that confirms a candidate above, so they are one piece of work rather than two.</p>
 
-<h4>3 — Editing a book's metadata</h4>
-<p><strong>Series is not coming from a provider.</strong> §6 said it would and it was never built; Open Library's search results are thin enough that its series data is unproven, and nothing measured here says it can tell Xanth #8 from Xanth #9. The answer is the reader's own hand. Hand-editing today is <strong>authors and series only</strong>; it should be the whole record — title, series and number, synopsis, genre — because that is the only thing that reaches a book the machinery cannot: the truncated <code>Bamboo Bloodbath &amp; Ninj</code>, the clipped <code>The Caterpillars Questi</code>, a series nobody else has heard of. It costs no requests, and the machinery exists already: what a person says is <code>origin = 'user'</code>, locked, and no pass overrules it.</p>
-<p><strong>1,434 books have no series.</strong> Filenames gave what they could and hand-filing reached the rest that could be proved; most of what is left either genuinely stands alone or needs a person.</p>
-
-
 <h3>Constraints the builder accepted</h3>
 <p>Not a to-do list. Each of these was weighed, and the cost of removing it judged higher than the cost of keeping it. They are written down so that a later reader can tell a decision from an oversight.</p>
 <ul>
-<li><strong>Hand-editing is authors and series only.</strong> Title, synopsis and genres stay provider-or-file, because the file's title is what you see in your own folders. §12's editor would change this deliberately.</li>
+<li><strong>Series is not coming from a provider.</strong> §6 said it would; Open Library's series data is unproven, and nothing measured here says it can tell Xanth #8 from Xanth #9. 1,434 books have no series, and the editor is the answer for the ones that should.</li>
 <li><strong>9% of books have no cover.</strong> Their own files hold no image and no provider matched them. A wrong cover is worse than none, so the lettered tile stays.</li>
 <li><strong>57% genre-map coverage.</strong> The rest is genuine junk — <code>Rand al'Thor (Fictitious character)</code> — logged and never guessed.</li>
 <li><strong>Ten comics cannot be opened.</strong> libarchive refuses one run of 2003-vintage RAR archives. Another unrar would reach them, at the cost of a dependency that is not already on the machine.</li>

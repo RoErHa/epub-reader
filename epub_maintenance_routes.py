@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from epub_forget import UnpluggedError
-from epub_routes import AuthorMerge, BookAuthors, BookSeries, Routes
+from epub_routes import AuthorMerge, BookAuthors, BookEdit, BookSeries, Routes
 
 
 class MaintenanceRoutes(Routes):
@@ -151,6 +151,27 @@ class MaintenanceRoutes(Routes):
                 raise HTTPException(status_code=404, detail=str(exc)) from None
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from None
+
+        @app.patch("/api/books/{book_id}/metadata")
+        def patch_metadata(book_id: int, body: BookEdit) -> JSONResponse:
+            """Say what any part of the record is. Kept as yours and
+            locked, field by field; answers with the book as it now
+            reads, so the screen shows what was kept and not what was
+            sent."""
+            try:
+                self.services.editor.edit(book_id, body.named())
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from None
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            book = self.services.browse.book(book_id)
+            if book is None:
+                raise HTTPException(status_code=404, detail="No such book.")
+            book["edited"] = self.services.editor.edited(book_id)
+            return JSONResponse({
+                "book": book,
+                "genres": self.services.browse.genres_of(book_id),
+            })
 
         @app.put("/api/books/{book_id}/series")
         def put_series(book_id: int, body: BookSeries) -> JSONResponse:

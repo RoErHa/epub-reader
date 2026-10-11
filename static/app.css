@@ -391,6 +391,42 @@ foliate-view{display:block;width:100%;height:100%}
   .also-owned{display:none}
 }
 
+/* ── Editing the record (§12.3) ─────────────────────────────────────── */
+/* The record and the form for it are one thing, shown one way at a time. */
+#detail.editing > .detail-head,
+#detail.editing > .detail-panel{display:none}
+#editor{display:flex;flex-direction:column;gap:4px;max-width:70ch}
+#editor h1{font-size:23px;font-weight:700;margin:0}
+.editor-lede{font-size:13px;line-height:1.5;color:var(--ink-dim);margin:4px 0 12px}
+#editor label{
+  font-family:var(--fm);font-size:var(--fs-micro);text-transform:uppercase;
+  letter-spacing:.08em;color:var(--ink-dim-soft);margin-top:10px;
+}
+#editor label .hint{text-transform:none;letter-spacing:0}
+/* Yours: nothing will overwrite it, so it says so. */
+#editor label.yours{color:var(--amber)}
+#editor label.yours::after{content:" · yours";text-transform:none;letter-spacing:0}
+#editor input,#editor textarea{
+  width:100%;box-sizing:border-box;padding:9px 10px;
+  border:1px solid var(--border);border-radius:var(--r);
+  background:var(--surface);color:var(--ink);
+  font:inherit;font-size:16px;line-height:1.45;
+}
+#editor textarea{resize:vertical;min-height:120px}
+#editor input:focus,#editor textarea:focus{
+  outline:2px solid var(--amber);outline-offset:1px;border-color:var(--amber-d);
+}
+/* Inputs line up even when one label wraps to say it is yours. */
+.editor-row{display:grid;grid-template-columns:minmax(0,1fr) 90px 150px;gap:12px;align-items:end}
+.editor-row label{display:block}
+#edit-note{margin-top:10px;font-size:13px;color:var(--red)}
+#editor .detail-actions{margin-top:16px}
+#editor .btn{min-height:40px}
+@media (max-width:600px){
+  .editor-row{grid-template-columns:1fr 1fr}
+  .editor-row > .editor-grow{grid-column:1 / -1}
+}
+
 /* ── Review queue ────────────────────────────────────────────────────── */
 #review{
   position:absolute;inset:0;z-index:4;overflow-y:auto;
@@ -626,6 +662,9 @@ body[data-read-theme="black"]{
   #browser{width:100%}
   #reader{width:100%}
   #reader-back{display:flex}
+  /* The back arrow sits where a heading would start; the cover can
+     take it, a word cannot. */
+  #editor h1{padding-left:52px;min-height:44px;display:flex;align-items:center}
   body[data-view="browse"] #reader{display:none}
   body[data-view="read"] #browser{display:none}
   /* The header's book title would crowd out the search box. */

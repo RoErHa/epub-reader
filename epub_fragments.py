@@ -44,6 +44,7 @@ import logging
 import re
 import time
 
+from epub_editor import TitleWriter
 from epub_names import fold
 from epub_provenance import Candidates, Provenance
 from epub_titles import TitlePolish
@@ -69,6 +70,7 @@ class TitlesFromFragments:
         self._db = database
         self._provider = provider
         self._provenance = Provenance(database)
+        self._titles = TitleWriter(database)
 
     # ── the rule ──────────────────────────────────────────────────────
     @classmethod
@@ -193,15 +195,11 @@ class TitlesFromFragments:
 
         now = int(time.time())
         for item in plan:
-            self._db.connection.execute(
-                """UPDATE metadata
-                      SET file_title = COALESCE(file_title, title), title = ?
-                    WHERE book_id = ?""", (item["title"], item["id"]))
             # The title only. Open Library calls The Bamboo Bloodbath
             # Jason Striker #3 while the file calls it 02, and both are
             # right — the file is an omnibus of novels 3 and 4.
-            self._provenance.record(item["id"], "title", "provider",
-                                    "openlibrary", now=now)
+            self._titles.write(item["id"], item["title"], "provider",
+                               "openlibrary", now=now)
             report["mended"] += 1
             LOG.info("book %s: %r -> %r (asked %r)", item["id"], item["was"],
                      item["title"], item["asked"])

@@ -159,6 +159,15 @@ class TestLibrary:
             paragraphs_per_chapter=4,
         ).build(self.library / "annotate-me.epub")
 
+        # Reserved for the record editor. What a person says is locked
+        # and outlives every rescan, so a book edited here stays edited
+        # in every later run. Nothing else may assert on it.
+        EpubBuilder(
+            title="Edit Me",
+            author="A Reader",
+            description="What the file says about itself.",
+        ).build(self.library / "edit-me.epub")
+
         # MOBI and AZW3 share a container that foliate sniffs rather
         # than trusting the extension — so the reader needed no change,
         # only the library did.

@@ -4,6 +4,8 @@
  * then the synopsis, who wrote it, and what else they wrote.
  */
 
+import { RecordEditor } from '/static/editor.js'
+
 export class BookDetail {
   #dom = null
   #onRead = null
@@ -12,6 +14,8 @@ export class BookDetail {
   #book = null
   #author = null
   #showAll = false
+  #genres = []
+  #editor = null
 
   constructor (dom, { onRead, onOpenBook, onStatus = () => {} }) {
     this.#dom = dom
@@ -23,6 +27,20 @@ export class BookDetail {
     })
     dom.detailFinished.addEventListener('click', () => this.#toggleRead())
     dom.detailLookup.addEventListener('click', () => this.#lookUpAuthor())
+    // Editing replaces the screen rather than sitting beside it: the
+    // record and the form for it are one thing, shown one way at a time.
+    this.#editor = new RecordEditor(document, {
+      onSaved: async book => {
+        await this.show(book.id)
+        this.#onStatus(book)   // a new title moves it in the list
+      },
+      onClose: () => this.#editing(false)
+    })
+    dom.detailEdit.addEventListener('click', () => {
+      if (!this.#book) return
+      this.#editing(true)
+      this.#editor.open(this.#book, this.#genres)
+    })
     dom.detailShowAll.addEventListener('click', () => {
       this.#showAll = !this.#showAll
       if (this.#book) this.show(this.#book.id)
@@ -31,7 +49,15 @@ export class BookDetail {
 
   get book () { return this.#book }
 
-  hide () { this.#dom.detail.hidden = true }
+  hide () {
+    this.#editor.close()
+    this.#dom.detail.hidden = true
+  }
+
+  #editing (on) {
+    this.#dom.detail.classList.toggle('editing', on)
+    if (on) this.#dom.detail.scrollTop = 0
+  }
 
   async show (bookId) {
     const query = this.#showAll ? '?show_all=true' : ''
@@ -39,6 +65,9 @@ export class BookDetail {
       .then(r => r.json())
     this.#book = data.book
     this.#author = data.author
+    this.#genres = data.genres
+    this.#editor.close()
+    this.#editing(false)
     this.#note('')
     this.#dom.detail.hidden = false
 

@@ -78,6 +78,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from epub_editor import TitleWriter
 from epub_filenames import EXTENSION, CreditsFromNames
 from epub_match import normalise_title
 from epub_names import PersonName
@@ -218,6 +219,7 @@ class NameHypotheses:
         self._provider = provider
         self._series = series or SeriesFromNames(database)
         self._provenance = Provenance(database)
+        self._titles = TitleWriter(database)
         self._asked = 0
 
     # ── the rule ──────────────────────────────────────────────────────
@@ -446,12 +448,8 @@ class NameHypotheses:
             (item["id"],)).fetchone()
         if not row or row["title"] == item["title"]:
             return False
-        self._db.connection.execute(
-            """UPDATE metadata
-                  SET file_title = COALESCE(file_title, title), title = ?
-                WHERE book_id = ?""", (item["title"], item["id"]))
-        self._provenance.record(item["id"], "title", "provider",
-                                "openlibrary", now=now)
+        self._titles.write(item["id"], item["title"], "provider",
+                           "openlibrary", now=now)
         return True
 
     @staticmethod

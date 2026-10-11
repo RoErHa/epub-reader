@@ -269,7 +269,11 @@ class BrowseQueries:
         row = self._db.connection.execute(
             f"{self.BOOK_SELECT} AND b.id = ?", (book_id,)
         ).fetchone()
-        return self._book(row) if row else None
+        if row is None:
+            return None
+        # One book, so the blurb comes too; a list of two hundred
+        # leaves it behind.
+        return {**self._book(row), "synopsis": row["synopsis"]}
 
     def genres_of(self, book_id: int) -> list[str]:
         return [r["name"] for r in self._db.connection.execute(

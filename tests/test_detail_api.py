@@ -50,6 +50,15 @@ class TestTheBookItself:
         assert book["first_published"] == 1969
         assert book["cover"].startswith("/api/covers/")
 
+    def test_the_synopsis_is_there(self, client, library, gateway):
+        # It was selected and then dropped on the way to JSON, so every
+        # book said it carried no description — 356 of them did.
+        EpubBuilder(title="Blurbed", description="Genly Ai is an envoy."
+                    ).build(library / "blurbed.epub")
+        gateway.reindex()
+        assert detail(client, "Blurbed")["book"]["synopsis"] == (
+            "Genly Ai is an envoy.")
+
     def test_genres_come_through_in_order(self, stocked):
         assert detail(stocked, "The Left Hand of Darkness")["genres"] == [
             "Science Fiction", "Classics"

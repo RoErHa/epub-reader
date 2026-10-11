@@ -20,10 +20,8 @@ import difflib
 import logging
 import re
 
+from epub_editor import TitleWriter
 from epub_match import normalise_title, search_title
-from epub_names import title_sort_key
-from epub_provenance import Provenance
-from epub_search import SearchIndex
 
 LOG = logging.getLogger("epub-reader.titles")
 
@@ -133,7 +131,7 @@ class TitleFromWorks:
     def __init__(self, database, enricher) -> None:
         self._db = database
         self._enricher = enricher
-        self._search = SearchIndex(database)
+        self._titles = TitleWriter(database)
         self._asked: set[int] = set()
 
     # ── planning ──────────────────────────────────────────────────────
@@ -407,18 +405,6 @@ class TitleFromWorks:
         return report
 
     def _rename(self, change: dict) -> None:
-        cursor = self._db.connection
-        cursor.execute(
-            """
-            UPDATE metadata
-               SET file_title = COALESCE(file_title, title),
-                   title = ?, title_sort = ?
-             WHERE book_id = ?
-            """,
-            (change["to"], title_sort_key(change["to"]), change["id"]),
-        )
-        Provenance(self._db).record(change["id"], "title", "provider",
-                                    "openlibrary-works")
-        # Search holds its own copy of the title.
-        self._search.reindex_book(change["id"])
+        self._titles.write(change["id"], change["to"], "provider",
+                           "openlibrary-works")
         LOG.info("%r → %r", change["from"], change["to"])

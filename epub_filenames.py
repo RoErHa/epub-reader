@@ -51,6 +51,7 @@ import time
 from pathlib import Path
 
 from epub_coauthors import CoAuthorsInTitles
+from epub_editor import TitleWriter
 from epub_names import PersonName
 from epub_provenance import Candidates, Provenance
 from epub_series import SeriesFromNames
@@ -105,6 +106,7 @@ class CreditsFromNames:
         self._db = database
         self._series = series or SeriesFromNames(database)
         self._provenance = Provenance(database)
+        self._titles = TitleWriter(database)
 
     # ── reading the names ─────────────────────────────────────────────
     @classmethod
@@ -374,12 +376,8 @@ class CreditsFromNames:
         return plan
 
     def _retitle(self, item: dict, now: int) -> None:
-        self._db.connection.execute(
-            """UPDATE metadata
-                  SET file_title = COALESCE(file_title, title), title = ?
-                WHERE book_id = ?""", (item["title"], item["id"]))
-        self._provenance.record(item["id"], "title", "provider",
-                                "filename", now=now)
+        self._titles.write(item["id"], item["title"], "provider",
+                           "filename", now=now)
 
     # ── writing it down ───────────────────────────────────────────────
     def run(self, apply: bool = False, author: str | None = None,

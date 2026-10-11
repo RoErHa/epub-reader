@@ -192,6 +192,28 @@ class LibraryIndexer:
         for row in rows:
             self._search.reindex_book(row["book_id"])
         report.searchable += len(rows)
+        self._heal()
+
+    def _heal(self) -> None:
+        """A title has a sort key and a search row as well as a column,
+        and for a long time the passes wrote only the column (§12.3). So
+        368 books sorted under the filename they no longer carried.
+        Cheap enough to check on every scan — a few thousand short
+        strings — and it means a copy that drifts is put back rather
+        than lived with."""
+        cursor = self._db.connection
+        for row in cursor.execute(
+                "SELECT book_id, title, title_sort FROM metadata").fetchall():
+            key = title_sort_key(row["title"])
+            if row["title"] is not None and key != row["title_sort"]:
+                cursor.execute(
+                    "UPDATE metadata SET title_sort = ? WHERE book_id = ?",
+                    (key, row["book_id"]))
+        stale = self._search.stale()
+        for book_id in stale:
+            self._search.reindex_book(book_id)
+        if stale:
+            LOG.info("search caught up with %d books", len(stale))
 
     # ── walking ───────────────────────────────────────────────────────
     def _walk(self, root: Path):

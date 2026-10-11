@@ -37,6 +37,7 @@ import logging
 import re
 import time
 
+from epub_editor import TitleWriter
 from epub_names import PersonName
 from epub_provenance import Candidates, Provenance
 
@@ -55,6 +56,7 @@ class CoAuthorsInTitles:
     def __init__(self, database) -> None:
         self._db = database
         self._provenance = Provenance(database)
+        self._titles = TitleWriter(database)
 
     # ── reading it ────────────────────────────────────────────────────
     @classmethod
@@ -187,12 +189,8 @@ class CoAuthorsInTitles:
                                     "title", now=now)
 
     def _retitle(self, item: dict, now: int) -> None:
-        self._db.connection.execute(
-            """UPDATE metadata
-                  SET file_title = COALESCE(file_title, title), title = ?
-                WHERE book_id = ?""", (item["title"], item["id"]))
-        self._provenance.record(item["id"], "title", "provider",
-                                "title", now=now)
+        self._titles.write(item["id"], item["title"], "provider",
+                           "title", now=now)
 
     @staticmethod
     def summary(report: dict) -> str:

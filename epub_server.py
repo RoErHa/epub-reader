@@ -22,6 +22,7 @@ from epub_credits import BookCredits
 from epub_db import Database
 from epub_dedupe import AuthorDeduplicator
 from epub_duplicates import DuplicateFinder
+from epub_editor import BookEditor
 from epub_enrich import AuthorEnricher
 from epub_filenames import CreditsFromNames
 from epub_forget import ForgetMissing
@@ -200,6 +201,7 @@ class EpubGateway:
         self._tags = ScannerTags(self._database)
         self._forget = ForgetMissing(self._database)
         self._credits = BookCredits(self._database)
+        self._editor = BookEditor(self._database)
         # One fetcher for every provider, so the pacing is the whole
         # service's rather than each caller's: four separate streams is
         # how a library-wide run earns 503s.
@@ -406,6 +408,7 @@ class EpubGateway:
             database=self._database, browse=self._browse,
             search=self._search, shelves=self._shelves,
             annotations=self._annotations, credits=self._credits,
+            editor=self._editor,
             config=self._config, static=self._static,
             shell=self._static / "index.html",
             media_types=self.MEDIA_TYPES, enricher=self._enricher,

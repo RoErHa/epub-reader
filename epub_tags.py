@@ -26,6 +26,7 @@ import logging
 import re
 import time
 
+from epub_editor import TitleWriter
 from epub_provenance import Candidates, Provenance
 
 LOG = logging.getLogger("epub-reader.tags")
@@ -50,6 +51,7 @@ class ScannerTags:
     def __init__(self, database) -> None:
         self._db = database
         self._provenance = Provenance(database)
+        self._titles = TitleWriter(database)
 
     @classmethod
     def strip(cls, title: str) -> str:
@@ -115,13 +117,9 @@ class ScannerTags:
 
         now = int(time.time())
         for item in plan:
-            self._db.connection.execute(
-                """UPDATE metadata
-                      SET file_title = COALESCE(file_title, title), title = ?
-                    WHERE book_id = ?""", (item["title"], item["id"]))
             # Recorded, or the next rescan writes the tag back.
-            self._provenance.record(item["id"], "title", "provider", "title",
-                                    now=now)
+            self._titles.write(item["id"], item["title"], "provider",
+                               "title", now=now)
             report["cleaned"] += 1
             LOG.info("book %s: %r -> %r", item["id"], item["was"], item["title"])
         return report

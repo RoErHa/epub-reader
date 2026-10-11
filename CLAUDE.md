@@ -4,9 +4,9 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0–M12 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
+**Status: M0–M14 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
 
-The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page.
+The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. **Every part of a book's record can be corrected by hand** from its detail page, and what you say is kept (§8.24).
 
 **Twelve maintenance passes** tidy what thirty years of other people's filing left behind — all dry-run by default, none of them touching a file, and the ones that cost nothing now run on every scan, so **dropping a book into `LIBRARY_ROOT` and restarting really is the whole workflow** (§8.16).
 
@@ -612,6 +612,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M11 | The name is the metadata: author, series and title read from one filename; a co-author freed from a title; the scanner's notes taken off; a truncated title finished by a provider | done |
 | ✅ M12 | Comics packed with RAR; browsing by format; a scan that reads what it finds | done |
 | ✅ M13 | A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book | done |
+| ✅ M14 | The whole record by hand — title, authors, series, year, genres, synopsis — with a title's sort key and search row kept in step | done |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -800,7 +801,7 @@ What it cannot reach: `Chapterhouse Dune` carries no marker, so Frank Herbert's 
 
 Three books stayed wrong after every automatic pass, and each was wrong in a way no rule could reach: **The Light of All That Falls** is book three of the Licanius Trilogy, its file says nothing, and its filename carries no number. So `PUT /api/books/{id}/series` joins `PUT /api/books/{id}/authors` — and, like it, what you say is `origin = 'user'`, locked, and never touched again by a scan or a pass.
 
-That is the whole of hand-editing today: **who wrote it, and where it sits in a series**. Title, synopsis and genres are still provider-or-file only; `title` is deliberately outside even the enrichment writable set (§10.13), because the file's title is what you see in your own folders.
+That was the whole of hand-editing until §8.24 opened up the rest of the record. `title` stays outside the *enrichment* writable set (§10.13), because changing it silently would be disorienting; a person changing it on purpose is not silent.
 
 **Using it found two real faults, both of which had been silently wrong for a while:**
 
@@ -1225,7 +1226,73 @@ Library offers *Fortune's Favourites* for our `Fortunes Favourites` and
 are better. It also offers *Emperor* for *The Gates of Rome*. The
 apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
-rename reversible, and §12.3's editor is the answer for the rest.
+rename reversible, and §8.24's editor is the answer for the rest.
+
+### 8.24 The whole record, by hand
+
+**§12.3, built.** Hand-editing was who wrote a book and where it sits in a
+series (§8.10). That reaches the files that lie about their author and the
+books no filename numbers — but not `Bamboo Bloodbath & Ninj`, which names
+two novels and was cut off mid-word, nor a synopsis no file carried, nor
+a genre nobody filed. **✎ Edit** on the book detail opens the whole
+record: title, authors, series and number, first published, genres,
+synopsis. `PATCH /api/books/{id}/metadata` is the route and
+`epub_editor.BookEditor` the class; every field a person changes is
+`origin = 'user'`, locked, and no scan or pass touches it again.
+
+> **Only what changed is sent.** The form shows every field, but saving
+> it is not a decision about every field: an untouched title sent back
+> would be locked as the reader's, and the file's typo with it. So the
+> form sends the fields whose words moved, the route changes only the
+> fields it is named (`model_fields_set`), a field named as `null` is
+> cleared — §8.2's distinction, for the same reason — and an unknown
+> field is a 422 rather than a save that did nothing. The server checks
+> again: a value equal to what is held claims nothing.
+
+> **All or nothing.** Every value is checked before any is written, and
+> the writes share one transaction: half a save is a record nobody asked
+> for. A year of 0, or after next year, is refused with the reason.
+
+A field you changed is marked **yours** in the form the next time it
+opens (`book.edited` on the detail), because a value nothing will ever
+overwrite should look like one. Series and genre names already in the
+library are offered as you type: one spelling per series is what keeps
+the Series browse from splitting, as Tyrant and Bio of a Space Tyrant did
+(§8.10). Genres are matched without regard to case for the same reason.
+
+**Building it found two faults underneath, both older than this work:**
+
+> **A title has three copies** — the column, its sort key and the search
+> row — and six passes wrote only the first. Five forgot the sort key and
+> all six forgot search, so on the real library **378 books sorted under
+> the filename they no longer carried** (*Refugee* filed under
+> `anthony, piers tyrant 1 refugee`), and **837 search rows no longer
+> said what their book did** — titles, and authors and series credited
+> by passes that never told search either. `TitleWriter` is now the one
+> place a title is written; `tags`, `names`, `coauthors`, `fragments`,
+> `hypotheses` and the bibliography pass all go through it, and a test
+> refuses a seventh module that writes `SET file_title` itself — §10.14's
+> rule, that a rule copied into N places will be in N−1, met again.
+
+> **And a scan puts back whatever drifted.** `SearchIndex.EXPECTED` is
+> the one definition of what a search row should hold, and `stale()`
+> compares every row against it; `LibraryIndexer` recomputes sort keys
+> and reindexes the stale rows on every scan. Measured on a copy of the
+> real database: **0.12 s the first time, 0.01 s after, and nothing left
+> stale.** `GROUP_CONCAT` gained its `ORDER BY` inside the aggregate while
+> it was there (§8.13b), so credit order holds in search as well.
+
+> **356 books carry a synopsis, and the detail screen had never shown
+> one.** `BrowseQueries` selected the column and `_book` dropped it on the
+> way to JSON, so every book said it "carries no description of its
+> own". An editor that saved synopses nobody could see would have been
+> the third copy of the same mistake. The blurb travels with one book's
+> detail and not with a list of two hundred.
+
+`edit-me.epub` is reserved for the editor's UI tests (§10.2): what they
+write is locked and outlives every run, so each test writes a value
+unique to itself and keeps titles under E, where the letter-bar test is
+not looking.
 
 ### 8.23 Installable, and what the worker will not touch
 
@@ -1530,7 +1597,7 @@ asks about a *string*. A silence is an answer and is kept like any other:
 them, so their answer is **shorter** than what we hold. The cache shows
 exactly that: the trimmed question found *The Bamboo Bloodbath* and the
 rule threw it away. Completing a fragment is not replacing it with half
-of itself, and that book wants §12.3's editor.
+of itself, and that book wants §8.24's editor.
 
 The silences are their own finding. Four of them are Bio of a Space
 Tyrant books still titled `Anthony, Piers - Tyrant 1 - Refugee`, because
@@ -1697,7 +1764,7 @@ run.
 from their filenames, while the PDF hand-filed earlier is under **Bio of
 a Space Tyrant**. Both names are honest and they are one series; nothing
 automatic can choose between a shorthand and a full name, so it is
-`PUT /api/books/{id}/series` again — §12.4's editor by another route.
+`PUT /api/books/{id}/series` again — §8.24's editor by another route.
 
 ### The library-wide run, and the four names that were not names
 
@@ -1933,6 +2000,9 @@ epub_hypotheses.py  NameSplitter, NameHypotheses — a filename read as a
                     works hold the book
 epub_credits.py     BookCredits — who wrote it and where in a series,
                     when neither the file nor its name says
+epub_editor.py      BookEditor — the whole record by hand (§8.24);
+                    TitleWriter — the one place a title, its sort key
+                    and its search row change together
 epub_forget.py      ForgetMissing — removing books whose files are gone
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
@@ -1961,6 +2031,8 @@ static/settings.js  ReaderSettings — display prefs, per device
 static/annotations.js Annotations — the selection offer and the marks panel
 epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
+static/editor.js    RecordEditor — the form behind ✎ Edit; sends only
+                    what changed
 static/composer.js  NameComposer — asking for a name in the app, not the
                     browser; shelves are named here
 static/install.js   Installation — registers the service worker where a
@@ -2001,7 +2073,9 @@ produced a flake that passed in isolation and failed in the full run.
 > book writes reading state — it is not enough to avoid asserting on it.
 > `position-a.epub` and `position-b.epub` exist for the two position
 > tests, and `untouched.epub` for the "no progress" assertion. Nothing
-> else may open any of them.
+> else may open any of them. `edit-me.epub` is the record editor's, and
+> nothing else may assert on it: what those tests write is locked and
+> survives every later run.
 
 ### 10.13 The review queue, and what providers actually give you
 
@@ -2483,6 +2557,10 @@ are limits that were weighed and accepted.
   reversible; no file was ever deleted.
 - **A linter, a single place for the provenance rule, and the routes
   split into classes** — the three findings of a review, taken in order.
+- **The whole record by hand** — title, authors, series and number,
+  year, genres, synopsis — each kept as yours and locked. Building it
+  found 378 books sorting under a filename they no longer carried and a
+  detail screen that had never shown a synopsis (§8.24).
 - **A filename read as a hypothesis** rather than as an answer, for the
   names §8.13a's one rigid shape cannot reach. Measured at **61%
   anchoring** against the 20% line that would have made it a different
@@ -2529,37 +2607,16 @@ One extra request per book fixes all three — and it is the same call that
 confirms a candidate in §2 and repairs a fragment in §3, so they are one
 piece of work rather than three.
 
-### 3. Editing a book's metadata
-
-**Series is not coming from a provider.** §6 said it would and it was
-never built; Open Library's search results are thin enough (§10.13) that
-its series data is unproven, and nothing measured here says it can tell
-Xanth #8 from Xanth #9. The answer is the reader's own hand.
-
-Hand-editing today is **authors and series only** (§8.10). It should be
-the whole record — title, series and number, synopsis, genre — because
-that is the only thing that can reach a book the machinery cannot: the
-truncated `Bamboo Bloodbath & Ninj`, the clipped `The Caterpillars
-Questi`, a series nobody else has heard of. It costs no requests, and the
-machinery for it already exists: what a person says is `origin = 'user'`,
-locked, and no pass overrules it (§6.4).
-
-**1,434 books have no series.** Filenames gave 297 of them one and
-hand-filing reached those that could be proved; most of the rest either
-genuinely stand alone or need a person. `PUT /api/books/{id}/series` is
-the answer today, one book at a time.
-
-
 ### Constraints the builder accepted
 
 Not a to-do list. Each of these was weighed, and the cost of removing it
 judged higher than the cost of keeping it. They are written down so that
 a later reader can tell a decision from an oversight.
 
-- **Hand-editing is authors and series only.** Title, synopsis and
-  genres stay provider-or-file; `title` is outside even the enrichment
-  writable set, because the file's title is what you see in your own
-  folders. §12.3's editor would change this deliberately.
+- **Series is not coming from a provider.** §6 said it would; Open
+  Library's series data is unproven, and nothing measured here says it
+  can tell Xanth #8 from Xanth #9. 1,434 books have no series, and §8.24's
+  editor is the answer for the ones that should.
 - **9% of books have no cover.** Their own files hold no image and no
   provider matched them. A wrong cover is worse than none, so the
   lettered tile stays.

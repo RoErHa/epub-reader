@@ -215,6 +215,7 @@ class BooksApp {
       detailRead: root.getElementById('detail-read'),
       detailFinished: root.getElementById('detail-finished'),
       detailShelf: root.getElementById('detail-shelf'),
+      detailEdit: root.getElementById('detail-edit'),
       detailSynopsis: root.getElementById('detail-synopsis'),
       detailBio: root.getElementById('detail-bio'),
       detailAlso: root.getElementById('detail-also'),

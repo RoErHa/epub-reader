@@ -67,9 +67,48 @@
             <button class="btn primary" id="detail-read">▶ Read</button>
             <button class="btn" id="detail-finished">✓ Mark as read</button>
             <button class="btn" id="detail-shelf">＋ Shelf</button>
+            <button class="btn" id="detail-edit">✎ Edit</button>
           </div>
         </div>
       </div>
+
+      <!-- The whole record, by hand (§12.3). A field you change is kept
+           as yours: no scan or pass touches it again. -->
+      <form id="editor" hidden novalidate>
+        <h1>Edit this book</h1>
+        <p class="editor-lede">What you change here is kept as yours —
+          no scan or tidy-up will change it back. Your files are not
+          touched.</p>
+        <label for="edit-title">Title</label>
+        <input id="edit-title" autocomplete="off">
+        <label for="edit-authors">Author <span class="hint">— several? separate with &amp;</span></label>
+        <input id="edit-authors" autocomplete="off">
+        <div class="editor-row">
+          <div class="editor-grow">
+            <label for="edit-series">Series</label>
+            <input id="edit-series" list="edit-series-names" autocomplete="off">
+          </div>
+          <div>
+            <label for="edit-index">Number</label>
+            <input id="edit-index" type="number" step="any" inputmode="decimal">
+          </div>
+          <div>
+            <label for="edit-year">First published</label>
+            <input id="edit-year" type="number" step="1" inputmode="numeric">
+          </div>
+        </div>
+        <label for="edit-genres">Genres <span class="hint">— separate with commas; the first is the main one</span></label>
+        <input id="edit-genres" list="edit-genre-names" autocomplete="off">
+        <label for="edit-synopsis">Synopsis</label>
+        <textarea id="edit-synopsis" rows="7"></textarea>
+        <div id="edit-note" role="status" hidden></div>
+        <div class="detail-actions">
+          <button class="btn primary" id="edit-save" type="submit">Save</button>
+          <button class="btn" id="edit-cancel" type="button">Cancel</button>
+        </div>
+        <datalist id="edit-series-names"></datalist>
+        <datalist id="edit-genre-names"></datalist>
+      </form>
 
       <section class="detail-panel">
         <h2>Synopsis</h2>

@@ -23,32 +23,53 @@ class SearchIndex:
     def __init__(self, database) -> None:
         self._db = database
 
+    # What a book's search row should hold. One definition, because the
+    # scan compares against it to find rows that have gone stale — and
+    # two copies of it would be how they came to disagree.
+    EXPECTED = """
+        SELECT m.book_id,
+               COALESCE(m.title, '') AS title,
+               COALESCE((SELECT GROUP_CONCAT(a.name, ' ' ORDER BY ba.position)
+                           FROM book_author ba JOIN author a ON a.id = ba.author_id
+                          WHERE ba.book_id = m.book_id), '') AS authors,
+               COALESCE(s.name, '') AS series,
+               COALESCE((SELECT GROUP_CONCAT(g.name, ' ' ORDER BY bg.position)
+                           FROM book_genre bg JOIN genre g ON g.id = bg.genre_id
+                          WHERE bg.book_id = m.book_id), '') AS genres,
+               COALESCE(m.synopsis, '') AS synopsis
+          FROM metadata m
+          LEFT JOIN series s ON s.id = m.series_id
+    """
+
     def reindex_book(self, book_id: int) -> None:
         cursor = self._db.connection
         row = cursor.execute(
-            """
-            SELECT m.title, m.synopsis, s.name AS series,
-                   (SELECT GROUP_CONCAT(a.name, ' ')
-                      FROM book_author ba JOIN author a ON a.id = ba.author_id
-                     WHERE ba.book_id = m.book_id) AS authors,
-                   (SELECT GROUP_CONCAT(g.name, ' ')
-                      FROM book_genre bg JOIN genre g ON g.id = bg.genre_id
-                     WHERE bg.book_id = m.book_id) AS genres
-              FROM metadata m
-              LEFT JOIN series s ON s.id = m.series_id
-             WHERE m.book_id = ?
-            """,
-            (book_id,),
-        ).fetchone()
+            f"{self.EXPECTED} WHERE m.book_id = ?", (book_id,)).fetchone()
         self.remove_book(book_id)
         if row is None:
             return
         cursor.execute(
             "INSERT INTO book_fts (rowid, title, authors, series, genres, synopsis)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            (book_id, row["title"] or "", row["authors"] or "",
-             row["series"] or "", row["genres"] or "", row["synopsis"] or ""),
+            (book_id, row["title"], row["authors"], row["series"],
+             row["genres"], row["synopsis"]),
         )
+
+    def stale(self) -> list[int]:
+        """Books whose search row no longer says what the book does.
+
+        Every pass that renamed a title, credited an author or filed a
+        series wrote the book and not its search row, so 386 books were
+        findable only by what they used to be called.
+        """
+        return [r["book_id"] for r in self._db.connection.execute(
+            f"""
+            SELECT e.book_id FROM ({self.EXPECTED}) e
+              JOIN book_fts f ON f.rowid = e.book_id
+             WHERE f.title IS NOT e.title OR f.authors IS NOT e.authors
+                OR f.series IS NOT e.series OR f.genres IS NOT e.genres
+                OR f.synopsis IS NOT e.synopsis
+            """)]
 
     def remove_book(self, book_id: int) -> None:
         self._db.connection.execute(

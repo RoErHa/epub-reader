@@ -25,7 +25,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from epub_annotations import AnnotationError
 from epub_browse import BrowseError
@@ -74,6 +74,24 @@ class BookSeries(BaseModel):
     series: str | None = None
     index: float | None = None
 
+class BookEdit(BaseModel):
+    """The whole record, by hand (§12.3). Only the fields named are
+    changed; one named as null is cleared. Anything else is refused
+    rather than ignored, so a typo is not a save that did nothing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+    authors: list[str] | None = None
+    series: str | None = None
+    series_index: float | None = None
+    synopsis: str | None = None
+    genres: list[str] | None = None
+    first_published: int | None = None
+
+    def named(self) -> dict:
+        return {field: getattr(self, field) for field in self.model_fields_set}
+
 class ShelfName(BaseModel):
     name: str
 
@@ -105,6 +123,7 @@ class Services:
     shelves: object
     annotations: object
     credits: object
+    editor: object
     config: object
     static: Path
     shell: Path
@@ -385,6 +404,7 @@ class BrowseRoutes(Routes):
                 raise HTTPException(status_code=404, detail="No such book.")
             self.with_progress([book])
             book["shelves"] = self.services.shelves.shelves_of(book_id)
+            book["edited"] = self.services.editor.edited(book_id)
             author = self.services.browse.primary_author(book_id)
             return JSONResponse({
                 "book": book,
