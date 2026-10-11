@@ -851,6 +851,16 @@ left to luck.
 > that is a few seconds after login, which the LaunchAgent's `KeepAlive`
 > rides out by retrying.
 
+> **TLS where a certificate can name the address, and nowhere else.**
+> The tailnet name needs it — a service worker and an installed web app
+> want a secure origin — but Tailscale's certificate names
+> `*.ts.net`, not `192.168.1.x`, so TLS on a LAN address was only a
+> browser warning in front of the library. `EPUB_PLAIN_BIND` lists the
+> addresses served plainly, and they become hypercorn's
+> `insecure_bind` beside the secure `bind`. An address in both lists
+> is refused at startup rather than left to whichever bound first; with
+> no certificate configured everything is plain anyway.
+
 The second is sharper, because no amount of binding carefully fixes it:
 
 > **CORS withholds the reply, never the act.** A cross-site request here

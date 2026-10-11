@@ -61,6 +61,13 @@ class Config:
                     f"{key} is required but missing or blank in the .env file."
                 )
         self._as_int("EPUB_PORT")
+        both = set(self.bind_addresses) & set(self.plain_bind_addresses)
+        if both:
+            raise ConfigError(
+                f"{', '.join(sorted(both))} is in both EPUB_BIND and "
+                "EPUB_PLAIN_BIND. An address is served over TLS or plainly, "
+                "not both — remove it from one of them."
+            )
 
     # ── helpers ───────────────────────────────────────────────────────
     def _as_int(self, key: str) -> int:
@@ -90,7 +97,20 @@ class Config:
         read on, and loopback for `run.sh` and the tests. Pasted into a
         single `host:port` it became a hostname with a comma in it, and
         the service died on startup with a `gaierror`."""
-        return [a.strip() for a in self.bind.split(",") if a.strip()]
+        return self._addresses("EPUB_BIND")
+
+    @property
+    def plain_bind_addresses(self) -> list[str]:
+        """Addresses answered over plain HTTP even when TLS is on. The
+        tailnet name needs the certificate — a service worker and an
+        installed app need a secure origin — but a LAN address has no
+        certificate that could name it, so TLS there is only a warning
+        page in front of the library."""
+        return self._addresses("EPUB_PLAIN_BIND")
+
+    def _addresses(self, key: str) -> list[str]:
+        raw = self._values.get(key, "")
+        return [a.strip() for a in raw.split(",") if a.strip()]
 
     @property
     def library_root(self) -> Path:

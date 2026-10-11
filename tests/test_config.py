@@ -182,3 +182,27 @@ class TestBindingSeveralAddresses:
                                    "EPUB_BIND=127.0.0.1,")
         cfg = Config.from_file(write_env(tmp_path, body))
         assert cfg.bind_addresses == ["127.0.0.1"]
+
+
+class TestPlainBind:
+    """`EPUB_PLAIN_BIND` names addresses answered over plain HTTP even
+    when TLS is configured. A tailnet address needs the certificate —
+    a service worker and an installed app need a secure origin — while
+    a LAN address has no certificate that could name it, so it is
+    served plainly rather than with a warning page in front of it."""
+
+    def test_absent_means_nothing_is_served_plainly(self, tmp_path):
+        cfg = Config.from_file(write_env(tmp_path))
+        assert cfg.plain_bind_addresses == []
+
+    def test_several_addresses_are_split(self, tmp_path):
+        body = MINIMAL_ENV + "EPUB_PLAIN_BIND= 192.168.1.125 , 127.0.0.1,\n"
+        cfg = Config.from_file(write_env(tmp_path, body))
+        assert cfg.plain_bind_addresses == ["192.168.1.125", "127.0.0.1"]
+
+    def test_one_address_cannot_be_both(self, tmp_path):
+        body = (MINIMAL_ENV.replace("EPUB_BIND=0.0.0.0",
+                                    "EPUB_BIND=100.100.100.100,192.168.1.125")
+                + "EPUB_PLAIN_BIND=192.168.1.125\n")
+        with pytest.raises(ConfigError, match=r"192\.168\.1\.125"):
+            Config.from_file(write_env(tmp_path, body))

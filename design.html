@@ -1217,6 +1217,10 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
   <p>A tailnet address serves the iPad and the phone; loopback serves <code>run.sh</code> and the tests. <code>EPUB_BIND</code> takes a comma-separated list, so <code>100.x.x.x,127.0.0.1</code> binds both. Until this the whole value was pasted into one <code>host:port</code> string and became a hostname with a comma in it: the service died on startup with a <code>gaierror</code> and went on serving <code>0.0.0.0</code> from the configuration it had already loaded — the worst of both, the tightening looking applied when it was not. Naming an address rather than <code>0.0.0.0</code> also means the service cannot start until that interface exists; with Tailscale that is a few seconds after login, which the LaunchAgent's <code>KeepAlive</code> rides out by retrying.</p>
 </div>
 <div class="rule">
+  <span class="eyebrow">TLS where a certificate can name the address, and nowhere else</span>
+  <p>The tailnet name needs TLS — a service worker and an installed web app want a secure origin — but Tailscale's certificate names <code>*.ts.net</code>, not a LAN address, so TLS there was only a browser warning in front of the library. <code>EPUB_PLAIN_BIND</code> lists the addresses served plainly; they become hypercorn's <code>insecure_bind</code> beside the secure <code>bind</code>. An address in both lists is refused at startup, and with no certificate configured everything is plain anyway.</p>
+</div>
+<div class="rule">
   <span class="eyebrow">CORS withholds the reply, never the act</span>
   <p>A cross-site request here cannot be <em>authenticated</em>, there being nothing to authenticate — and it does not need to be. <code>POST /api/books/forget-missing?apply=true&amp;force=true</code> drops reading positions and highlights. A bodiless POST is a CORS "simple request": sent with <strong>no preflight</strong>, with the same-origin policy hiding only the response from the calling page. The request still arrives and is still acted on, so any site open in a browser on the same machine could have driven every maintenance endpoint.</p>
 </div>

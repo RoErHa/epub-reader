@@ -345,8 +345,9 @@ class GatewayRunner:
 
     def hypercorn_config(self) -> HypercornConfig:
         cfg = HypercornConfig()
-        cfg.bind = [f"{address}:{self._config.port}"
-                    for address in self._config.bind_addresses]
+        port = self._config.port
+        secure = [f"{a}:{port}" for a in self._config.bind_addresses]
+        plain = [f"{a}:{port}" for a in self._config.plain_bind_addresses]
         cfg.accesslog = "-"
         cfg.errorlog = "-"
         # Raises ConfigError with an explanation if TLS is asked for but
@@ -357,7 +358,15 @@ class GatewayRunner:
             cert, key = tls
             cfg.certfile = str(cert)
             cfg.keyfile = str(key)
+            # hypercorn reads insecure_bind only while TLS is on, which
+            # is the only time there is a difference to make.
+            cfg.bind, cfg.insecure_bind = secure, plain
+        else:
+            cfg.bind = secure + plain
         return cfg
+
+    def close(self) -> None:
+        self._gateway.close()
 
     def scan_library(self) -> None:
         """Pick up books added since the last run, before serving.
@@ -375,12 +384,14 @@ class GatewayRunner:
         cfg = self.hypercorn_config()
         self.scan_library()
         scheme = "https" if cfg.certfile else "http"
+        urls = [f"{scheme}://{b}" for b in cfg.bind]
+        if cfg.certfile:
+            urls += [f"http://{b}" for b in cfg.insecure_bind]
         LOG.info(
-            "%s %s starting on %s://%s — library %s",
+            "%s %s starting on %s — library %s",
             SERVICE,
             VERSION,
-            scheme,
-            ", ".join(cfg.bind),
+            ", ".join(urls),
             self._config.library_root,
         )
         asyncio.run(serve(self._gateway.app, cfg))
