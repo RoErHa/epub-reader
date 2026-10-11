@@ -84,3 +84,22 @@ test('two columns still give portrait one full column', async ({ page }) => {
     (await columnWidth(page)) / (await stageWidth(page))
   ).toBeGreaterThan(0.86)
 })
+
+test('on an iPad in portrait, the gutter is narrow', async ({ page }) => {
+  // The gutter is where a thumb rests and nothing more; a quarter inch
+  // either side is enough, and every point of it is a point of text lost.
+  await page.setViewportSize({ width: 810, height: 1080 })
+  await page.goto('/')
+  await openBook(page, BOOK)
+  const stage = await page.locator('#reader-stage').boundingBox()
+  await expect.poll(async () => {
+    const frame = blobFrame(page)
+    if (!frame) return Infinity
+    const left = await frame.evaluate(() => {
+      const p = document.querySelector('p')
+      return frameElement.getBoundingClientRect().left +
+        p.getBoundingClientRect().left
+    }).catch(() => Infinity)
+    return left - stage.x
+  }).toBeLessThan(30)
+})

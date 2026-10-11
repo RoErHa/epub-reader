@@ -1239,8 +1239,7 @@ the pane on an iPad in landscape, 83% in portrait, 60% on a 1728 px Mac.
 
 > **The measure is set from the pane, not from a constant.** `ReaderEngine`
 > sets `max-inline-size` from the width it is actually given: one column
-> fills it, two split it, and the paginator's own 6% gap is the gutter —
-> about 45 pt a side on the iPad. A `ResizeObserver` on the stage keeps
+> fills it, two split it, and the paginator's gap is the gutter. A `ResizeObserver` on the stage keeps
 > it true when the iPad turns. Portrait keeps one column whatever was
 > asked, which is foliate's rule and the right one, so there the one
 > column fills the pane as well; scrolled flow has no columns at all.
@@ -1249,6 +1248,12 @@ Now **over 86% of the pane** at every size `tests/frontend/measure.spec.js`
 checks — both iPad orientations, a phone, a wide Mac window, a rotation,
 and two columns in landscape. The cost is long lines on a wide screen in
 one column; **Columns → 2** turns a landscape iPad into a two-page spread.
+
+> **And the gutter is half what foliate would choose.** Filling the pane
+> left foliate's 6% gap — 49 pt a side on an iPad in portrait, which is
+> how this is actually read — and that still read as wide margins on the
+> device. At **3%** it is 25 pt: room for a thumb, and nothing more. A
+> test holds the iPad-portrait gutter under 30 pt.
 
 ### 8.24 The whole record, by hand
 

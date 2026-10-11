@@ -102,7 +102,7 @@ export class ReaderSettings {
     return {
       flow: this.#values.flow,
       margin: `${this.#values.margin}px`,
-      gap: '6%',
+      gap: '3%',
       'max-column-count': String(this.#values.columns)
     }
   }
