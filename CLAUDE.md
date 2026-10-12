@@ -1251,6 +1251,24 @@ Prose that is not HTML stays text, with the line breaks it was written
 with. A synopsis is still *stored* exactly as the file gave it, markup and
 all; this is how it is shown, not what it is.
 
+> **Search indexes the words, not the tags.** Every HTML blurb was
+> findable by `strong`, `div` and `br`. `SearchIndex.EXPECTED` — the one
+> definition of what a search row holds (§8.24) — now reads the synopsis
+> through `plain_text()`, a function `PlainText` lends the connection,
+> because SQL cannot read HTML: each tag becomes a space so the words on
+> either side stay apart, entities are read, script and style are not
+> words. Because it is the *expected* row that changed, the next scan
+> finds the 214 rows stale and rebuilds them without being asked —
+> measured on a copy of the real database in **0.02 s**, and nothing stale
+> after.
+
+> **A forgotten book left its search row behind.** Measuring that found
+> one row the rebuild could not reach: *Celtic Mythology*, a book
+> `forget` had removed, whose search row stayed — because `stale()`
+> compares the rows books *should* have, and a book that is gone should
+> have none, so nothing ever looked. `drop_orphans()` removes them on
+> every scan.
+
 ### 8.25 The words use the pane they are given
 
 **On the iPad a third of the screen was margin.** foliate's paginator
@@ -2070,7 +2088,8 @@ epub_editor.py      BookEditor — the whole record by hand (§8.24);
 epub_forget.py      ForgetMissing — removing books whose files are gone
 epub_index.py       LibraryIndexer, IndexReport, CoverStore
 epub_browse.py      BrowseQueries — all browse SQL, indexed ORDER BY only
-epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results
+epub_search.py      SearchIndex, SearchQueries — FTS5, grouped results;
+                    PlainText — a synopsis's words without its markup
 epub_shelves.py     ShelfStore — stored shelves and smart ones
 epub_providers.py   OpenLibraryProvider, WorkClassifier — injected fetcher
 epub_enrich.py      AuthorEnricher — provider results, honouring provenance

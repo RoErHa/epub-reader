@@ -161,3 +161,79 @@ class TestIndexMaintenance:
         (library / "dune.epub").unlink()
         gateway.reindex()
         assert search(stocked, "dune")["books"] == []
+
+
+class TestSynopsisMarkup:
+    """214 of the 356 synopses in the real library are HTML. The detail
+    screen shows them as HTML (§8.26); search must index the words, not
+    the tags, or `strong` finds every blurb a publisher emphasised."""
+
+    BLURB = ("<div><h3>From Publishers Weekly</h3><p>Twin <strong>siblings"
+             "</strong> take summer jobs.</p><p>Alchemy<br>returns</p>"
+             "<p>Fish &amp; chips</p><script>secretword()</script></div>")
+
+    @pytest.fixture
+    def blurbed(self, stocked, library, gateway):
+        EpubBuilder(title="The Alchemyst", author="Michael Scott",
+                    description=self.BLURB).build(library / "alch.epub")
+        gateway.reindex()
+        return stocked
+
+    def test_the_words_are_found(self, blurbed):
+        assert search(blurbed, "siblings")["books"][0]["title"] == "The Alchemyst"
+        assert search(blurbed, "publishers weekly")["books"]
+
+    def test_the_tags_are_not(self, blurbed):
+        for tag in ("strong", "div", "h3", "br"):
+            assert search(blurbed, tag)["books"] == [], tag
+
+    def test_words_either_side_of_a_tag_stay_apart(self, blurbed):
+        assert search(blurbed, "alchemyreturns")["books"] == []
+        assert search(blurbed, "returns")["books"]
+
+    def test_entities_are_read_and_scripts_are_not_words(self, blurbed):
+        assert search(blurbed, "amp")["books"] == []
+        assert search(blurbed, "chips")["books"]
+        assert search(blurbed, "secretword")["books"] == []
+
+    def test_a_row_indexed_with_its_tags_is_cleaned_on_the_next_scan(
+        self, blurbed, gateway
+    ):
+        # The real library's rows were written before this existed, and
+        # the scan catches up whatever has drifted from what a row should
+        # hold — so the fix reaches them without being asked.
+        connection = gateway.database.connection
+        book_id = search(blurbed, "siblings")["books"][0]["id"]
+        connection.execute(
+            "UPDATE book_fts SET synopsis = ? WHERE rowid = ?",
+            (self.BLURB, book_id))
+        assert search(blurbed, "strong")["books"]
+        gateway.reindex()
+        assert search(blurbed, "strong")["books"] == []
+
+    def test_a_search_row_whose_book_is_gone_is_dropped(self, blurbed, gateway):
+        # Forgetting a book deleted its metadata and left its search row,
+        # which nothing compared because nothing expected it. The real
+        # library had one, still carrying its markup.
+        connection = gateway.database.connection
+        connection.execute(
+            "INSERT INTO book_fts (rowid, title, authors, series, genres, synopsis)"
+            " VALUES (99999, 'Celtic Mythology', '', '', '', '<p>gone</p>')")
+        gateway.reindex()
+        assert connection.execute(
+            "SELECT COUNT(*) FROM book_fts WHERE rowid = 99999").fetchone()[0] == 0
+
+
+class TestPlainText:
+    def test_prose_passes_through_untouched(self):
+        from epub_search import PlainText
+        assert PlainText.of("Five < six, and 7 > 3.") == "Five < six, and 7 > 3."
+
+    def test_markup_becomes_its_words(self):
+        from epub_search import PlainText
+        assert PlainText.of("<p>One</p><p>two&nbsp;&mdash; <em>three</em></p>"
+                            ) == "One two — three"
+
+    def test_nothing_is_none(self):
+        from epub_search import PlainText
+        assert PlainText.of(None) == ""

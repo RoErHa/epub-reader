@@ -214,6 +214,9 @@ class LibraryIndexer:
             self._search.reindex_book(book_id)
         if stale:
             LOG.info("search caught up with %d books", len(stale))
+        orphans = self._search.drop_orphans()
+        if orphans:
+            LOG.info("search forgot %d books that are gone", orphans)
 
     # ── walking ───────────────────────────────────────────────────────
     def _walk(self, root: Path):

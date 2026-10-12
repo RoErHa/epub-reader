@@ -1166,6 +1166,7 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
   <span class="eyebrow">Somebody else's markup, and only its shape is wanted</span>
   <p><code>Synopsis</code> parses the blurb into an inert document, which runs no script and fetches nothing, and rebuilds it from a closed list of elements with no attributes at all. <code>&lt;font&gt;</code>, <code>&lt;span&gt;</code>, Word's <code>&lt;st1:place&gt;</code> and links keep their words and lose themselves; script, style, images and frames go entirely. Verified by breaking it: raw <code>innerHTML</code> fails the safety test in both engines.</p>
 </div>
+<p><strong>Search indexes the words, not the tags.</strong> Every HTML blurb was findable by <code>strong</code> and <code>div</code>. The one definition of a search row now reads the synopsis through <code>plain_text()</code>, a function lent to SQLite because SQL cannot read HTML, so the next scan finds those 214 rows stale and rebuilds them on its own — 0.02 s on the real database. Measuring it found one search row whose book had been forgotten and which nothing ever compared; every scan now drops those.</p>
 
 <h3>6.11n &nbsp;The words use the pane they are given</h3>
 <p><strong>On the iPad a third of the screen was margin.</strong> foliate's paginator caps a column at 720 px unless told otherwise, and nothing here told it — so in landscape the text was a 720 px strip in a 1080 pt pane. Measured first: the text column was 67% of the pane on an iPad in landscape, 83% in portrait, 60% on a wide Mac window.</p>

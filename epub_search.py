@@ -10,6 +10,7 @@ should offer the author first, not forty loose rows.
 from __future__ import annotations
 
 import re
+from html.parser import HTMLParser
 
 # FTS5 treats a lot of punctuation as syntax, and people type
 # punctuation. Everything is reduced to bare terms with a prefix match on
@@ -17,11 +18,70 @@ import re
 TERM = re.compile(r"[^\W_]+", re.UNICODE)
 
 
+class PlainText(HTMLParser):
+    """A synopsis's words, without its markup.
+
+    214 of the 356 synopses in the real library are HTML (§8.26), and
+    indexed as they stand every one of them was findable by `strong`.
+    Search wants the words. Every tag becomes a space, so `Alchemy<br>
+    returns` stays two words; entities are read; what sits inside a
+    script or a style is not prose and goes.
+
+    Prose that is not HTML is returned exactly as it was — `5 < 6` is
+    a sentence, not a broken tag — by the same test the detail screen
+    uses to decide whether to render it as HTML (static/synopsis.js).
+    """
+
+    MARKUP = re.compile(
+        r"<\/?[a-z][\w:-]*(\s[^>]*)?\/?>|&(#\d+|#x[\da-f]+|[a-z]+);",
+        re.IGNORECASE)
+    SILENT = frozenset({"script", "style", "template", "noscript"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+        self._silent = 0
+
+    @classmethod
+    def of(cls, text: str | None) -> str:
+        if not text:
+            return ""
+        if not cls.MARKUP.search(text):
+            return text
+        parser = cls()
+        parser.feed(text)
+        parser.close()
+        # Collapse the spaces the tags left, but not a no-break space:
+        # that one is the author's.
+        return re.sub(r"[ \t\r\n]+", " ", "".join(parser._parts)).strip()
+
+    def handle_starttag(self, tag, attrs) -> None:
+        if tag in self.SILENT:
+            self._silent += 1
+        self._parts.append(" ")
+
+    def handle_endtag(self, tag) -> None:
+        if tag in self.SILENT and self._silent:
+            self._silent -= 1
+        self._parts.append(" ")
+
+    def handle_startendtag(self, tag, attrs) -> None:
+        self._parts.append(" ")
+
+    def handle_data(self, data) -> None:
+        if not self._silent:
+            self._parts.append(data)
+
+
 class SearchIndex:
     """Keeps book_fts in step with the index."""
 
     def __init__(self, database) -> None:
         self._db = database
+        # The expected row is SQL, and SQL cannot read HTML — so the
+        # connection is lent the one function that can.
+        database.connection.create_function(
+            "plain_text", 1, PlainText.of, deterministic=True)
 
     # What a book's search row should hold. One definition, because the
     # scan compares against it to find rows that have gone stale — and
@@ -36,7 +96,7 @@ class SearchIndex:
                COALESCE((SELECT GROUP_CONCAT(g.name, ' ' ORDER BY bg.position)
                            FROM book_genre bg JOIN genre g ON g.id = bg.genre_id
                           WHERE bg.book_id = m.book_id), '') AS genres,
-               COALESCE(m.synopsis, '') AS synopsis
+               plain_text(m.synopsis) AS synopsis
           FROM metadata m
           LEFT JOIN series s ON s.id = m.series_id
     """
@@ -70,6 +130,17 @@ class SearchIndex:
                 OR f.series IS NOT e.series OR f.genres IS NOT e.genres
                 OR f.synopsis IS NOT e.synopsis
             """)]
+
+    def drop_orphans(self) -> int:
+        """Remove search rows whose book has no record any more.
+
+        `stale()` compares the rows a book should have, so a row whose
+        book was forgotten is never compared — it simply stays. The real
+        library had one, findable by its title for a book that was gone.
+        """
+        return self._db.connection.execute(
+            "DELETE FROM book_fts WHERE rowid NOT IN"
+            " (SELECT book_id FROM metadata)").rowcount
 
     def remove_book(self, book_id: int) -> None:
         self._db.connection.execute(
