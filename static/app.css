@@ -5,6 +5,11 @@
  * all. Self-hosted webfonts land in M1 — see CLAUDE.md §3.
  */
 :root{
+  /* What the status bar covers when the app is installed and full
+     screen: iOS draws the page beneath it (black-translucent,
+     viewport-fit=cover). One property, so everything that must clear
+     it agrees — and so a test can stand in for a status bar. */
+  --safe-top:env(safe-area-inset-top, 0px);
   --ink:#F4F8FF;
   --ink-dim:#B4C9E6;
   --ink-dim-soft:#8DA5C6;
@@ -37,7 +42,8 @@ body{
 
 header{
   display:flex;align-items:center;gap:12px;
-  padding:9px 16px;background:var(--surface);
+  padding:9px 16px;padding-top:calc(9px + var(--safe-top));
+  background:var(--surface);
   border-bottom:1px solid var(--border);flex-shrink:0;
 }
 .logo{font-weight:800;font-size:16px;letter-spacing:.02em}
@@ -284,7 +290,7 @@ header{
 /* Only shown when the reader owns the screen — see the phone rules. */
 #reader-back{
   display:none;position:absolute;z-index:6;
-  top:calc(env(safe-area-inset-top, 0px) + 6px);
+  top:calc(var(--safe-top) + 6px);
   left:calc(env(safe-area-inset-left, 0px) + 6px);
   width:44px;height:44px;                 /* a comfortable tap target */
   align-items:center;justify-content:center;
@@ -626,7 +632,7 @@ body[data-read-theme="black"]{
     z-index:70;
     top:0;right:0;bottom:0;
     width:min(360px,86vw);
-    padding-top:env(safe-area-inset-top);
+    padding-top:var(--safe-top);
     padding-bottom:env(safe-area-inset-bottom);
     /* Opaque, and named with tokens that exist: an earlier version
        asked for --panel, which does not, so the background resolved to
@@ -658,7 +664,7 @@ body[data-read-theme="black"]{
   body[data-panels="open"] #panels-close{
     display:block;
     position:absolute;
-    top:calc(6px + env(safe-area-inset-top));
+    top:calc(6px + var(--safe-top));
     right:8px;
     z-index:1;
     width:44px;height:44px;      /* a real tap target */
@@ -675,7 +681,7 @@ body[data-read-theme="black"]{
      below it can run close to the top edge without a word under it. */
   #reader-back{
     display:flex;position:fixed;z-index:20;
-    top:calc(env(safe-area-inset-top, 0px) + 2px);
+    top:calc(var(--safe-top) + 2px);
   }
   body[data-view="read"] header .logo,
   body[data-view="read"] header .sep{display:none}
@@ -697,7 +703,7 @@ body[data-read-theme="black"]{
   .hdr-book{max-width:52vw}
   #book-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #book-author,#chapter{display:none}
-  header{padding:7px 12px;gap:8px}
+  header{padding:7px 12px;padding-top:calc(7px + var(--safe-top));gap:8px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 

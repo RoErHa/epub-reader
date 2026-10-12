@@ -415,3 +415,49 @@ function contrast (one, two) {
   const b = luminance(two)
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
+
+/* Installed on the iPad and full screen, iOS draws the page under a
+ * transparent status bar (black-translucent, viewport-fit=cover). The
+ * header made no room for it, so the clock and date sat on the title,
+ * the chapter and the percentage — gone at full screen, back the moment
+ * the window was made smaller and the status bar went away. A browser
+ * test cannot raise a status bar, so the inset is one custom property,
+ * and the test sets it to what an iPad reports. */
+test.describe('installed and full screen on an iPad', () => {
+  test.use(IPAD_PORTRAIT)
+  const STATUS_BAR = 24
+
+  test('the header clears the status bar, and so does what is in it',
+    async ({ page }) => {
+      await page.goto('/')
+      await page.addStyleTag({ content: `:root{--safe-top:${STATUS_BAR}px}` })
+      await openBook(page, BOOK)
+      await expect(page.locator('#progress')).toContainText('%')
+      for (const id of ['#progress', '#chapter', '#book-title', '#reader-back']) {
+        const box = await page.locator(id).boundingBox()
+        expect(box.y, id).toBeGreaterThanOrEqual(STATUS_BAR)
+      }
+      const header = await page.locator('header').boundingBox()
+      const back = await page.locator('#reader-back').boundingBox()
+      expect(back.y + back.height).toBeLessThanOrEqual(header.y + header.height + 1)
+      // ...and the page starts below the header, not under it.
+      const stage = await page.locator('#reader-stage').boundingBox()
+      expect(stage.y).toBeGreaterThanOrEqual(header.y + header.height - 1)
+    })
+})
+
+test.describe('installed and full screen on an iPhone', () => {
+  test.use(IPHONE)
+  const NOTCH = 47
+
+  test('the header clears the notch', async ({ page }) => {
+    await page.goto('/')
+    await page.addStyleTag({ content: `:root{--safe-top:${NOTCH}px}` })
+    await openBook(page, BOOK)
+    await expect(page.locator('#progress')).toContainText('%')
+    for (const id of ['#progress', '#book-title', '#reader-back']) {
+      const box = await page.locator(id).boundingBox()
+      expect(box.y, id).toBeGreaterThanOrEqual(NOTCH)
+    }
+  })
+})

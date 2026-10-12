@@ -1303,6 +1303,18 @@ one column; **Columns → 2** turns a landscape iPad into a two-page spread.
 > takes the logo's place in the header while a book is open, and the
 > page runs up to the header's edge.
 
+> **Installed and full screen, the status bar sat on the header.** The
+> page asks iOS for a transparent status bar drawn over it
+> (`black-translucent`, `viewport-fit=cover`), and the header made no
+> room for it — so on the iPad, as a home-screen app at full screen, the
+> clock and date covered the title, the chapter and the percentage. Made
+> smaller, the window lost its status bar and they came back, which is
+> how it was found. The header now pads by `--safe-top`, one custom
+> property holding `env(safe-area-inset-top)` that the back arrow and the
+> panel sheet use as well; a browser test cannot raise a status bar, so
+> the tests set that property to an iPad's 24 pt and an iPhone's notch
+> and check that nothing in the header starts under it.
+
 > **A margin is not a setting, so it is no longer stored as one.**
 > `ReaderSettings` writes its values back whole, so every device that
 > had opened a book carried `margin: 48` in `localStorage`, and a new
