@@ -1160,6 +1160,13 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11o &nbsp;A blurb is HTML more often than not</h3>
+<p><strong>214 of the 356 synopses in the library are HTML</strong> — an OPF's <code>dc:description</code> and a MOBI's EXTH description carry markup — and the detail screen showed them as text, a page of tags. They are shown as HTML now, but never through <code>innerHTML</code>.</p>
+<div class="rule">
+  <span class="eyebrow">Somebody else's markup, and only its shape is wanted</span>
+  <p><code>Synopsis</code> parses the blurb into an inert document, which runs no script and fetches nothing, and rebuilds it from a closed list of elements with no attributes at all. <code>&lt;font&gt;</code>, <code>&lt;span&gt;</code>, Word's <code>&lt;st1:place&gt;</code> and links keep their words and lose themselves; script, style, images and frames go entirely. Verified by breaking it: raw <code>innerHTML</code> fails the safety test in both engines.</p>
+</div>
+
 <h3>6.11n &nbsp;The words use the pane they are given</h3>
 <p><strong>On the iPad a third of the screen was margin.</strong> foliate's paginator caps a column at 720 px unless told otherwise, and nothing here told it — so in landscape the text was a 720 px strip in a 1080 pt pane. Measured first: the text column was 67% of the pane on an iPad in landscape, 83% in portrait, 60% on a wide Mac window.</p>
 <div class="rule">

@@ -1228,6 +1228,29 @@ apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
 
+### 8.26 A blurb is HTML more often than not
+
+**214 of the 356 synopses in the library are HTML**, because that is what
+an OPF's `dc:description` and a MOBI's EXTH description carry — `<p>`,
+`<br>`, `<em>`, `<h3>From Publishers Weekly</h3>`, and Word's own
+`<st1:place>`. §8.24 put the synopsis on the detail screen with
+`textContent`, so more than half of them read as a page of tags.
+
+> **Somebody else's markup, and only its shape is wanted.**
+> `static/synopsis.js` parses the blurb into an inert document —
+> `DOMParser` runs no script and fetches nothing — and rebuilds it element
+> by element from a **closed list** (paragraphs, breaks, emphasis, lists,
+> sub-heads), with **no attributes at all**. Anything else gives up its
+> words and loses itself: `<font>`, `<span>`, `<st1:place>`, and a link,
+> which a blurb has no business making. Script, style, images and frames
+> go with their contents. Never `innerHTML`: verified by breaking it,
+> which fails the safety test in both engines — the hostile fixture's
+> `<style>` hid the whole page.
+
+Prose that is not HTML stays text, with the line breaks it was written
+with. A synopsis is still *stored* exactly as the file gave it, markup and
+all; this is how it is shown, not what it is.
+
 ### 8.25 The words use the pane they are given
 
 **On the iPad a third of the screen was margin.** foliate's paginator
@@ -2072,6 +2095,8 @@ static/settings.js  ReaderSettings — display prefs, per device
 static/annotations.js Annotations — the selection offer and the marks panel
 epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
+static/synopsis.js  Synopsis — a blurb's HTML, rebuilt from a closed list
+                    of elements and no attributes (§8.26)
 static/editor.js    RecordEditor — the form behind ✎ Edit; sends only
                     what changed
 static/composer.js  NameComposer — asking for a name in the app, not the

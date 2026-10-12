@@ -5,6 +5,7 @@
  */
 
 import { RecordEditor } from '/static/editor.js'
+import { Synopsis } from '/static/synopsis.js'
 
 export class BookDetail {
   #dom = null
@@ -140,8 +141,11 @@ export class BookDetail {
 
   #renderSynopsis (book) {
     const text = (book.synopsis ?? '').trim()
-    this.#dom.detailSynopsis.textContent = text ||
-      'This book carries no description of its own.'
+    if (text) Synopsis.render(this.#dom.detailSynopsis, text)
+    else {
+      this.#dom.detailSynopsis.textContent =
+        'This book carries no description of its own.'
+    }
     this.#dom.detailSynopsis.classList.toggle('muted', !text)
   }
 

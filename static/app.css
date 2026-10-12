@@ -345,6 +345,16 @@ foliate-view{display:block;width:100%;height:100%}
   margin:0 0 10px;
 }
 #detail-synopsis,#detail-bio{font-size:14px;line-height:1.6;color:var(--ink-dim)}
+/* A blurb is HTML more often than not (static/synopsis.js); prose that
+   is not keeps the line breaks it was written with. */
+#detail-synopsis.plain{white-space:pre-line}
+#detail-synopsis p{margin:0 0 .8em}
+#detail-synopsis p:last-child{margin-bottom:0}
+#detail-synopsis h4{margin:0 0 .4em;font-size:13px;font-weight:600;color:var(--ink)}
+#detail-synopsis :is(ul,ol){margin:0 0 .8em;padding-left:1.4em}
+#detail-synopsis blockquote{margin:0 0 .8em;padding-left:1em;border-left:2px solid var(--border)}
+#detail-synopsis hr{border:0;border-top:1px solid var(--border);margin:1em 0}
+#detail-synopsis :is(strong,b){color:var(--ink)}
 #detail-synopsis.muted,#detail-bio.muted,.detail-panel .muted{
   color:var(--ink-dim-soft);font-style:italic;
 }
