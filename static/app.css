@@ -422,14 +422,14 @@ foliate-view{display:block;width:100%;height:100%}
 /* Yours: nothing will overwrite it, so it says so. */
 #editor label.yours{color:var(--amber)}
 #editor label.yours::after{content:" · yours";text-transform:none;letter-spacing:0}
-#editor input,#editor textarea{
+#editor input,#editor textarea,#editor select{
   width:100%;box-sizing:border-box;padding:9px 10px;
   border:1px solid var(--border);border-radius:var(--r);
   background:var(--surface);color:var(--ink);
   font:inherit;font-size:16px;line-height:1.45;
 }
 #editor textarea{resize:vertical;min-height:120px}
-#editor input:focus,#editor textarea:focus{
+#editor input:focus,#editor textarea:focus,#editor select:focus{
   outline:2px solid var(--amber);outline-offset:1px;border-color:var(--amber-d);
 }
 /* Inputs line up even when one label wraps to say it is yours. */

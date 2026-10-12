@@ -25,6 +25,7 @@ import logging
 import time
 
 from epub_credits import BookCredits
+from epub_language import LanguageCode
 from epub_names import PersonName, fold, title_sort_key
 from epub_provenance import Provenance
 from epub_search import SearchIndex
@@ -68,7 +69,7 @@ class BookEditor:
     # The fields a person may set. `series_index` rides with `series`
     # and is recorded as part of it, as it always has been (§8.10).
     FIELDS = ("title", "authors", "series", "series_index", "synopsis",
-              "genres", "first_published")
+              "genres", "first_published", "language")
 
     # The year the work first appeared. Gilgamesh is older than 3000 BC
     # and is not in this library; a typo of 19755 is, sooner or later.
@@ -156,6 +157,8 @@ class BookEditor:
             out["genres"] = self._genres(changes["genres"] or [])
         if "first_published" in changes:
             out["first_published"] = self._year(changes["first_published"])
+        if "language" in changes:
+            out["language"] = self._language(changes["language"])
         return out
 
     def _year(self, value) -> int | None:
@@ -168,6 +171,18 @@ class BookEditor:
             # in the future.
             raise ValueError(f"{value} is not a year a book appeared in.")
         return year
+
+    @staticmethod
+    def _language(value) -> str | None:
+        """A code, spelt the library's way; nothing clears it. A name is
+        refused rather than looked up: the form offers codes, and a
+        guess at "Flemish" is how a shelf gets a language nobody chose."""
+        if value is None or not str(value).strip():
+            return None
+        code = LanguageCode.normalise(str(value))
+        if code is None:
+            raise ValueError(f"{value} is not a language code, like en or nl.")
+        return code
 
     @staticmethod
     def _genres(names: list[str]) -> list[str]:
@@ -183,6 +198,7 @@ class BookEditor:
         connection = self._db.connection
         row = connection.execute(
             """SELECT m.title, m.synopsis, m.first_published, m.series_index,
+                      m.language,
                       s.name AS series
                  FROM book b LEFT JOIN metadata m ON m.book_id = b.id
                  LEFT JOIN series s ON s.id = m.series_id
@@ -213,7 +229,7 @@ class BookEditor:
         if "series" in changed:
             index = wanted.get("series_index", current["series_index"])
             self._credits.set_series(book_id, changed["series"], index)
-        for column in ("synopsis", "first_published"):
+        for column in ("synopsis", "first_published", "language"):
             if column in changed:
                 connection.execute(
                     f"UPDATE metadata SET {column} = ? WHERE book_id = ?",

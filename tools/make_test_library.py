@@ -207,6 +207,22 @@ class TestLibrary:
             lines=["A page of a PDF book.", "Rendered by pdf.js."],
         ).build(self.library / "Herbert, Frank - A Pdf Book.pdf")
 
+        # Dutch, and saying nothing about it: `und` in its own OPF, as a
+        # good part of the real library does. It is Dutch on the shelves
+        # only because the startup scan read its words (§8.27).
+        EpubBuilder(
+            title="Het Stille Boek",
+            author="Annie Verhoeven",
+            language="und",
+            chapters=2,
+            paragraphs_per_chapter=6,
+            prose=("Het was een koude avond in de stad en de kinderen liepen"
+                   " naar huis. Ze hadden geen geld meer, maar ze waren niet"
+                   " bang. Hij zei dat het niet zo ver was en dat ze er voor"
+                   " het donker zouden zijn. Toen ze bij de brug kwamen, zag"
+                   " ik dat er iets in het water lag."),
+        ).build(self.library / "het-stille-boek.epub")
+
         EpubBuilder(
             title="Hostile Book",
             author="Test Author",

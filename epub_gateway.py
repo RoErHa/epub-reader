@@ -291,6 +291,27 @@ class TagsCommand:
         return 0
 
 
+class LanguagesCommand:
+    """`--languages`: what each book is written in, read from its words.
+
+    Free and local, so a scan does it anyway (§8.16); this is the dry
+    run that says what it would read, and where it disagrees with the
+    file.
+    """
+
+    def __init__(self, config: Config, apply: bool = False) -> None:
+        self._config = config
+        self._apply = apply
+
+    def run(self) -> int:
+        gateway = EpubGateway(self._config)
+        try:
+            print(gateway.read_languages(apply=self._apply))
+        finally:
+            gateway.close()
+        return 0
+
+
 class CoversCommand:
     """`--covers`: a cover for books that show a lettered tile.
 
@@ -464,6 +485,11 @@ class GatewayCLI:
             help="Take the scanner's notes out of the titles, then exit.",
         )
         parser.add_argument(
+            "--languages",
+            action="store_true",
+            help="Read each book's language from its words, then exit.",
+        )
+        parser.add_argument(
             "--coauthors",
             action="store_true",
             help="Free the co-authors written into titles, then exit.",
@@ -529,6 +555,8 @@ class GatewayCLI:
                                      formats=args.formats).run()
         if args.tags:
             return TagsCommand(config, apply=args.apply).run()
+        if args.languages:
+            return LanguagesCommand(config, apply=args.apply).run()
         if args.coauthors:
             return CoAuthorsCommand(config, apply=args.apply).run()
         if args.dedupe:

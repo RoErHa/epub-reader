@@ -229,7 +229,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M0–M15 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
+<div class="status">Status: M0–M16 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -1161,6 +1161,14 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11p &nbsp;What language a book is in</h3>
+<p>A Languages browse needed data that was not there: no PDF or comic says what language it is in, and English was spelt seven ways — <code>en</code>, <code>EN</code>, <code>eng</code>, <code>en-US</code> and three more. <code>LanguageCode</code> makes it one spelling, and <code>LanguageGuess</code> reads the rest from a book's commonest words, with no dependency and no model.</p>
+<div class="rule">
+  <span class="eyebrow">The text is the better witness</span>
+  <p>Against 209 books that declare a language, the words agreed with the file on 204 and disagreed on 2 — and the file was wrong both times. So where the text is sure and the file disagrees, the text wins: on the real library that put five right, among them an Italian <em>Belinda</em> that called itself English. A language you set, or a catalogue confirmed, is never read over.</p>
+</div>
+<p>Each book is read once and the answer kept against its content hash: 653 books and 103 spellings in 28 s the first time, 0.01 s after, so it runs with the other free passes on every scan. Dutch is nine books; every comic is Unknown, because a comic has no words to read.</p>
+
 <h3>6.11o &nbsp;A blurb is HTML more often than not</h3>
 <p><strong>214 of the 356 synopses in the library are HTML</strong> — an OPF's <code>dc:description</code> and a MOBI's EXTH description carry markup — and the detail screen showed them as text, a page of tags. They are shown as HTML now, but never through <code>innerHTML</code>.</p>
 <div class="rule">
@@ -1392,6 +1400,7 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <tr class="self"><td class="num">✅ M13</td><td>A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M14</td><td>The whole record by hand — title, authors, series, year, genres, synopsis — and a title's sort key and search row kept with it</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M15</td><td>Reading on the iPad: the words fill the pane, the edges come in, the header clears the status bar; an HTML synopsis shown as HTML and searched as words</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M16</td><td>Browsing by language: one spelling per language, the language read from a book's words where its file is silent or wrong, and set by hand where neither can say</td><td class="num win">done</td></tr>
 <tr><td class="num">🔄 M9</td><td>Series from filenames ✅; what no filename can reach is filed by hand ✅; series from a provider still open</td><td class="num">—</td></tr>
 </tbody>
 </table>

@@ -67,6 +67,9 @@ class EpubBuilder:
     first_published: str | None = None
     chapters: int = 1
     paragraphs_per_chapter: int = 3
+    # The words of each paragraph, when the book should be in a
+    # language other than the fixture's English.
+    prose: str | None = None
     cover: bool = False
     # Real Calibre exports are often named "Author, Name - Title_split_0.html".
     # decodeURI() does not decode %2C, so that comma breaks href resolution.
@@ -98,7 +101,12 @@ class EpubBuilder:
                 f'  <script>window.{self.SENTINEL} = true;</script>\n'
                 f'  <script src="pwn.js"></script>\n'
             )
-        body = "".join(
+        if self.prose is not None:
+            body = "".join(f"  <p>{self.prose}</p>\n"
+                           for _ in range(self.paragraphs_per_chapter))
+        else:
+            body = None
+        body = body or "".join(
             f"  <p>The quick brown fox jumps over the lazy dog. "
             f"This is paragraph {i + 1} of {self.chapter_title(n)}, padded out "
             f"so that pagination has real work to do and more than one page "

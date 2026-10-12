@@ -88,6 +88,7 @@ class BookEdit(BaseModel):
     synopsis: str | None = None
     genres: list[str] | None = None
     first_published: int | None = None
+    language: str | None = None
 
     def named(self) -> dict:
         return {field: getattr(self, field) for field in self.model_fields_set}
@@ -369,6 +370,21 @@ class BrowseRoutes(Routes):
         def format_books(group: str) -> JSONResponse:
             try:
                 page = self.services.browse.books(format_group=group, limit=500)
+            except BrowseError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            return JSONResponse(
+                {"books": self.with_progress(page.rows), "total": page.total}
+            )
+
+        @app.get("/api/languages")
+        def list_languages() -> JSONResponse:
+            return JSONResponse(
+                {"languages": self.services.browse.languages()})
+
+        @app.get("/api/languages/{code}/books")
+        def language_books(code: str) -> JSONResponse:
+            try:
+                page = self.services.browse.books(language=code, limit=500)
             except BrowseError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from None
             return JSONResponse(

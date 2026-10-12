@@ -9,7 +9,14 @@
  * would be locked as the reader's, and the file's typo with it.
  */
 
+import { LanguageNames } from '/static/languages.js'
+
 export class RecordEditor {
+  // Offered whatever the library holds, because a book in one of these
+  // is the likeliest to arrive mislabelled; the rest come from what is
+  // on the shelves.
+  static LANGUAGES = ['en', 'nl', 'de', 'fr', 'es', 'it']
+
   #dom = null
   #form = null
   #book = null
@@ -17,6 +24,7 @@ export class RecordEditor {
   #onSaved = () => {}
   #onClose = () => {}
   #suggested = false
+  #languages = new Set(RecordEditor.LANGUAGES)
 
   constructor (root, { onSaved, onClose }) {
     this.#onSaved = onSaved
@@ -30,6 +38,7 @@ export class RecordEditor {
       index: $('edit-index'),
       year: $('edit-year'),
       genres: $('edit-genres'),
+      language: $('edit-language'),
       synopsis: $('edit-synopsis'),
       note: $('edit-note'),
       save: $('edit-save'),
@@ -62,6 +71,7 @@ export class RecordEditor {
     d.index.value = this.#before.index
     d.year.value = this.#before.year
     d.genres.value = this.#before.genres
+    this.#languageOptions(this.#before.language)
     d.synopsis.value = this.#before.synopsis
     this.#markYours(book.edited ?? [])
     this.#note('')
@@ -86,6 +96,7 @@ export class RecordEditor {
       index: book.series_index ?? '',
       year: book.first_published ?? '',
       genres: (genres ?? []).join(', '),
+      language: book.language ?? '',
       synopsis: book.synopsis ?? ''
     }
   }
@@ -98,7 +109,8 @@ export class RecordEditor {
       series: 'edit-series',
       genres: 'edit-genres',
       synopsis: 'edit-synopsis',
-      first_published: 'edit-year'
+      first_published: 'edit-year',
+      language: 'edit-language'
     }
     for (const [field, id] of Object.entries(fields)) {
       const label = this.#form.querySelector(`label[for="${id}"]`)
@@ -107,6 +119,24 @@ export class RecordEditor {
         ? 'You set this — no scan will change it'
         : ''
     }
+  }
+
+  /** Every language worth offering, by name, with the one chosen kept
+   *  chosen; "Not known" clears it. */
+  #languageOptions (chosen) {
+    if (chosen) this.#languages.add(chosen)
+    const codes = [...this.#languages].sort((a, b) =>
+      LanguageNames.of(a).localeCompare(LanguageNames.of(b)))
+    const option = (value, label) => {
+      const el = document.createElement('option')
+      el.value = value
+      el.textContent = label
+      return el
+    }
+    this.#dom.language.replaceChildren(
+      option('', 'Not known'),
+      ...codes.map(code => option(code, LanguageNames.of(code))))
+    this.#dom.language.value = chosen ?? ''
   }
 
   /** Names already in the library, offered as you type — one spelling
@@ -123,10 +153,15 @@ export class RecordEditor {
       }))
     }
     try {
-      const [series, genres] = await Promise.all([
+      const [series, genres, languages] = await Promise.all([
         fetch('/api/series').then(r => r.json()),
-        fetch('/api/genres').then(r => r.json())
+        fetch('/api/genres').then(r => r.json()),
+        fetch('/api/languages').then(r => r.json())
       ])
+      for (const { id } of languages.languages) {
+        if (id !== LanguageNames.UNKNOWN) this.#languages.add(id)
+      }
+      this.#languageOptions(this.#dom.language.value)
       fill(this.#dom.seriesNames, series.series.map(s => s.name))
       fill(this.#dom.genreNames, genres.genres.map(g => g.name))
     } catch {
@@ -145,6 +180,7 @@ export class RecordEditor {
       index: d.index.value,
       year: d.year.value,
       genres: d.genres.value,
+      language: d.language.value,
       synopsis: d.synopsis.value
     }
     const moved = key => String(now[key]).trim() !== String(this.#before[key]).trim()
@@ -163,6 +199,7 @@ export class RecordEditor {
     if (moved('genres')) {
       out.genres = now.genres.split(',').map(s => s.trim()).filter(Boolean)
     }
+    if (moved('language')) out.language = now.language || null
     if (moved('synopsis')) out.synopsis = now.synopsis.trim() || null
     return out
   }

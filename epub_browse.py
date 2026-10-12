@@ -6,6 +6,7 @@ fast at 10k books.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 # Whitelisted, because these are interpolated into ORDER BY.
@@ -41,6 +42,14 @@ FORMAT_GROUPS = {
     "pdf":    {"name": "PDF",    "formats": ("pdf",)},
     "comics": {"name": "Comics", "formats": ("cbz", "cbr")},
 }
+
+
+# A language is browsed by its code. The names are the browser's to
+# give (Intl.DisplayNames), in the reader's own language rather than a
+# table of ours. `unknown` is the shelf for a book that says nothing
+# and whose words could not be read — every comic, and the scans.
+UNKNOWN_LANGUAGE = "unknown"
+LANGUAGE = re.compile(r"^[a-z]{2,3}$")
 
 
 class BrowseError(ValueError):
@@ -92,6 +101,7 @@ class BrowseQueries:
               genre_id: int | None = None, decade: int | None = None,
               shelf_id: int | None = None, smart: str | None = None,
               format_group: str | None = None,
+              language: str | None = None,
               limit: int = 200, offset: int = 0) -> Page:
         if sort not in SORTS:
             raise BrowseError(
@@ -119,6 +129,16 @@ class BrowseQueries:
             formats = FORMAT_GROUPS[format_group]["formats"]
             sql += f" AND b.format IN ({','.join('?' * len(formats))})"
             params.extend(formats)
+        if language is not None:
+            if language == UNKNOWN_LANGUAGE:
+                sql += " AND m.language IS NULL"
+            elif LANGUAGE.match(language):
+                sql += " AND m.language = ?"
+                params.append(language)
+            else:
+                raise BrowseError(
+                    f"{language!r} is not a language code. Use one like"
+                    f" 'en' or 'nl', or '{UNKNOWN_LANGUAGE}'.")
         if shelf_id is not None:
             sql += " AND b.id IN (SELECT book_id FROM shelf_book WHERE shelf_id = ?)"
             params.append(shelf_id)
@@ -229,6 +249,19 @@ class BrowseQueries:
             if total:
                 groups.append({"id": key, "name": group["name"], "books": total})
         return groups
+
+    def languages(self) -> list[dict]:
+        """Every language the shelves hold, the largest first, and the
+        books nobody could place last — they are a remainder, not a
+        language, however many of them there are."""
+        rows = [{"id": r["code"] or UNKNOWN_LANGUAGE, "books": r["n"]}
+                for r in self._db.connection.execute(
+                    """SELECT m.language AS code, COUNT(*) n FROM book b
+                        JOIN metadata m ON m.book_id = b.id
+                        WHERE b.missing_since IS NULL AND b.duplicate_of IS NULL
+                        GROUP BY m.language ORDER BY n DESC, m.language""")]
+        return ([r for r in rows if r["id"] != UNKNOWN_LANGUAGE]
+                + [r for r in rows if r["id"] == UNKNOWN_LANGUAGE])
 
     def decades(self) -> list[dict]:
         return [

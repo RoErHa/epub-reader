@@ -19,8 +19,8 @@ test.describe('browse modes', () => {
     await ready(page)
     const modes = await page.locator('.browse-mode').allTextContents()
     expect(modes).toEqual(
-      ['Titles', 'Authors', 'Series', 'Genres', 'Formats', 'Years', 'Shelves',
-       'Review'])
+      ['Titles', 'Authors', 'Series', 'Genres', 'Formats', 'Languages',
+       'Years', 'Shelves', 'Review'])
   })
 
   test('every mode can actually be clicked', async ({ page }) => {

@@ -6,6 +6,7 @@
  */
 
 import { NameComposer } from './composer.js'
+import { LanguageNames } from './languages.js'
 
 export const MODES = [
   { id: 'titles', label: 'Titles' },
@@ -13,6 +14,7 @@ export const MODES = [
   { id: 'series', label: 'Series', endpoint: '/api/series', key: 'series' },
   { id: 'genres', label: 'Genres', endpoint: '/api/genres', key: 'genres' },
   { id: 'formats', label: 'Formats', endpoint: '/api/formats', key: 'formats' },
+  { id: 'languages', label: 'Languages', endpoint: '/api/languages', key: 'languages' },
   { id: 'years', label: 'Years', endpoint: '/api/years', key: 'decades' },
   { id: 'shelves', label: 'Shelves', endpoint: '/api/shelves', key: 'shelves' },
   { id: 'review', label: 'Review', endpoint: '/api/review', key: 'items' }
@@ -268,6 +270,10 @@ export class Browser {
   async #renderGroups (mode) {
     const data = await json(mode.endpoint)
     let rows = data[mode.key] ?? []
+    // The server sends codes; the names are the browser's to give.
+    if (mode.id === 'languages') {
+      rows = rows.map(r => ({ ...r, name: LanguageNames.of(r.id) }))
+    }
     if (this.#letter && mode.id !== 'years') {
       const want = this.#letter.toLowerCase()
       rows = rows.filter(r => (r.sort_name ?? r.name ?? '').toLowerCase()

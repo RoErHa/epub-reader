@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree
 
+from epub_language import NOT_A_LANGUAGE
 from epub_names import PersonName, title_sort_key
 
 CONTAINER = "META-INF/container.xml"
@@ -55,8 +56,6 @@ class BookMetadata:
 # including the Earthsea novels.
 FONT_TYPES = (".otf", ".ttf", ".woff", ".woff2", ".eot")
 
-# What a file says when it does not know what language it is in.
-NOT_A_LANGUAGE = {"", "und", "unknown", "xx", "zxx", "mul", "n/a", "none"}
 
 
 class DrmError(MetadataError):

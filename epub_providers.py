@@ -20,6 +20,7 @@ import urllib.parse
 import urllib.request
 from typing import ClassVar
 
+from epub_language import LanguageCode
 from epub_match import Candidate
 from epub_names import PersonName, fold
 
@@ -47,17 +48,6 @@ def http_bytes(url: str, headers: dict | None = None) -> bytes:
         return response.read()
 
 
-# Open Library speaks MARC; the library speaks BCP 47.
-MARC_TO_BCP47 = {
-    "eng": "en", "ger": "de", "deu": "de", "fre": "fr", "fra": "fr",
-    "dut": "nl", "nld": "nl", "spa": "es", "ita": "it", "por": "pt",
-    "rus": "ru", "swe": "sv", "nor": "no", "dan": "da", "fin": "fi",
-    "pol": "pl", "cze": "cs", "ces": "cs", "gre": "el", "ell": "el",
-    "heb": "he", "hun": "hu", "rum": "ro", "ron": "ro", "tur": "tr",
-    "ara": "ar", "chi": "zh", "zho": "zh", "jpn": "ja", "kor": "ko",
-    "hin": "hi", "vie": "vi", "tha": "th", "ice": "is", "isl": "is",
-    "lat": "la", "gle": "ga", "wel": "cy", "cym": "cy", "cat": "ca",
-}
 
 
 class PoliteFetcher:
@@ -334,11 +324,8 @@ class OpenLibraryProvider:
         codes = {str(v).lower() for v in (values or []) if v}
         if len(codes) != 1:
             return None
-        code = codes.pop()
-        # Truncating a MARC code to two letters is not a translation:
-        # "swe" would become Swahili and "chi" Chamorro. An unmapped
-        # code is passed through as it came, which is at least true.
-        return MARC_TO_BCP47.get(code, code)
+        # MARC to BCP 47, translated rather than truncated (§8.27).
+        return LanguageCode.normalise(codes.pop())
 
     @staticmethod
     def _year(value) -> int | None:

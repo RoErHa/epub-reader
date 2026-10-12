@@ -39,6 +39,8 @@
 #   ./run.sh coauthors --apply  # ...and credit them properly
 #   ./run.sh tags               # find scanner notes in titles
 #   ./run.sh tags --apply       # ...and take them out
+#   ./run.sh languages          # read each book's language from its words
+#   ./run.sh languages --apply  # ...and write it (a scan does this anyway)
 #   ./run.sh fragments --author "Piers Anthony"          # finish cut-off titles
 #   ./run.sh fragments --author "Piers Anthony" --apply
 #   ./run.sh hypotheses         # ask a catalogue to read the names we cannot
@@ -85,7 +87,7 @@ while [ $# -gt 0 ]; do
     --online)     ONLINE=1; shift ;;
     --author)     AUTHOR="${2:?--author needs a name}"; shift 2 ;;
     --format)     FORMAT="${2:?--format needs a format}"; shift 2 ;;
-    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|hypotheses|tags|forget|help)
+    start|stop|restart|status|scan|repair|refresh|dedupe|covers|series|names|coauthors|fragments|hypotheses|tags|languages|forget|help)
                   COMMAND="$1"; shift ;;
     -h|--help)    COMMAND="help"; shift ;;
     *)            echo "✗  Unknown command or option: $1" >&2
@@ -285,6 +287,18 @@ do_tags() {
   fi
 }
 
+do_languages() {
+  # Free and local, so every scan does it; this says what it would read
+  # first, and where the words disagree with what the file claims.
+  if [ "${APPLY}" -eq 1 ]; then
+    echo "▶  Reading the language of each book..."
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --languages --apply
+  else
+    echo "▶  Reading the language of each book (nothing will change)..."
+    "${PYTHON}" epub_gateway.py --env "${ENV_FILE}" --languages
+  fi
+}
+
 do_covers() {
   # Page one of a PDF, but only where page one is the cover. Nothing is
   # fetched and no book file is touched. --online asks Open Library about
@@ -428,6 +442,7 @@ case "${COMMAND}" in
   fragments) do_fragments ;;
   hypotheses) do_hypotheses ;;
   tags)    do_tags ;;
+  languages) do_languages ;;
   forget)  do_forget ;;
   start)   do_scan; do_start ;;
   restart) do_stop;  do_scan; do_start ;;

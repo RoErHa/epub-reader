@@ -4,9 +4,9 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0–M15 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
+**Status: M0–M16 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
 
-The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. On the iPad, read in portrait as a full-screen home-screen app, **the words use the screen** — close to every edge, with the chapter and progress clear of the status bar (§8.25). The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. **Every part of a book's record can be corrected by hand** from its detail page, and what you say is kept (§8.24).
+The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. On the iPad, read in portrait as a full-screen home-screen app, **the words use the screen** — close to every edge, with the chapter and progress clear of the status bar (§8.25). The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, **language**, year or shelf — the language read from each book's own words where the file says nothing or says wrong (§8.27). Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. **Every part of a book's record can be corrected by hand** from its detail page, and what you say is kept (§8.24).
 
 **Twelve maintenance passes** tidy what thirty years of other people's filing left behind — all dry-run by default, none of them touching a file, and the ones that cost nothing now run on every scan, so **dropping a book into `LIBRARY_ROOT` and restarting really is the whole workflow** (§8.16).
 
@@ -200,6 +200,7 @@ Same shell as dlna-gateway, with the same responsive behaviour: three columns on
 | --- | --- |
 | Authors | author → their books, grouped by series |
 | Formats | EPUB / MOBI / PDF / Comics → books of that kind |
+| Languages | English / Dutch / … / Unknown → books in it, read from the words where the file is silent or wrong (§8.27) |
 | Titles | flat A–Z list of every book |
 | Series | series → books in reading order |
 | Genres | genre → books |
@@ -462,6 +463,7 @@ A real collection carries thirty years of other people's filing. Four maintenanc
 | A title that was cut off | `./run.sh fragments [--apply]` | `epub_fragments.py` |
 | A name only a person could read | `./run.sh hypotheses [--apply]` | `epub_hypotheses.py` |
 | What the scanner wrote into the title | `./run.sh tags [--apply]` | `epub_tags.py` |
+| What language a book is in, from its words | `./run.sh languages [--apply]` | `epub_language.py` |
 | All three together | `./run.sh repair [--apply]` | `epub_maintenance.py` |
 | Weekly author refresh | `./run.sh refresh [--max N]` | `epub_refresh.py` |
 | A cover for books showing a letter | `./run.sh covers [--apply]` | `epub_covers.py` |
@@ -616,6 +618,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M13 | A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book | done |
 | ✅ M14 | The whole record by hand — title, authors, series, year, genres, synopsis — with a title's sort key and search row kept in step | done |
 | ✅ M15 | Reading on the iPad: the words fill the pane, the edges come in, the header clears the status bar; a synopsis written in HTML shown as HTML and searched as words | done |
+| ✅ M16 | Browsing by language: one spelling per language, the language read from a book's words where its file is silent or wrong, and set by hand where neither can say | done |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -1230,6 +1233,65 @@ are better. It also offers *Emperor* for *The Gates of Rome*. The
 apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
+
+### 8.27 What language a book is in
+
+**Asked for: a Languages browse, expecting English and Dutch.** Measured
+first, and the data was not ready for it:
+
+| | |
+| --- | --- |
+| EPUBs that say | 1,143 of 1,325 |
+| PDFs and comics that say | **none** |
+| ways English was spelt | **seven** — `en` `EN` `En` `eng` `en-US` `en-us` `en-GB` |
+| books saying Dutch | 8 — one of them wrongly |
+
+A browse built on that would have had one English shelf per spelling.
+
+> **One spelling.** `LanguageCode` reduces whatever a file or a catalogue
+> wrote to the language alone — primary subtag, lower case, MARC's three
+> letters translated rather than truncated (`swe` is Swedish, not
+> Swahili). The scan stores the code, a pass tidies what was already
+> stored, and the MARC table moved here from the provider, which now
+> asks the same class.
+
+> **And the words themselves.** `LanguageGuess` counts the commonest
+> words of six languages — English and Dutch, and the four that share
+> words with them, without which `de` and `die` would make a German book
+> Dutch. No dependency and no model. **Measured against 209 books that
+> declare a language: it agreed with the file on 204, could not judge 3,
+> and disagreed on 2 — and the file was wrong both times.** `Higgs.epub`
+> is Dutch and says `en`; *Lonesome Dove* is English and says `nld`.
+
+> **So the text is the better witness, not only a filler of blanks.**
+> Where it is sure — 150 words at least, a fifth of them common words,
+> half again ahead of the next language — and the file disagrees, the
+> text wins. On the real library that changed five declared languages,
+> and all five were read and are right: *Belinda* is an **Italian
+> translation** calling itself English, *The Secret History* is English
+> calling itself Russian, and a sixth De Vijf novel said `en-US`. A
+> language set by hand or confirmed by a catalogue is never read over
+> (§5); verified by deleting the guard, which fails the test.
+
+> **Read once, ever.** The answer — or that there was none — is kept in
+> `provider_query` against the book's **content hash**, the cache §8.13c
+> built for questions about strings. A restart reads only what is new,
+> and a file replaced by a better copy is a new book and is read again.
+> Measured on a copy of the real database: **653 books read and 103
+> spellings tidied in 28 s the first time, 0.01 s after.** That cost is
+> what lets it run with the other free passes on every scan (§8.16).
+
+**What the shelves hold now:** English 1,826, **Dutch 9** — the six De
+Vijf novels, *HEX*, *Lood en Whisky* and *Higgs* — Thai 3, Italian 1,
+and **Unknown 1,057**: every comic, which has no words to read, and the
+scanned PDFs nobody put through OCR. No comic filename carries a
+language mark either, so there was nothing a filename rule could have
+found. ✎ Edit gains a Language field for the rest, kept as yours like
+every other field. Names are the browser's (`Intl.DisplayNames`), so
+nobody keeps a table of them, and Unknown comes last however large it
+is: it is a remainder, not a language.
+
+`./run.sh languages` is the dry run. The scan does the rest.
 
 ### 8.26 A blurb is HTML more often than not
 
@@ -2088,6 +2150,9 @@ epub_coauthors.py   CoAuthorsInTitles — the second author somebody wrote
                     into the title, because a file has one name
 epub_tags.py        ScannerTags — (v2.1), (not ocr), (uc): a closed
                     vocabulary, never any bracket
+epub_language.py    LanguageCode, LanguageGuess, BookText,
+                    LanguagesFromText — one spelling per language, and
+                    the language read from a book's words (§8.27)
 epub_fragments.py   TitlesFromFragments — a title cut off at the end, and
                     the provider that can finish it; every question and
                     answer cached in provider_query
@@ -2129,6 +2194,7 @@ static/settings.js  ReaderSettings — display prefs, per device
 static/annotations.js Annotations — the selection offer and the marks panel
 epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
+static/languages.js LanguageNames — a code's name, from Intl.DisplayNames
 static/synopsis.js  Synopsis — a blurb's HTML, rebuilt from a closed list
                     of elements and no attributes (§8.26)
 static/editor.js    RecordEditor — the form behind ✎ Edit; sends only
@@ -2141,7 +2207,8 @@ static/sw.js        ShellCache — served at /sw.js; keeps the shell, never
                     /api
 static/manifest.webmanifest, static/icons/   the installed app
 run.sh              start / stop / restart / status / scan / repair / refresh
-                    / names / hypotheses / coauthors / tags / fragments
+                    / names / hypotheses / coauthors / tags / languages
+                    / fragments
                     — launchd-aware; see §8.19 for what that cost once
 com.example.epub-reader.plist           the service itself, KeepAlive so
                     a named bind address can wait for its interface
@@ -2675,6 +2742,10 @@ are limits that were weighed and accepted.
   closed list of elements, and indexed for search as their words rather
   than their tags; a search row orphaned by `forget` is dropped on every
   scan (§8.26).
+- **Browsing by language** — seven spellings of English made one, the
+  language read from the words of 653 books that said nothing or said
+  wrong, read once and remembered; Dutch is nine books, and five files
+  that were wrong about themselves were put right (§8.27).
 
 ### Still open
 

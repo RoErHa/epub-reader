@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from epub_cbz import CbzMetadataReader
+from epub_language import LanguageCode
 from epub_metadata import BookMetadata, DrmError, EpubMetadataReader, MetadataError
 from epub_mobi import MobiMetadataReader
 from epub_names import fold, title_sort_key
@@ -414,7 +415,10 @@ class LibraryIndexer:
             "synopsis": meta.description,
             "first_published": meta.first_published,
             "edition_date": meta.edition_date, "publisher": meta.publisher,
-            "language": meta.language, "isbn13": meta.isbn13,
+            # One spelling per language: `EN`, `eng` and `en-US` are
+            # all English, and three shelves for it would be two too many.
+            "language": LanguageCode.normalise(meta.language),
+            "isbn13": meta.isbn13,
             "spine_length": meta.spine_length, "page_count": meta.page_count,
             "cover_path": cover_path,
             "series_id": series_id, "series_index": meta.series_index,

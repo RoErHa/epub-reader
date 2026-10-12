@@ -5,6 +5,7 @@
  */
 
 import { RecordEditor } from '/static/editor.js'
+import { LanguageNames } from '/static/languages.js'
 import { Synopsis } from '/static/synopsis.js'
 
 export class BookDetail {
@@ -96,7 +97,7 @@ export class BookDetail {
     if (genres.length) facts.push(genres[0])
     if (book.first_published) facts.push(`First published ${book.first_published}`)
     facts.push(book.format.toUpperCase())
-    if (book.language) facts.push(book.language)
+    if (book.language) facts.push(LanguageNames.of(book.language))
     facts.push(`${Math.round(book.size / 1024)} kB`)
     if (book.percent > 0) facts.push(`${book.percent}% read`)
     d.detailFacts.textContent = facts.join(' · ')

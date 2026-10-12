@@ -133,7 +133,7 @@ class TestANewArrival:
         first = shelf(gateway, "Dead Morn")
         second = gateway.tidy()
         assert second == {"credited": 0, "filed": 0, "retitled": 0,
-                          "freed": 0, "cleaned": 0}
+                          "freed": 0, "cleaned": 0, "languages": 0}
         assert shelf(gateway, "Dead Morn")["title"] == first["title"]
         assert shelf(gateway, "Dead Morn")["authors"] == first["authors"]
 

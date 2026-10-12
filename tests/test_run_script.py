@@ -274,8 +274,18 @@ class TestTags:
         out = run("help").stdout
         for command in ("start", "stop", "restart", "status", "scan", "repair",
                         "refresh", "dedupe", "covers", "series", "names",
-                        "coauthors", "fragments", "tags", "forget"):
+                        "coauthors", "fragments", "tags", "languages",
+                        "forget"):
             assert command in out, f"{command} has fallen off the help"
+
+
+class TestLanguages:
+    """`run.sh languages` reads each book's language from its words."""
+
+    def test_languages_runs_and_says_so(self, env_file):
+        result = run("languages", env_file=env_file)
+        assert result.returncode == 0, result.stderr
+        assert "Languages:" in result.stdout
 
 
 class TestTidyOnScan:

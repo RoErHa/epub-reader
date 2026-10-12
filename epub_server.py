@@ -29,6 +29,7 @@ from epub_forget import ForgetMissing
 from epub_fragments import TitlesFromFragments
 from epub_hypotheses import NameHypotheses
 from epub_index import LibraryIndexer
+from epub_language import LanguagesFromText
 from epub_maintenance import LibraryRepair
 from epub_maintenance_routes import MaintenanceRoutes
 from epub_providers import (
@@ -199,6 +200,10 @@ class EpubGateway:
         self._filenames = CreditsFromNames(self._database, self._series)
         self._coauthors = CoAuthorsInTitles(self._database)
         self._tags = ScannerTags(self._database)
+        # Public, like the database: a test swaps its reader to count
+        # what a second run reads, which must be nothing.
+        self.languages = LanguagesFromText(self._database,
+                                           config.library_root)
         self._forget = ForgetMissing(self._database)
         self._credits = BookCredits(self._database)
         self._editor = BookEditor(self._database)
@@ -346,21 +351,28 @@ class EpubGateway:
         """Take the scanner's notes out of the titles, in one line."""
         return ScannerTags.summary(self._tags.run(apply=apply))
 
+    def read_languages(self, apply: bool = False) -> str:
+        """Read each book's language from its words, in one line."""
+        return LanguagesFromText.summary(self.languages.run(apply=apply))
+
     def tidy(self) -> dict:
         """Read what the new arrivals' names say, in §6.6's order.
 
         **Authors before anything asked of an author**, then the
         co-authors that need a first author to join, and the scanner's
-        notes last because they are nobody's dependency. Nothing here
+        notes last because they are nobody's dependency; the language is
+        read from the words, which depend on nothing at all. Nothing here
         reaches a provider: `fragments` does, and stays opt-in.
         """
         names = self._filenames.run(apply=True)
         coauthors = self._coauthors.run(apply=True)
         tags = self._tags.run(apply=True)
+        languages = self.languages.run(apply=True)
         return {
             "credited": names["credited"], "filed": names["filed"],
             "retitled": names["retitled"], "freed": coauthors["credited"],
             "cleaned": tags["cleaned"],
+            "languages": languages["detected"] + languages["tidied"],
         }
 
     @staticmethod
@@ -371,7 +383,8 @@ class EpubGateway:
         return (f"Names: credited {report['credited']}, filed"
                 f" {report['filed']} under a series, retitled"
                 f" {report['retitled']}, freed {report['freed']} co-authors,"
-                f" cleaned {report['cleaned']} titles.")
+                f" cleaned {report['cleaned']} titles, read the language of"
+                f" {report['languages']}.")
 
     def dedupe_books(self, apply: bool = False) -> str:
         """One row per work, and one line about it."""
