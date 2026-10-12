@@ -229,7 +229,7 @@ footer{
 
 <h1>epub-reader</h1>
 <p class="lede">A browser-based e-book library and reader, built in the shape of <code>dlna-gateway-2.0</code>: <strong>Browse · Search · Read</strong>. EPUB first, MOBI/AZW3 shortly after, PDF eventually.</p>
-<div class="status">Status: M0–M14 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
+<div class="status">Status: M0–M15 complete except M9's provider half. Seven formats, 2,364 books on the shelves, 91% carrying cover art, in daily use over TLS. Next: names that are damaged, the one part of this that costs money — §12 lists everything open, in the order it is worth doing.</div>
 
 <!-- ─────────────────────────────────────────── -->
 <h2 id="s1"><span class="n">01</span>What this is</h2>
@@ -492,7 +492,8 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 
 <h3>4.2 &nbsp;Reader</h3>
 <p>Full viewport, paginated by default. Click zones left and right, arrow keys, swipe on touch. Chrome fades while reading and returns on tap.</p>
-<p>Controls: font family and size, line height, margin width, column count, theme (light / sepia / dark / black), and paginated vs scrolled. The paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.</p>
+<p>Controls: font family and size, line height, column count, theme (light / sepia / dark / black), and paginated vs scrolled. The paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.</p>
+<p>The margins are not a control: the column is sized from the pane, and the edges are constants tuned for an iPad in portrait (6.11n).</p>
 
 <!-- ─────────────────────────────────────────── -->
 <h3>4.2b &nbsp;Choosing a book is not opening it</h3>
@@ -1390,6 +1391,7 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <tr class="self"><td class="num">✅ M12</td><td>Comics packed with RAR; browsing by format; a scan that reads what it finds</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M13</td><td>A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book</td><td class="num win">done</td></tr>
 <tr class="self"><td class="num">✅ M14</td><td>The whole record by hand — title, authors, series, year, genres, synopsis — and a title's sort key and search row kept with it</td><td class="num win">done</td></tr>
+<tr class="self"><td class="num">✅ M15</td><td>Reading on the iPad: the words fill the pane, the edges come in, the header clears the status bar; an HTML synopsis shown as HTML and searched as words</td><td class="num win">done</td></tr>
 <tr><td class="num">🔄 M9</td><td>Series from filenames ✅; what no filename can reach is filed by hand ✅; series from a provider still open</td><td class="num">—</td></tr>
 </tbody>
 </table>

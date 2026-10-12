@@ -51,11 +51,21 @@ would lose all 8 books that read perfectly.
   *is* rather than what it is packed in: EPUB, MOBI (with AZW3 and PRC,
   the same Palm container), PDF, and Comics — where a CBZ and a CBR are
   one shelf, because the difference is how the pictures are packed.
-- **Search** across titles, authors, series and genres (SQLite FTS5, with
-  diacritics folded — `le carre` finds *le Carré*).
+- **Search** across titles, authors, series, genres and synopses (SQLite
+  FTS5, with diacritics folded — `le carre` finds *le Carré*). A synopsis
+  is searched by its words, never by the HTML it arrived in.
 - **Read** with four themes, adjustable type, paginated or scrolled flow,
   and a table of contents. On a phone or an iPad the reader takes the
   whole screen, and an **Aa** button brings the panels in over the page.
+  The words use the width they are given — a column fills the pane, two
+  split it — with the edges tuned for an iPad held in portrait.
+- **Install it** on an iPad or a phone from Safari's *Add to Home Screen*:
+  it opens full screen, in its own window, with the chapter and your
+  progress kept clear of the status bar.
+- **See what a book is** before opening it — cover, series and number,
+  author, year, the book's own synopsis (shown formatted where it was
+  written in HTML, through a closed list of elements), and what else the
+  author wrote, including what you do not own.
 - **Highlight and annotate** — four colours, notes, and a Highlights
   panel that jumps to the passage. Shared across devices, like your place.
 - **Shelve from the list** — make a shelf, throw one away, and put a book
@@ -84,6 +94,7 @@ deleted** — the library is opened read-only.
 ./run.sh dedupe [--apply]   # one row per work, spares kept and restorable
 ./run.sh series [--apply]   # read series from filenames
 ./run.sh names [--apply]    # author, series and title from one filename
+./run.sh hypotheses [--apply]  # ask a catalogue to read a name we cannot
 ./run.sh coauthors [--apply]  # "(with Roberto Fuentes)" is a second author
 ./run.sh tags [--apply]     # "(v2.1)", "(not ocr)", underscores-for-spaces
 ./run.sh fragments [--apply]  # finish a title that was cut off, via a provider

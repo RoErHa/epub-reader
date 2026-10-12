@@ -4,9 +4,9 @@ A browser-based e-book library and reader, built in the shape of `dlna-gateway-2
 
 EPUB first, MOBI/AZW3 shortly after, PDF eventually.
 
-**Status: M0–M14 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
+**Status: M0–M15 complete except M9's provider half. Running against the real library: 2,364 books on the shelves in seven formats (2,374 indexed — ten comics libarchive refuses are reported as failed, not shelved), 288 duplicate copies folded away, 235 series, 91% of books carrying cover art.** All seven decisions settled (§9).
 
-The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. **Every part of a book's record can be corrected by hand** from its detail page, and what you say is kept (§8.24).
+The reader has contents, themes, typography controls, server-side position, and highlights with notes — reachable on a phone and an iPad as well as a Mac. On the iPad, read in portrait as a full-screen home-screen app, **the words use the screen** — close to every edge, with the chapter and progress clear of the status bar (§8.25). The library reads **EPUB, MOBI, AZW3, PRC, PDF, CBZ and CBR**, including EPUBs stored as directories and comics packed with RAR. Browsing is by author, title, series, genre, **format**, year or shelf. Shelves are made, filled and thrown away from the browse list, and a book can be marked read there or on its detail page. **Every part of a book's record can be corrected by hand** from its detail page, and what you say is kept (§8.24).
 
 **Twelve maintenance passes** tidy what thirty years of other people's filing left behind — all dry-run by default, none of them touching a file, and the ones that cost nothing now run on every scan, so **dropping a book into `LIBRARY_ROOT` and restarting really is the whole workflow** (§8.16).
 
@@ -256,7 +256,9 @@ Letter bar, drill-down with `← back`, and pagination behave exactly as in dlna
 
 Full viewport, paginated by default. Click zones left and right, arrow keys, swipe on touch. Chrome fades while reading and returns on tap.
 
-Controls: font family and size, line height, margin width, column count, theme (light / sepia / dark / black), and paginated vs scrolled — the paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.
+Controls: font family and size, line height, column count, theme (light / sepia / dark / black), and paginated vs scrolled — the paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.
+
+The margins are not a control. The column is sized from the pane and the edges are constants tuned for an iPad in portrait — §8.25 says why a stored margin could never have been changed afterwards.
 
 ## 5. Data model
 
@@ -613,6 +615,7 @@ Sort keys are **computed once at ingest and stored as indexed columns**, so brow
 | ✅ M12 | Comics packed with RAR; browsing by format; a scan that reads what it finds | done |
 | ✅ M13 | A filename read as a hypothesis: cut every way, put to a catalogue, kept only where that author's own works hold the book | done |
 | ✅ M14 | The whole record by hand — title, authors, series, year, genres, synopsis — with a title's sort key and search row kept in step | done |
+| ✅ M15 | Reading on the iPad: the words fill the pane, the edges come in, the header clears the status bar; a synopsis written in HTML shown as HTML and searched as words | done |
 
 M0 existed to de-risk the two things that could have invalidated the plan: the engine rendering correctly, and CSP not breaking it. **Both are now settled facts** — see §3.1.
 
@@ -2664,6 +2667,14 @@ are limits that were weighed and accepted.
   piece of work; 22 books credited, filed and retitled, and every
   impostor an anchor alone would have admitted refused by asking that
   author's own works (§8.22).
+- **Reading on the iPad** — the words fill the pane instead of a 720 px
+  strip, 20 px above and below and about 22 pt a side, with the back
+  arrow moved into the header to make room, and the header clear of the
+  status bar when the app is installed and full screen (§8.25).
+- **Synopses written in HTML** — 214 of 356 — shown as HTML through a
+  closed list of elements, and indexed for search as their words rather
+  than their tags; a search row orphaned by `forget` is dropped on every
+  scan (§8.26).
 
 ### Still open
 
