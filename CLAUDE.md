@@ -2766,9 +2766,40 @@ read. **Tier 2 is not built**, and the gate on it still holds:
 > results to agree before writing anything. One query per string, ever.
 
 **Do not build it until the free tiers have been measured against what is
-left.** They were, and they left very little: the population tier 2 could
-reach is now a handful of books, and it is the only part of this that
-costs money.
+left.** This said "a handful of books" for a while, and nobody had
+counted. **Counted on 2026-10-12**, comics aside, against `hypotheses`'
+own gate and its cached answers:
+
+| | |
+| --- | --- |
+| names that split, and no reading was confirmed | 44 |
+| one name, nobody credited | 65 |
+| **no pass can read** | **109** |
+| corrected by hand since, through ✎ Edit | 36 |
+| **left** | **73** |
+
+> **And a gate that only looks at filenames cannot see a wrong
+> credit.** *Neverwhere* was "A satisfied Microsoft Office User"'s, and
+> passed every check here, because its title was already a title. Asking
+> the author list instead — 627 names on the shelves — flagged 79: scanner
+> handles (`ladyfire34`, `HP_Administrator`, `Korisnik`), a title word
+> taken for a person (*Congo* by Congo), roles glued to names (`Alan Dean
+> Foster (rsv)`, `Nic Fields - Illustrated by Peter Dennis`), stray dots
+> (`Anna. Clark`), and three people stored as one. Eight were right as
+> they stood — Aristotle, Sunzi, a publisher that really is the author.
+> **57 books re-credited by hand**, and **23 are still credited to
+> somebody who did not write them**.
+
+So **96 books want something**, and they are not what tier 2 was
+imagined for. Almost all are non-fiction PDFs — Roman history 26, guitar
+14, drawing 7, tabletop world-building 7 — whose names are plain titles
+with nobody beside them: *Trajan*, *Draw 50 Animals*, *Medieval
+Demographics Made Easy*. A **free catalogue search by title** reaches
+most of those, which is §12.2's territory rather than a paid one, and a
+person reaches the rest in seconds. What only the open web could answer
+is a few lecture handouts and self-published guides. The conclusion
+stands on real numbers now: it is the only part of this that costs
+money, and it is not worth it yet.
 
 ### 2. Fetch each matched work's own record
 
