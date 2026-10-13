@@ -10,7 +10,7 @@ The reader has contents, themes, typography controls, server-side position, and 
 
 **Twelve maintenance passes** tidy what thirty years of other people's filing left behind — all dry-run by default, none of them touching a file, and the ones that cost nothing now run on every scan, so **dropping a book into `LIBRARY_ROOT` and restarting really is the whole workflow** (§8.16).
 
-**Next: §12.1** — names that are damaged, which is the one part of this that costs money and the one the free tiers cannot reach. §12 lists everything open, in the order it is worth doing.
+**Next: §12.2** — fetching each matched work's own record, for the synopsis, genre and year most books still lack. §12.1, the paid web search for damaged names, was measured and has nothing left to do: every name it was for has been read or set by hand. §12 lists everything open, in the order it is worth doing.
 
 ---
 
@@ -2871,7 +2871,7 @@ are limits that were weighed and accepted.
 
 ### 1. Names that are damaged: the open web
 
-**This is the next piece of work, and it is the smallest thing left.**
+**Measured, and not needed — for now.**
 Tiers 0 and 1 are built — a co-author freed from a title (§8.13b), and a
 truncated title finished by trimming it back to a whole word and asking a
 provider (§8.13c) — and §8.22 has since taken the names a catalogue could
@@ -2910,16 +2910,27 @@ own gate and its cached answers:
 > **57 books re-credited by hand**, and **23 are still credited to
 > somebody who did not write them**.
 
-So **96 books want something**, and they are not what tier 2 was
-imagined for. Almost all are non-fiction PDFs — Roman history 26, guitar
-14, drawing 7, tabletop world-building 7 — whose names are plain titles
-with nobody beside them: *Trajan*, *Draw 50 Animals*, *Medieval
-Demographics Made Easy*. A **free catalogue search by title** reaches
-most of those, which is §12.2's territory rather than a paid one, and a
-person reaches the rest in seconds. What only the open web could answer
-is a few lecture handouts and self-published guides. The conclusion
-stands on real numbers now: it is the only part of this that costs
-money, and it is not worth it yet.
+So **96 books wanted something** on 2026-10-12, and they were not what
+tier 2 was imagined for. Almost all were non-fiction PDFs — Roman
+history 26, guitar 14, drawing 7, tabletop world-building 7 — whose
+names were plain titles with nobody beside them: *Trajan*, *Draw 50
+Animals*, *Medieval Demographics Made Easy*.
+
+> **Counted again on 2026-10-13: none left.** A person reached all 96
+> in a day, through ✎ Edit, which is the measurement that settles it.
+> The author list was asked again too — 664 names on the shelves, **6
+> flagged and every one right or chosen**: Aristotle, the pen name
+> `Stan!`, a magazine, two websites, and one name in capitals. Doing it
+> found fifteen more books crediting two people as one name (`Brian
+> Herbert and Kevin J Anderson`) or an editor with the role glued on
+> (`Edited by J. Robert King`), each now split into its people, so
+> *Red Plague* stands under both of its authors.
+
+**So tier 2 has nothing to do in this library**, and it stays unbuilt.
+It is the only part of this that costs money, and on real numbers the
+open web was never the cheapest way to these names: a person was. The
+gate stands for the next books that arrive damaged — count them first,
+as this did. The next piece of work is §12.2.
 
 ### 2. Fetch each matched work's own record
 
