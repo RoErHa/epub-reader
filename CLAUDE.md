@@ -1234,6 +1234,43 @@ apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
 
+### 8.30 A Palm book foliate would not open
+
+*Wintertide* answered **"File type not supported"**. It is a PRC, and
+§8.3 said the reader half of MOBI was free — but that was true of
+`BOOKMOBI` files only. **6 of the 51 PRCs here are the older PalmDB
+container**, announcing themselves `TEXtREAd`, with a bare PalmDOC header
+in record 0 and no MOBI header after it. The library read them all along
+(`PALM_TYPES` names both); foliate's own check has the `TEXtREAd` half
+commented out.
+
+What is inside is Mobipocket's HTML all the same — `<mbp:pagebreak>`,
+`filepos` links, a guide — written by the same Palm-era software, in
+windows-1252. Only the label stood between them and the reader.
+
+> **Relabelled on the way out, and the text never touched.**
+> `epub_palmdoc.PalmDoc` turns the container into `BOOKMOBI` and gives
+> record 0 the MOBI header foliate reads: version 6, windows-1252, the
+> title from the PalmDB name, pictures after the text, and no EXTH,
+> index, huffman tables or trailing entries — because these files have
+> none. The PalmDOC header's own fields are kept; every other record is
+> passed over byte for byte, and only the offsets move. §8.15's rule,
+> again: the reader, positions and highlights know nothing about it,
+> and the file on disk is never written. It answers by `W/"mobi1-…"`
+> (§8.20), so a second open costs a header.
+
+Tests build a `TEXtREAd` file the way real ones are cut, 4096-byte text
+records and record 0 padded with filler, and check the header field by
+field and the text records byte for byte; the browser test opens one
+and reads its words in both engines, and fails in both with the route
+switched off. *Wintertide* then read on a throwaway instance with its
+full chapter list — scrolled rather than paginated, because the whole
+novel is one 530 kB section (§10.6).
+
+The six: Megan Sybil Baker's *Wintertide*, *Accidental Goddess* and
+*Gabriel's Ghost*, Linnea Sinclair's *Command Performance*, Dave Smeds'
+*The Sorcery Within* and Bud Sparhawk's *Magic's Price*.
+
 ### 8.29 One dead bookmark, and the book would not open
 
 *Encyclopedia of Greco-Roman Mythology* answered **"The reference does
@@ -2209,6 +2246,8 @@ epub_covers.py      CoverBackfill — a cover from the book's own first page;
                     Open Library for the files that hold no image
 epub_cbz.py         CbzMetadataReader — comics: a filename and a first page,
                     zip or RAR alike
+epub_palmdoc.py     PalmDoc — the older Palm container, relabelled as a
+                    MOBI on the way out so foliate will open it
 epub_rar.py         RarArchive, repack — comics packed with RAR, read
                     through libarchive and repacked as a zip on the way out
 epub_series.py      SeriesFromNames — series read from filenames
@@ -2821,6 +2860,8 @@ are limits that were weighed and accepted.
 - **PDFs whose contents lead nowhere** — 87 would not open at all,
   because one dead bookmark refused the book. Such an entry is now taken
   out and its sub-entries kept (§8.29).
+- **PalmDOC books** — 6 PRCs in the older Palm container, which foliate
+  refused, are handed over as MOBI with the text untouched (§8.30).
 - **Browsing by language** — seven spellings of English made one, the
   language read from the words of 653 books that said nothing or said
   wrong, read once and remembered; Dutch is nine books, and five files

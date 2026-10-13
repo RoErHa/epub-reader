@@ -10,6 +10,18 @@ import { openBook, expectBookText, waitForBookFrame } from './helpers.js'
  * free half really is free.
  */
 const MOBI = 'kindle-book.mobi'
+const PALM = 'palm-doc.prc'
+
+/* Six PRC files here are the older PalmDOC container, which foliate
+ * refuses — "File type not supported". The server hands it over as a
+ * MOBI, and the reader never knows (§8.30). */
+test.describe('a palmdoc book', () => {
+  test('opens and renders', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, PALM)
+    await expectBookText(page, 'Words from a PalmDOC')
+  })
+})
 
 test.describe('a kindle book', () => {
   test('is listed with its title and author', async ({ page }) => {

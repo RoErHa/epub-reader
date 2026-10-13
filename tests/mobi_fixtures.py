@@ -147,3 +147,37 @@ class MobiBuilder:
             table += struct.pack(">IBBH", offset, 0, 0, index)
             offset += len(record)
         return header + table + b"\0\0" + b"".join(records)
+
+
+@dataclass
+class PalmDocBuilder:
+    """The older container: a PalmDB announcing itself `TEXtREAd`, whose
+    record 0 is a bare PalmDOC header with no MOBI header after it. Six
+    books here are this, and foliate will not open one (§8.30). The text
+    is Mobipocket's HTML all the same, stored uncompressed here in
+    4096-byte records as a real one would be cut."""
+    title: str = "A Palm Doc"
+    text: str = "<html><body><p>Words from a PalmDOC.</p></body></html>"
+    # Real ones pad record 0 out past its sixteen bytes with filler.
+    filler: bytes = b"\x0e" * 198
+
+    def build(self, path: Path) -> Path:
+        body = self.text.encode("cp1252")
+        texts = [body[i:i + 4096] for i in range(0, len(body), 4096)]
+        zero = struct.pack(">HHIHHHH", 1, 0, len(body), len(texts),
+                           4096, 0, 0) + self.filler
+        records = [zero, *texts]
+        name = self.title.encode("cp1252")[:31]
+        header = name + b"\0" * (32 - len(name))
+        header += struct.pack(">HHIIIIII", 0, 0, 0, 0, 0, 0, 0, 0)
+        header += b"TEXt" + b"REAd"
+        header += struct.pack(">IIH", 0, 0, len(records))
+        offset = len(header) + 8 * len(records) + 2
+        table = b""
+        for index, record in enumerate(records):
+            table += struct.pack(">IBBH", offset, 0, 0, index)
+            offset += len(record)
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(header + table + b"\0\0" + b"".join(records))
+        return path

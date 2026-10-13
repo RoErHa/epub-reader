@@ -1161,6 +1161,13 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11s &nbsp;A Palm book foliate would not open</h3>
+<p><em>Wintertide</em> answered <em>"File type not supported"</em>. Six PRCs here are the older PalmDB container — <code>TEXtREAd</code>, a bare PalmDOC header and no MOBI header — holding Mobipocket's HTML all the same. The library read them; foliate opens <code>BOOKMOBI</code> only.</p>
+<div class="rule">
+  <span class="eyebrow">Relabelled on the way out, the text never touched</span>
+  <p><code>PalmDoc</code> turns the container into <code>BOOKMOBI</code> and gives record 0 the MOBI header foliate reads; every other record passes byte for byte and the file on disk is never written — a RAR comic's rule (§8.15). A second open costs a header, by <code>W/"mobi1-…"</code>.</p>
+</div>
+
 <h3>6.11r &nbsp;One dead bookmark, and the book would not open</h3>
 <p>Opening a PDF, foliate asks for the page behind every contents entry, and one entry with no page refused the whole book: <em>"The reference does not point to a /Page dictionary."</em> Measured with pdf.js across the library, <strong>87 of 505 PDFs</strong> could not be opened for that reason — mostly a scanner's <code>Local Disk</code> entry with no target and the real chapters beneath it.</p>
 <div class="rule">

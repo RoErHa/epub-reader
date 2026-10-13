@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from epub_annotations import AnnotationError
 from epub_browse import BrowseError
 from epub_caching import Revalidation
+from epub_palmdoc import PalmDoc
 from epub_rar import RarArchive, RarError, repack
 from epub_reading import STATUSES
 from epub_shelves import SMART, ShelfError, ShelfExists
@@ -598,6 +599,18 @@ class ReadingRoutes(Routes):
                 return fresh.answer(
                     Revalidation.weak("cbz1", row["content_hash"]),
                     lambda: self.repacked(path),
+                )
+            if PalmDoc.is_palmdoc(path):
+                # The older Palm container, which foliate refuses: the
+                # same Mobipocket text, relabelled as a MOBI (§8.30).
+                return fresh.answer(
+                    Revalidation.weak("mobi1", row["content_hash"]),
+                    lambda: Response(
+                        content=PalmDoc(path).as_mobi(),
+                        media_type="application/x-mobipocket-ebook",
+                        headers={"Content-Disposition":
+                                 f'inline; filename="{path.stem}.mobi"'},
+                    ),
                 )
             if path.is_dir():
                 # foliate reads a zip, so a book that was never zipped
