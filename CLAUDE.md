@@ -1234,6 +1234,44 @@ apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
 
+### 8.28 A scan drawn as a blank page
+
+**A guitar method opened on 112 white pages.** The file was sound —
+pdfium rendered every page — and so was the download. Every page is one
+image in **JPEG 2000**, and pdf.js decodes that with OpenJPEG, a module
+it loads from the `wasmUrl` it is given. foliate gives it none, and does
+not ship the module either, so each image failed to decode and pdf.js
+drew the page without it. No error reached the screen; only a warning in
+the console.
+
+**17 of 505 PDFs here use JPX**, 11 of them in the Roman history shelf.
+A scan is nothing but its images and goes blank; a book of text with
+JPX plates loses only the plates. JBIG2, in 18 more, was never at risk:
+pdf.js carries a decoder of its own for it and falls back to that.
+
+> **The decoders' address is added on the way in, because foliate's
+> call cannot be reached.** `makePDF` calls `getDocument` with a fixed
+> set of options and the submodule is never edited (§3), so
+> `PdfDecoders` in `static/reader.js` wraps `pdfjsLib.getDocument` —
+> one shared object, so foliate's own call goes through it — and adds
+> `wasmUrl`. It loads pdf.js only when the file is a PDF, as foliate does.
+
+> **The JavaScript build, not the WebAssembly one.** Compiling
+> WebAssembly needs `'wasm-unsafe-eval'` in the CSP, and the CSP is what
+> contains a book's scripts. `useWasm: false` sends pdf.js straight to
+> `openjpeg_nowasm_fallback.js`, plain JavaScript loaded from our own
+> origin, which `script-src 'self'` already allows. A scan opens a moment
+> slower; the policy does not move. The file and its two licences are
+> copied unchanged from `pdfjs-dist@5.5.207`, the version foliate pins,
+> into `static/vendor/pdfjs-decoders/`.
+
+The test library gained a one-page PDF whose page is a red JPEG 2000
+image, and the test reads the **pixel**, not the canvas: a canvas exists
+whether or not anything was drawn on it. White before the fix in both
+engines, red after; verified again by removing the decoder, which turns
+it white. *The Christopher Parkening Guitar Method* then read in WebKit
+on a throwaway instance, contents page and all.
+
 ### 8.27 What language a book is in
 
 **Asked for: a Languages browse, expecting English and Dutch.** Measured
@@ -2213,7 +2251,10 @@ run.sh              start / stop / restart / status / scan / repair / refresh
 com.example.epub-reader.plist           the service itself, KeepAlive so
                     a named bind address can wait for its interface
 com.example.epub-reader.refresh.plist   the weekly author refresh
-static/reader.js    ReaderEngine — THE ONLY importer of foliate-js
+static/reader.js    ReaderEngine — THE ONLY importer of foliate-js;
+                    PdfDecoders — tells pdf.js where JPEG 2000 is decoded
+static/vendor/pdfjs-decoders/  OpenJPEG in plain JavaScript, from
+                    pdfjs-dist 5.5.207 unchanged (§8.28)
 static/app.js       BooksApp, BookList
 tests/              pytest + epub_fixtures.EpubBuilder
 tests/frontend/     Playwright specs
@@ -2742,6 +2783,10 @@ are limits that were weighed and accepted.
   closed list of elements, and indexed for search as their words rather
   than their tags; a search row orphaned by `forget` is dropped on every
   scan (§8.26).
+- **Scanned PDFs drawn blank** — 17 PDFs carry their pictures as JPEG
+  2000, which pdf.js could not decode because foliate never says where
+  the decoder is. It does now, in plain JavaScript so the CSP stays as it
+  was (§8.28).
 - **Browsing by language** — seven spellings of English made one, the
   language read from the words of 653 books that said nothing or said
   wrong, read once and remembered; Dutch is nine books, and five files

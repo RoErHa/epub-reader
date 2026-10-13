@@ -12,6 +12,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+def jpx(colour: tuple[int, int, int] = (220, 30, 30)) -> bytes:
+    """A real JPEG 2000 image, 600 x 800 and one colour. Scanned books
+    use it, and pdf.js needs a decoder foliate does not ship (§8.28)."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (600, 800), colour).save(buffer, "JPEG2000")
+    return buffer.getvalue()
+
+
 @dataclass
 class PdfBuilder:
     title: str | None = "Test PDF"
@@ -25,7 +37,8 @@ class PdfBuilder:
     # A scan of a physical cover: page one is one image and nothing else.
     # `cover_fraction` is how much of the page it covers, so a logo on a
     # title page can be told from a cover.
-    cover: bytes | None = None          # JPEG bytes
+    cover: bytes | None = None          # 600 x 800, JPEG unless...
+    cover_filter: str = "DCTDecode"     # ...JPXDecode, for JPEG 2000
     cover_fraction: float = 1.0
     cover_text: bool = False            # words over the image, e.g. OCR
 
@@ -60,7 +73,7 @@ class PdfBuilder:
         if self.cover is not None:
             add(b"<< /Type /XObject /Subtype /Image /Width 600 /Height 800"
                 b" /ColorSpace /DeviceRGB /BitsPerComponent 8"
-                b" /Filter /DCTDecode /Length "
+                b" /Filter /" + self.cover_filter.encode() + b" /Length "
                 + str(len(self.cover)).encode() + b" >>\nstream\n"
                 + self.cover + b"\nendstream")
         info = self._info()

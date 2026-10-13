@@ -19,6 +19,42 @@ const INK = {
 }
 const DEFAULT_INK = 'yellow'
 
+/* pdf.js decodes JPEG 2000 with OpenJPEG, a module it loads from the
+ * `wasmUrl` it is given — and foliate gives none, so every JPX image
+ * failed and its page was drawn blank. 17 PDFs here carry their pictures
+ * that way, and a scan carries nothing else (§8.28).
+ *
+ * foliate calls getDocument itself, with options we cannot reach, so the
+ * decoders' address is added on the way in. The plain-JavaScript build
+ * rather than the WebAssembly one: compiling WebAssembly would need
+ * 'wasm-unsafe-eval' in the CSP, and a scan opening a moment slower is
+ * not worth loosening the one rule that contains a book's scripts (§3).
+ * JBIG2 has a decoder of its own inside pdf.js and needs nothing. */
+class PdfDecoders {
+  static URL = new URL('/static/vendor/pdfjs-decoders/', location.href).href
+  static #installed = null
+
+  static install () {
+    this.#installed ??= import(
+      '/static/vendor/foliate-js/vendor/pdfjs/pdf.mjs'
+    ).then(() => {
+      const lib = globalThis.pdfjsLib
+      const getDocument = lib.getDocument
+      lib.getDocument = source => getDocument({
+        wasmUrl: PdfDecoders.URL, useWasm: false, ...source
+      })
+    })
+    return this.#installed
+  }
+
+  /** Only a PDF pays for loading pdf.js, as with foliate's own import. */
+  static async isPdf (file) {
+    if (!(file instanceof Blob)) return false
+    const head = await file.slice(0, 5).text()
+    return head === '%PDF-'
+  }
+}
+
 export class ReaderEngine {
   #view = null
   #host = null
@@ -142,6 +178,7 @@ export class ReaderEngine {
       draw(ink.draw, ink.options)
     })
 
+    if (await PdfDecoders.isPdf(url)) await PdfDecoders.install()
     await view.open(url)
     this.#guardRenderer(view.renderer)
 

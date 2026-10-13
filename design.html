@@ -1161,6 +1161,13 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11q &nbsp;A scan drawn as a blank page</h3>
+<p>A guitar method opened on 112 white pages. The file was sound; every page is one <strong>JPEG 2000</strong> image, and pdf.js decodes that with a module it loads from a <code>wasmUrl</code> that foliate never passes and does not ship. Each image failed, and the page was drawn without it. <strong>17 of 505 PDFs</strong> carry JPX — a scan goes blank, a book of text loses its plates.</p>
+<div class="rule">
+  <span class="eyebrow">Added on the way in, and the CSP does not move</span>
+  <p>foliate calls <code>getDocument</code> itself, so <code>PdfDecoders</code> in <code>reader.js</code> wraps it and adds the address. It uses OpenJPEG's plain-JavaScript build, copied unchanged from <code>pdfjs-dist@5.5.207</code>: the WebAssembly one would need <code>'wasm-unsafe-eval'</code>, and the CSP is what contains a book's scripts. A test reads a pixel of a red JPX page — white without the decoder, red with it, in both engines.</p>
+</div>
+
 <h3>6.11p &nbsp;What language a book is in</h3>
 <p>A Languages browse needed data that was not there: no PDF or comic says what language it is in, and English was spelt seven ways — <code>en</code>, <code>EN</code>, <code>eng</code>, <code>en-US</code> and three more. <code>LanguageCode</code> makes it one spelling, and <code>LanguageGuess</code> reads the rest from a book's commonest words, with no dependency and no model.</p>
 <div class="rule">

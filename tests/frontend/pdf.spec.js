@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { openBook, waitForBookFrame } from './helpers.js'
+import { openBook, waitForBookFrame, blobFrame } from './helpers.js'
 
 /* PDF.
  *
@@ -49,6 +49,28 @@ test.describe('a pdf', () => {
         .catch(() => 0),
       { timeout: 20000 }
     ).toBeGreaterThan(0)
+  })
+
+  /* 17 PDFs in the real library carry their pictures as JPEG 2000, and
+   * some are nothing else — a scanned guitar method was 112 blank pages.
+   * pdf.js decodes JPX with a module foliate does not ship and never
+   * tells it where to find, so the image failed and the page was drawn
+   * empty. A canvas existing proves nothing; its pixels do. */
+  test('draws a page that is a JPEG 2000 scan', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, 'Scanned, A - A Jpx Scan.pdf')
+    await expect.poll(async () => {
+      const frame = blobFrame(page)
+      if (!frame) return null
+      return frame.evaluate(() => {
+        const canvas = document.querySelector('canvas')
+        if (!canvas || !canvas.width) return null
+        const [r, g, b] = canvas.getContext('2d').getImageData(
+          canvas.width >> 1, canvas.height >> 1, 1, 1).data
+        return `${r},${g},${b}`
+      }).catch(() => null)
+    }, { timeout: 20000 }).toMatch(/^(2[0-5]\d|1[6-9]\d),([0-6]?\d),([0-6]?\d)$/)
+    // The scan is solid red; a page drawn without it is white.
   })
 
   test('pages forward and back', async ({ page }) => {
