@@ -78,6 +78,10 @@ class EpubBuilder:
     # while the OPF manifest keeps the literal comma. resolveHref() uses
     # decodeURI(), which does not decode %2C, so the lookup misses.
     encode_nav_hrefs: bool = False
+    # A chapter's own markup and stylesheet, for books whose text sizes
+    # itself in ways the reader has to see through (§8.31).
+    body: str | None = None
+    css: str | None = None
 
     SENTINEL = "__epub_script_executed"
 
@@ -101,7 +105,9 @@ class EpubBuilder:
                 f'  <script>window.{self.SENTINEL} = true;</script>\n'
                 f'  <script src="pwn.js"></script>\n'
             )
-        if self.prose is not None:
+        if self.body is not None:
+            body = self.body
+        elif self.prose is not None:
             body = "".join(f"  <p>{self.prose}</p>\n"
                            for _ in range(self.paragraphs_per_chapter))
         else:
@@ -116,7 +122,8 @@ class EpubBuilder:
         return (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<html xmlns="http://www.w3.org/1999/xhtml">\n'
-            f"<head><title>{self.chapter_title(n)}</title></head>\n"
+            f"<head><title>{self.chapter_title(n)}</title>"
+            f"{f'<style>{self.css}</style>' if self.css else ''}</head>\n"
             "<body>\n"
             f"{script}"
             f'  <h1 id="ch{n + 1}">{self.chapter_title(n)}</h1>\n'

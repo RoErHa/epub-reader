@@ -206,6 +206,20 @@ class TestLibrary:
             paragraphs_per_chapter=4,
         ).build_unpacked(self.library / "Never Zipped.epub")
 
+        # Text that sizes itself absolutely, as 36 of the 51 PRCs here do
+        # with <font size> and one EPUB in twenty-five with pt and px —
+        # which a percentage on <body> cannot reach. Nothing but
+        # zoom.spec.js opens it.
+        EpubBuilder(
+            title="Fixed Sizes", author="A Typesetter",
+            css="p.css { font-size: 16px; }",
+            body=('  <p id="css" class="css">Sized in pixels by a stylesheet.</p>\n'
+                  '  <p id="inline" style="font-size: 12pt">Sized in points,'
+                  ' inline.</p>\n'
+                  '  <p><font id="tag" size="3">Sized by a font tag.</font>'
+                  ' <font id="bigger-tag" size="+2">Two steps up.</font></p>\n'),
+        ).build(self.library / "Fixed Sizes.epub")
+
         # PDF: a different rendering model — pdf.js rasterises pages
         # rather than reflowing text, and runs its parser in a worker,
         # which nothing else here does.

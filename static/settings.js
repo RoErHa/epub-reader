@@ -6,6 +6,8 @@
  * the type is a fact about the screen you are reading on.
  */
 
+import { TextScale } from '/static/textscale.js'
+
 export const THEMES = {
   light: { bg: '#FFFFFF', fg: '#151515', link: '#1A5FB4' },
   sepia: { bg: '#F4ECD8', fg: '#3B2F1E', link: '#8A5A15' },
@@ -93,6 +95,7 @@ export class ReaderSettings {
     const theme = THEMES[this.#values.theme] ?? THEMES.dark
     const family = FONTS[this.#values.font]
     return `
+      :root { --reader-scale: ${this.#values.fontSize / 100}; }
       html, body {
         color: ${theme.fg} !important;
         background: ${theme.bg} !important;
@@ -103,6 +106,7 @@ export class ReaderSettings {
       a, a:visited { color: ${theme.link} !important; }
       img, svg, video { max-width: 100% !important; height: auto !important; }
       ::selection { background: ${theme.link}44; }
+      ${TextScale.fontTagRules()}
     `
   }
 
@@ -112,7 +116,10 @@ export class ReaderSettings {
       flow: this.#values.flow,
       margin: ReaderSettings.MARGIN,
       gap: ReaderSettings.GAP,
-      'max-column-count': String(this.#values.columns)
+      'max-column-count': String(this.#values.columns),
+      // A page that is a picture has no font to size, so the same
+      // control zooms it instead (§8.31).
+      'text-scale': String(this.#values.fontSize / 100)
     }
   }
 }

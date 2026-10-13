@@ -6,6 +6,7 @@
  */
 import '/static/vendor/foliate-js/view.js'
 import { Overlayer } from '/static/vendor/foliate-js/overlayer.js'
+import { TextScale } from '/static/textscale.js'
 
 /* How a highlight is drawn. foliate hands us the rectangles and asks
  * what to paint; these are the only colours a mark can be, and the set
@@ -97,6 +98,44 @@ class PdfAdapter {
   }
 }
 
+/* What foliate's fixed-layout renderer does not do for us. */
+class FixedPage {
+  /** A page's own size, read the way foliate reads it: an SVG's viewBox,
+   *  the viewport meta a PDF page carries, or a comic page's image. */
+  static size (doc) {
+    const root = doc?.documentElement
+    if (!root) return null
+    if (root.localName === 'svg') {
+      const [, , w, h] = (root.getAttribute('viewBox') ?? '').split(/[\s,]+/)
+      return FixedPage.#valid(w, h)
+    }
+    const meta = doc.querySelector('meta[name="viewport"]')?.getAttribute('content')
+    if (meta) {
+      const pairs = Object.fromEntries(meta.split(/[,;\s]+/).filter(Boolean)
+        .map(x => x.split('=').map(y => y.trim())))
+      const found = FixedPage.#valid(pairs.width, pairs.height)
+      if (found) return found
+    }
+    const img = doc.querySelector('img')
+    return img ? FixedPage.#valid(img.naturalWidth, img.naturalHeight) : null
+  }
+
+  static #valid (w, h) {
+    const width = parseFloat(w)
+    const height = parseFloat(h)
+    return width > 0 && height > 0 ? { width, height } : null
+  }
+
+  /* foliate centres the page with flex, and centred content wider than
+   * its box overflows on both sides — the left half of a zoomed page
+   * could not be scrolled to. `safe` centres only while it fits. The
+   * shadow root is closed, but a host's own style outranks :host. */
+  static reachable (renderer) {
+    renderer.style.justifyContent = 'safe center'
+    renderer.style.alignItems = 'safe center'
+  }
+}
+
 export class ReaderEngine {
   #view = null
   #host = null
@@ -106,6 +145,7 @@ export class ReaderEngine {
   #listeners = { relocate: [], load: [], selection: [] }
   #marks = new Map()     // cfi → colour, everything drawn on this book
   #resize = null         // follows the pane, so the measure can
+  #page = null           // a fixed-layout page's own size, for zoom
 
   constructor (host) {
     this.#host = host
@@ -203,6 +243,10 @@ export class ReaderEngine {
       index: e.detail.index
     }))
     view.addEventListener('load', e => {
+      // Absolute text sizes follow the size control (§8.31); a fixed
+      // page reports its size so the same control can zoom it.
+      TextScale.apply(e.detail.doc)
+      if (view.isFixedLayout) this.#page = FixedPage.size(e.detail.doc) ?? this.#page
       // Layout attributes could not be applied before a section existed
       // (see #applyAttributes) — the first load is the earliest safe point.
       this.#applyAttributes()
@@ -444,6 +488,9 @@ export class ReaderEngine {
     if (this.#forcedScrolled) attributes.flow = 'scrolled'
     const measure = this.#measure(attributes)
     if (measure) attributes['max-inline-size'] = measure
+    const scale = Number(attributes['text-scale']) || 1
+    delete attributes['text-scale']
+    if (this.#view?.isFixedLayout) attributes.zoom = this.#zoom(scale)
     return attributes
   }
 
@@ -463,6 +510,21 @@ export class ReaderEngine {
     const columns = Math.max(1, Number(count) || 1)
     const spread = flow === 'scrolled' || height > width ? 1 : columns
     return `${Math.floor(width / spread)}px`
+  }
+
+  /* A PDF or a comic is a picture of a page: there is no font to size,
+   * so the size control zooms the page (§8.31). 100% is foliate's own
+   * "fit the page"; anything else is that fit times the setting — so it
+   * is worked out here the way foliate works it out, from the pane and
+   * the page, one page in portrait and two side by side otherwise. */
+  #zoom (scale) {
+    if (scale === 1 || !this.#page) return 'fit-page'
+    const { width, height } = this.#view.renderer.getBoundingClientRect()
+    if (!width || !height) return 'fit-page'
+    const pages = height > width ? 1 : 2
+    const fit = Math.min(width / (this.#page.width * pages),
+      height / this.#page.height)
+    return String(fit * scale)
   }
 
   #applyStyles () {
@@ -513,6 +575,7 @@ export class ReaderEngine {
     // document is null, so applying attributes early throws inside
     // foliate-js. Real books hit this; small fixtures usually did not.
     if (!this.#hasDocument()) return
+    if (this.#view.isFixedLayout) FixedPage.reachable(renderer)
     for (const [name, value] of Object.entries(this.#effectiveAttributes())) {
       if (renderer.getAttribute(name) !== String(value)) {
         renderer.setAttribute(name, value)

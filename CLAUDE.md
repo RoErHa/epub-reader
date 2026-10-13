@@ -259,6 +259,8 @@ Full viewport, paginated by default. Click zones left and right, arrow keys, swi
 
 Controls: font family and size, line height, column count, theme (light / sepia / dark / black), and paginated vs scrolled — the paginator exposes all of these as element attributes, so they are cheap. Position is written back as a CFI on every relocate, debounced. Selecting text offers highlight, note, copy, and search-in-book.
 
+In a PDF or a comic the size control zooms the page instead, since a picture of a page has no font to size (§8.31).
+
 The margins are not a control. The column is sized from the pane and the edges are constants tuned for an iPad in portrait — §8.25 says why a stored margin could never have been changed afterwards.
 
 ## 5. Data model
@@ -1233,6 +1235,56 @@ are better. It also offers *Emperor* for *The Gates of Rome*. The
 apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
+
+### 8.31 A size control that reaches every word
+
+**"Some PDFs and PRCs cannot be zoomed."** The size control set
+`font-size` on `<body>`, which moves text sized *relative to its parent*
+and nothing else. Two kinds of book never noticed.
+
+**Text that sizes itself absolutely.** Measured first: **36 of the 51
+PRCs here** size their text with `<font size="3">`, which the browser
+maps to an absolute keyword — `medium`, 16 px, whatever `<body>` says.
+**13 of 300 EPUBs sampled** do the same with `pt` or `px` in their
+stylesheets. The button moved the number in the panel and not the words.
+
+> **Every absolute size is rewritten once, as itself times a custom
+> property.** `TextScale` walks a section's stylesheets and `style`
+> attributes as it loads and turns `12pt`, `16px`, `1.2rem` and `medium`
+> into `calc(… * var(--reader-scale, 1))`; the reader's own stylesheet
+> sets `--reader-scale`, and maps `<font size>` 1–7 and ±n the same way.
+> At 100% that is the book's own size to the pixel, so nothing moves
+> until asked; after that the control moves it live, without walking
+> the document again. Relative sizes are left alone because they follow
+> `<body>` already — and so is the root's own size, because `<body>` is
+> sized from it and scaling both would scale the words twice.
+
+**A page that is a picture.** A PDF or a comic has no font to size; the
+control did nothing at all. foliate's fixed-layout renderer has a `zoom`
+attribute, and nothing set it.
+
+> **The same control zooms the page.** 100% is foliate's own "fit the
+> page"; anything else is that fit times the setting, worked out the way
+> foliate works it out — from the pane and the page's own size, one page
+> in portrait and two side by side otherwise — so 130% is 130% of what
+> you were looking at. It follows the iPad when it turns.
+
+> **And a zoomed page must be reachable.** foliate centres the page with
+> flex, and centred content wider than its box overflows on *both*
+> sides; what spills to the left cannot be scrolled to. Measured in
+> Chromium, a page twice the pane scrolled to 1.44 of it. `safe center`
+> centres only while the page fits — set on the renderer itself, because
+> its shadow root is closed and a host's own style outranks `:host`.
+> WebKit already laid an overflowing page out from the left.
+
+Tests use a fixture EPUB carrying all four shapes — a stylesheet in px,
+an inline `pt`, `<font size="3">` and `<font size="+2">` — which must
+look as their book meant at 100% and grow 1.3× at 130%; a PDF page must
+grow and shrink with the control and scroll its whole width when larger
+than the pane. Each part was verified by switching it off: the walk, the
+font-tag rules, the zoom and the safe centring each fail their own tests
+and nothing else. A real Xanth novel, sized by `<font>` throughout, went
+from 16.1 px to 24.2 px at 150%.
 
 ### 8.30 A Palm book foliate would not open
 
@@ -2298,6 +2350,8 @@ epub_caching.py     Revalidation — a book the reader already has costs a
 epub_db.py          Database, Migration, MigrationRunner — forward-only
 epub_reading.py     ReadingState, ReadingStateStore — position, server-side
 static/settings.js  ReaderSettings — display prefs, per device
+static/textscale.js TextScale — a book's absolute text sizes made to
+                    follow the size control (§8.31)
 static/annotations.js Annotations — the selection offer and the marks panel
 epub_annotations.py AnnotationStore — highlights and notes, shared
 static/toc.js       TableOfContents
@@ -2860,6 +2914,9 @@ are limits that were weighed and accepted.
 - **PDFs whose contents lead nowhere** — 87 would not open at all,
   because one dead bookmark refused the book. Such an entry is now taken
   out and its sub-entries kept (§8.29).
+- **Text size that reaches every word** — books sizing their own text
+  in pt, px or `<font size>` follow the control, and a PDF or a comic
+  page zooms with it, scrollable edge to edge (§8.31).
 - **PalmDOC books** — 6 PRCs in the older Palm container, which foliate
   refused, are handed over as MOBI with the text untouched (§8.30).
 - **Browsing by language** — seven spellings of English made one, the

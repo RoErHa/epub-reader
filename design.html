@@ -1161,6 +1161,13 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11t &nbsp;A size control that reaches every word</h3>
+<p>The size control set <code>font-size</code> on <code>&lt;body&gt;</code>, which moves only text sized relative to its parent. <strong>36 of 51 PRCs</strong> size theirs with <code>&lt;font size="3"&gt;</code> and about one EPUB in twenty-five with <code>pt</code> or <code>px</code> — absolute, so the button moved the number and not the words. A PDF or a comic has no font at all.</p>
+<div class="rule">
+  <span class="eyebrow">Every absolute size times one custom property; a picture zoomed instead</span>
+  <p><code>TextScale</code> rewrites each absolute size a section declares as <code>calc(… * var(--reader-scale))</code> as it loads, and maps <code>&lt;font size&gt;</code> the same way: the book's own size at 100%, and live after that. A fixed-layout page zooms by foliate's own <code>zoom</code> from its fit, and is centred <code>safe</code>ly so a page wider than the pane can be scrolled to its left edge. Each part fails its own test when switched off; a Xanth novel went from 16.1 px to 24.2 px at 150%.</p>
+</div>
+
 <h3>6.11s &nbsp;A Palm book foliate would not open</h3>
 <p><em>Wintertide</em> answered <em>"File type not supported"</em>. Six PRCs here are the older PalmDB container — <code>TEXtREAd</code>, a bare PalmDOC header and no MOBI header — holding Mobipocket's HTML all the same. The library read them; foliate opens <code>BOOKMOBI</code> only.</p>
 <div class="rule">
