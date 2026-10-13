@@ -1161,11 +1161,18 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 <p>Two files named <code>.cbz</code> are RAR inside, and the error says which rather than "not a comic archive" — the reader can act on the first and not on the second.</p>
 <p><strong>A gap this found:</strong> <code>page_count</code> had been in the schema since M2 and in no code path at all — <code>BookMetadata</code> had no such field, so the page counts M7 read out of PDFs were dropped on the floor. Comics made it obvious, because a comic <em>is</em> its page count.</p>
 
+<h3>6.11r &nbsp;One dead bookmark, and the book would not open</h3>
+<p>Opening a PDF, foliate asks for the page behind every contents entry, and one entry with no page refused the whole book: <em>"The reference does not point to a /Page dictionary."</em> Measured with pdf.js across the library, <strong>87 of 505 PDFs</strong> could not be opened for that reason — mostly a scanner's <code>Local Disk</code> entry with no target and the real chapters beneath it.</p>
+<div class="rule">
+  <span class="eyebrow">What leads nowhere is taken out; what sat beneath it stays</span>
+  <p><code>PdfAdapter</code> keeps the contents to entries whose target is a page, and an entry that is not gives its place to its own children. A test PDF carries all three shapes; it opens, keeps both chapters, and offers neither dead entry — and refuses the book again when the filter is removed.</p>
+</div>
+
 <h3>6.11q &nbsp;A scan drawn as a blank page</h3>
 <p>A guitar method opened on 112 white pages. The file was sound; every page is one <strong>JPEG 2000</strong> image, and pdf.js decodes that with a module it loads from a <code>wasmUrl</code> that foliate never passes and does not ship. Each image failed, and the page was drawn without it. <strong>17 of 505 PDFs</strong> carry JPX — a scan goes blank, a book of text loses its plates.</p>
 <div class="rule">
   <span class="eyebrow">Added on the way in, and the CSP does not move</span>
-  <p>foliate calls <code>getDocument</code> itself, so <code>PdfDecoders</code> in <code>reader.js</code> wraps it and adds the address. It uses OpenJPEG's plain-JavaScript build, copied unchanged from <code>pdfjs-dist@5.5.207</code>: the WebAssembly one would need <code>'wasm-unsafe-eval'</code>, and the CSP is what contains a book's scripts. A test reads a pixel of a red JPX page — white without the decoder, red with it, in both engines.</p>
+  <p>foliate calls <code>getDocument</code> itself, so <code>PdfAdapter</code> in <code>reader.js</code> wraps it and adds the address. It uses OpenJPEG's plain-JavaScript build, copied unchanged from <code>pdfjs-dist@5.5.207</code>: the WebAssembly one would need <code>'wasm-unsafe-eval'</code>, and the CSP is what contains a book's scripts. A test reads a pixel of a red JPX page — white without the decoder, red with it, in both engines.</p>
 </div>
 
 <h3>6.11p &nbsp;What language a book is in</h3>

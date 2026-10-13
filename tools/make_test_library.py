@@ -214,6 +214,12 @@ class TestLibrary:
             cover=jpx(), cover_filter="JPXDecode",
         ).build(self.library / "Scanned, A - A Jpx Scan.pdf")
 
+        # A bookmark that points at something other than a page, as one
+        # real encyclopaedia's does. Nothing but pdf.spec.js opens it.
+        PdfBuilder(
+            title=None, author=None, pages=2, broken_bookmark=True,
+        ).build(self.library / "Marked, A - A Broken Bookmark.pdf")
+
         # Dutch, and saying nothing about it: `und` in its own OPF, as a
         # good part of the real library does. It is Dutch on the shelves
         # only because the startup scan read its words (§8.27).

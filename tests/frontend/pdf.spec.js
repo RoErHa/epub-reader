@@ -73,6 +73,24 @@ test.describe('a pdf', () => {
     // The scan is solid red; a page drawn without it is white.
   })
 
+  /* 87 PDFs here have a contents entry that leads to no page: a scanner's
+   * "Local Disk" with no target, a bookmark aimed at something that is
+   * not a page. foliate asks for the page behind every entry while
+   * opening, and one failure refused the whole book — "The reference
+   * does not point to a /Page dictionary." */
+  test('opens with contents entries that lead nowhere', async ({ page }) => {
+    await page.goto('/')
+    await openBook(page, 'Marked, A - A Broken Bookmark.pdf')
+    await expect(page.locator('#reader-stage')).toHaveAttribute('data-state', 'open')
+    const toc = page.locator('#toc-list')
+    // What leads somewhere stays, including what sat beneath an entry
+    // that did not; what leads nowhere is not offered.
+    await expect(toc).toContainText('Chapter One')
+    await expect(toc).toContainText('Chapter Two')
+    await expect(toc).not.toContainText('Local Disk')
+    await expect(toc).not.toContainText('Title')
+  })
+
   test('pages forward and back', async ({ page }) => {
     await page.goto('/')
     await openBook(page, PDF)

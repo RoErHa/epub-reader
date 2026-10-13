@@ -1234,6 +1234,36 @@ apostrophe is cosmetic and the wrong book is not, so the catalogue
 supplies the **reading** and never the spelling; `file_title` keeps every
 rename reversible, and §8.24's editor is the answer for the rest.
 
+### 8.29 One dead bookmark, and the book would not open
+
+*Encyclopedia of Greco-Roman Mythology* answered **"The reference does
+not point to a /Page dictionary."** Its contents have eleven entries and
+one, `Title`, points at an object that is not a page. Opening a PDF,
+foliate asks for the page behind **every** contents entry (to show which
+chapter you are in), and one entry that has none throws — so the whole
+book was refused.
+
+**Measured with pdf.js itself across the library: 87 of 505 PDFs failed
+that way** — every one of them unopenable. 644 entries have no target
+at all, mostly a scanner's `Local Disk` with the real chapters beneath
+it; 18 point at something that is not a page; 4 are web links.
+
+> **An entry that leads to no page is taken out, and what sat beneath
+> it moves up.** `PdfAdapter` adjusts the document pdf.js hands back
+> before foliate sees it: `getOutline` returns only entries whose target
+> resolves to a page index, and an entry that does not is replaced by
+> its own children, so every chapter that leads somewhere is kept. Not
+> making the target "nothing" instead — foliate reads `dest[0]` itself
+> and would throw on that one, which is how the first attempt at this
+> failed the measurement after passing its test.
+
+The fixture PDF carries all three shapes — an entry aimed at the font, a
+`Local Disk` with no target holding *Chapter Two*, and a good one. The
+test checks it opens and that the contents keep both chapters and offer
+neither dead entry; verified by removing the filter, which refuses the
+book again in both engines. The encyclopaedia and *The Wonderful Wizard
+of Oz* then opened on a throwaway instance.
+
 ### 8.28 A scan drawn as a blank page
 
 **A guitar method opened on 112 white pages.** The file was sound —
@@ -1252,7 +1282,7 @@ pdf.js carries a decoder of its own for it and falls back to that.
 > **The decoders' address is added on the way in, because foliate's
 > call cannot be reached.** `makePDF` calls `getDocument` with a fixed
 > set of options and the submodule is never edited (§3), so
-> `PdfDecoders` in `static/reader.js` wraps `pdfjsLib.getDocument` —
+> `PdfAdapter` in `static/reader.js` wraps `pdfjsLib.getDocument` —
 > one shared object, so foliate's own call goes through it — and adds
 > `wasmUrl`. It loads pdf.js only when the file is a PDF, as foliate does.
 
@@ -2252,7 +2282,8 @@ com.example.epub-reader.plist           the service itself, KeepAlive so
                     a named bind address can wait for its interface
 com.example.epub-reader.refresh.plist   the weekly author refresh
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js;
-                    PdfDecoders — tells pdf.js where JPEG 2000 is decoded
+                    PdfAdapter — where JPEG 2000 is decoded, and a
+                    PDF's contents kept to entries that lead to a page
 static/vendor/pdfjs-decoders/  OpenJPEG in plain JavaScript, from
                     pdfjs-dist 5.5.207 unchanged (§8.28)
 static/app.js       BooksApp, BookList
@@ -2787,6 +2818,9 @@ are limits that were weighed and accepted.
   2000, which pdf.js could not decode because foliate never says where
   the decoder is. It does now, in plain JavaScript so the CSP stays as it
   was (§8.28).
+- **PDFs whose contents lead nowhere** — 87 would not open at all,
+  because one dead bookmark refused the book. Such an entry is now taken
+  out and its sub-entries kept (§8.29).
 - **Browsing by language** — seven spellings of English made one, the
   language read from the words of 653 books that said nothing or said
   wrong, read once and remembered; Dutch is nine books, and five files

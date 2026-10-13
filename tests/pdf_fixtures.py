@@ -41,6 +41,9 @@ class PdfBuilder:
     cover_filter: str = "DCTDecode"     # ...JPXDecode, for JPEG 2000
     cover_fraction: float = 1.0
     cover_text: bool = False            # words over the image, e.g. OCR
+    # Contents with entries that lead nowhere beside ones that do, as
+    # 87 real PDFs here have them (§8.29).
+    broken_bookmark: bool = False
 
     def build(self, path: Path) -> Path:
         objects: list[bytes] = []
@@ -78,6 +81,26 @@ class PdfBuilder:
                 + self.cover + b"\nendstream")
         info = self._info()
         info_id = add(info) if info else None
+        if self.broken_bookmark:
+            # Chapter One → page one; Title → the font, which is not a
+            # page; Local Disk → nothing at all, with Chapter Two (→ the
+            # last page) beneath it, as a scanner leaves them.
+            outlines = len(objects) + 1
+            one, title, disk, two = (outlines + n for n in (1, 2, 3, 4))
+            last = page_ids[-1]
+            add(f"<< /Type /Outlines /First {one} 0 R /Last {disk} 0 R"
+                f" /Count 4 >>".encode())
+            add(f"<< /Title (Chapter One) /Parent {outlines} 0 R"
+                f" /Next {title} 0 R /Dest [{page_ids[0]} 0 R /Fit] >>".encode())
+            add(f"<< /Title (Title) /Parent {outlines} 0 R /Prev {one} 0 R"
+                f" /Next {disk} 0 R /Dest [{font_id} 0 R /Fit] >>".encode())
+            add(f"<< /Title (Local Disk) /Parent {outlines} 0 R"
+                f" /Prev {title} 0 R /First {two} 0 R /Last {two} 0 R"
+                f" /Count 1 >>".encode())
+            add(f"<< /Title (Chapter Two) /Parent {disk} 0 R"
+                f" /Dest [{last} 0 R /Fit] >>".encode())
+            objects[0] = (f"<< /Type /Catalog /Pages 2 0 R"
+                          f" /Outlines {outlines} 0 R >>".encode())
 
         out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
         if self.linearised_junk:

@@ -19,19 +19,30 @@ const INK = {
 }
 const DEFAULT_INK = 'yellow'
 
-/* pdf.js decodes JPEG 2000 with OpenJPEG, a module it loads from the
- * `wasmUrl` it is given — and foliate gives none, so every JPX image
- * failed and its page was drawn blank. 17 PDFs here carry their pictures
- * that way, and a scan carries nothing else (§8.28).
+/* Two things foliate's PDF adapter leaves undone, and foliate calls
+ * getDocument itself with options we cannot reach — so pdf.js is told on
+ * the way in, and the document it hands back is adjusted before foliate
+ * sees it.
  *
- * foliate calls getDocument itself, with options we cannot reach, so the
- * decoders' address is added on the way in. The plain-JavaScript build
- * rather than the WebAssembly one: compiling WebAssembly would need
- * 'wasm-unsafe-eval' in the CSP, and a scan opening a moment slower is
- * not worth loosening the one rule that contains a book's scripts (§3).
- * JBIG2 has a decoder of its own inside pdf.js and needs nothing. */
-class PdfDecoders {
-  static URL = new URL('/static/vendor/pdfjs-decoders/', location.href).href
+ * 1. Where JPEG 2000 is decoded. pdf.js loads OpenJPEG from the
+ *    `wasmUrl` it is given; foliate gives none, so every JPX image
+ *    failed and its page was drawn blank. 17 PDFs here carry their
+ *    pictures that way, and a scan carries nothing else (§8.28). The
+ *    plain-JavaScript build rather than the WebAssembly one: compiling
+ *    WebAssembly would need 'wasm-unsafe-eval' in the CSP, and a scan
+ *    opening a moment slower is not worth loosening the one rule that
+ *    contains a book's scripts (§3). JBIG2 has a decoder of its own
+ *    inside pdf.js and needs nothing.
+ *
+ * 2. Contents entries that lead nowhere. Opening a book asks for the
+ *    page behind every entry, and one that has none — a scanner's
+ *    "Local Disk" with no target, a bookmark aimed at something that is
+ *    not a page — throws, which refused the whole book. 87 PDFs here
+ *    (§8.29). Such an entry is taken out and whatever sat beneath it
+ *    moves up into its place, so everything that leads somewhere stays.
+ */
+class PdfAdapter {
+  static DECODERS = new URL('/static/vendor/pdfjs-decoders/', location.href).href
   static #installed = null
 
   static install () {
@@ -40,11 +51,42 @@ class PdfDecoders {
     ).then(() => {
       const lib = globalThis.pdfjsLib
       const getDocument = lib.getDocument
-      lib.getDocument = source => getDocument({
-        wasmUrl: PdfDecoders.URL, useWasm: false, ...source
-      })
+      lib.getDocument = source => {
+        const task = getDocument({
+          wasmUrl: PdfAdapter.DECODERS, useWasm: false, ...source
+        })
+        // Registered before foliate's own await, so it runs first.
+        task.promise.then(pdf => PdfAdapter.#onlyReachable(pdf), () => {})
+        return task
+      }
     })
     return this.#installed
+  }
+
+  static #onlyReachable (pdf) {
+    const getOutline = pdf.getOutline.bind(pdf)
+    const leadsToPage = async target => {
+      try {
+        const dest = typeof target === 'string'
+          ? await pdf.getDestination(target) : target
+        return Array.isArray(dest) && await pdf.getPageIndex(dest[0]) >= 0
+      } catch {
+        return false
+      }
+    }
+    const keep = async items => {
+      const kept = []
+      for (const item of items ?? []) {
+        const below = await keep(item.items)
+        if (await leadsToPage(item.dest)) kept.push({ ...item, items: below })
+        else kept.push(...below)
+      }
+      return kept
+    }
+    pdf.getOutline = async () => {
+      const outline = await getOutline()
+      return outline && keep(outline)
+    }
   }
 
   /** Only a PDF pays for loading pdf.js, as with foliate's own import. */
@@ -178,7 +220,7 @@ export class ReaderEngine {
       draw(ink.draw, ink.options)
     })
 
-    if (await PdfDecoders.isPdf(url)) await PdfDecoders.install()
+    if (await PdfAdapter.isPdf(url)) await PdfAdapter.install()
     await view.open(url)
     this.#guardRenderer(view.renderer)
 
