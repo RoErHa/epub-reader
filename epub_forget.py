@@ -106,16 +106,34 @@ class ForgetMissing:
 
     @staticmethod
     def summary(report: dict) -> str:
+        """One line of totals, then one per book: a count nobody can act
+        on is not an answer — to put a file back, or decide not to, you
+        need to know which."""
         if not report["would_forget"] and not report["forgotten"]:
             return "Missing books: none — every book in the library is on disk."
         if report["forgotten"]:
             line = f"Missing books: forgot {report['forgotten']}"
             if report["marks"]:
                 line += f", with {report['marks']} highlights"
-            return line + "."
-        line = (f"Missing books: {report['would_forget']} whose files are"
-                " gone")
-        if report["marks"] or report["reading"]:
-            line += (f" — {report['marks']} highlights and"
-                     f" {report['reading']} reading positions would go too")
-        return line + "."
+            head = line + ":"
+        else:
+            head = (f"Missing books: {report['would_forget']} whose files"
+                    " are gone")
+            if report["marks"] or report["reading"]:
+                head += (f" — {report['marks']} highlights and"
+                         f" {report['reading']} reading positions would go"
+                         " too")
+            head += ":"
+        return "\n".join([head, *map(ForgetMissing._book_line,
+                                      report.get("plan", []))])
+
+    @staticmethod
+    def _book_line(book: dict) -> str:
+        line = f"  #{book['id']}  {book['title']}  ({book['path']})"
+        lost = []
+        if book["marks"]:
+            lost.append(f"{book['marks']} highlight"
+                        + ("s" if book["marks"] != 1 else ""))
+        if book["progress"]:
+            lost.append(f"read to {book['progress']:.0%}")
+        return line + (f" — {', '.join(lost)}" if lost else "")

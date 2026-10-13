@@ -508,7 +508,7 @@ The status counts now join through to a **present** book, exactly as the browse 
 
 ### 6.13 A scan notices a deletion; it does not act on one
 
-A vanished book is marked `missing_since` and kept — §5 says it in as many words, "vanished; row never auto-deleted". That is why it leaves the shelves at once while your place in it survives, and it is what makes an unplugged drive a nuisance rather than a disaster. It is also the wrong answer for a book deleted on purpose, so `./run.sh forget` is a separate act. It says what would be lost before losing it, since highlights and reading positions go with the book.
+A vanished book is marked `missing_since` and kept — §5 says it in as many words, "vanished; row never auto-deleted". That is why it leaves the shelves at once while your place in it survives, and it is what makes an unplugged drive a nuisance rather than a disaster. It is also the wrong answer for a book deleted on purpose, so `./run.sh forget` is a separate act. It says what would be lost before losing it, since highlights and reading positions go with the book — **book by book**: id, title, path, and the highlights and progress each one takes with it. It used to give only a count, and "4 whose files are gone" is not something anybody can act on; to put a file back, or decide not to, you need to know which.
 
 > **A whole library that has vanished has not been deleted.** It is on a disk that is not mounted. Above half the library missing, forgetting refuses and says why; `--force` insists.
 

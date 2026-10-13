@@ -128,6 +128,32 @@ class TestForgetting:
         assert plan[0]["title"] == "Book 0"
         assert plan[0]["marks"] == 1
 
+    def test_the_dry_run_names_every_book(self, client, library, gateway,
+                                          forgetter):
+        # "4 whose files are gone" is not something anybody can act on:
+        # to put a file back, or decide not to, you need to know which.
+        shelf(library, gateway)
+        book = next(b for b in client.get("/api/books").json()["books"]
+                    if b["title"] == "Book 1")
+        client.post(f"/api/books/{book['id']}/annotations",
+                    json={"cfi": "epubcfi(/6/4)", "text": "A line.",
+                          "fraction": 0.1})
+        lose(library, gateway, "b0.epub")
+        lose(library, gateway, "b1.epub")
+        text = ForgetMissing.summary(forgetter.run())
+        lines = text.splitlines()
+        assert lines[0].startswith("Missing books: 2 whose files are gone")
+        assert any("Book 0" in line and "b0.epub" in line for line in lines)
+        assert any("Book 1" in line and "b1.epub" in line
+                   and "1 highlight" in line for line in lines)
+
+    def test_applying_names_what_was_forgotten(self, client, library,
+                                               gateway, forgetter):
+        shelf(library, gateway)
+        lose(library, gateway, "b2.epub")
+        text = ForgetMissing.summary(forgetter.run(apply=True))
+        assert "Book 2" in text and "b2.epub" in text
+
     def test_a_library_with_nothing_missing_says_so(self, client, library,
                                                     gateway, forgetter):
         shelf(library, gateway)
