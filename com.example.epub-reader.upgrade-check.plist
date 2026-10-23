@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly toolchain check for epub-reader (CLAUDE.md §10.17).
+
+  Runs upgrade-check.sh → `tools/upgrade.py --check`: what is outdated, what
+  is KNOWN-vulnerable (osv.dev), and what to do about each — DO, DECIDE,
+  WAIT or NOTE. It only REPORTS; applying an upgrade rebuilds the venv and
+  restarts the service, which stays a person's decision. Findings that need
+  you raise a macOS notification; the full report goes to upgrade-check.log.
+
+  Saturday at 05:37. Not on the hour, and after dlna-gateway's own check at
+  05:00, so the two never query Homebrew at the same moment.
+
+  Install:
+    cp com.example.epub-reader.upgrade-check.plist ~/Library/LaunchAgents/
+    # replace /path/to/epub-reader below with the real path first, and the
+    # label with LAUNCHD_LABEL from .env plus ".upgrade-check"
+    launchctl load ~/Library/LaunchAgents/com.example.epub-reader.upgrade-check.plist
+
+  Run it now rather than waiting for Saturday:
+    launchctl kickstart -k gui/$(id -u)/com.example.epub-reader.upgrade-check
+
+  PATH is the only environment set here: brew, npm, npx and python3 live
+  under /opt/homebrew/bin. Everything else comes from .env.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.epub-reader.upgrade-check</string>
+
+    <key>WorkingDirectory</key>
+    <string>/path/to/epub-reader</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/epub-reader/upgrade-check.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>6</integer>
+        <key>Hour</key>
+        <integer>5</integer>
+        <key>Minute</key>
+        <integer>37</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/epub-reader-upgrade-check.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/epub-reader-upgrade-check.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

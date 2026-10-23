@@ -2866,6 +2866,81 @@ tracked file recorded it. Here both arrive together.
 > neither imported nor installed; the library is scanned at every start
 > instead (§8.16). The stack line now says so.
 
+### 10.17 Keeping the toolchain current
+
+Security fixes land upstream all the time — in Python, SQLite, Node, the
+pip and npm packages, and the libraries foliate-js carries inside itself —
+and rarely reach a running app, because upgrading is manual, spans five
+package managers and is scary. `tools/upgrade.py` answers three questions
+on demand: what is this actually built from; what of that is KNOWN to be
+vulnerable (osv.dev); and is the newest version safe for THIS app —
+decided by both suites, with a one-step way back. Ported from
+dlna-gateway-2.0 (its `docs/UPGRADE.md` has how each rule was earned);
+the layers were inventoried here, not copied:
+
+| Layer | What | Upgraded? |
+| --- | --- | --- |
+| Homebrew | `python@3.x` + what `brew deps` says it links (sqlite, openssl@N), and **node**, which really runs here: the UI suite is npm's `@playwright/test` on the Homebrew Node | yes; an "upgrade" that is a DOWNGRADE is held and pinned |
+| pip | a FRESH `.venv`, resolved eagerly → both locks (§10.16) | yes |
+| npm | `@playwright/test` within its major, then its browsers | yes |
+| foliate-js | the pinned submodule, and what IT bundles: pdf.js, zip.js, fflate | **never** — reported only; §3 says update deliberately |
+| macOS | `/usr/bin/bsdtar` (libarchive 3.7.4) unpacks RAR comics: untrusted input | reported; only a macOS update moves it |
+
+```sh
+python3 tools/upgrade.py                  # report, ending in an Attention list
+python3 tools/upgrade.py --python 3.16    # dry run of a Python minor move
+python3 tools/upgrade.py --apply          # upgrade; kept only if BOTH suites pass
+python3 tools/upgrade.py --rollback       # undo the last --apply
+```
+
+Run it with the Homebrew `python3`, never `.venv/bin/python` — the venv is
+what it moves aside. For the same reason it is standard library only and
+reads `.env` itself (`EnvFile`), the one config file, without dotenv.
+
+**The Attention list.** Every report ends by sorting each finding into
+what a person should do: **DO** (safe; `--apply` does it and the suites
+prove it), **DECIDE** (a person's call), **WAIT** (should not be done yet,
+and why), **NOTE** (information).
+
+**`--apply`**: back up the database (SQLite's online backup) → Homebrew →
+MOVE `.venv` and `node_modules` to `UPGRADE_BACKUP_DIR/upgrade-prev` →
+fresh venv + locks → `npm ci`, `@playwright/test`, browsers → pytest →
+Playwright → `./run.sh restart` (launchd-aware, §8.19) → `/healthz`. Any
+failure restores the snapshot and restarts on it; the snapshot stays until
+the next `--apply`, which is what makes `--rollback` possible after a run
+that passed but misbehaves live.
+
+**A Python minor move is dry-run before it is offered**: every installed
+package's latest release is checked on PyPI for a wheel that installs, and
+a package that ships only source is BUILT in a throwaway venv before it is
+called a blocker. (On dlna-gateway, watchdog has no macOS wheel past cp313
+and compiled fine all along — "no wheel" is a risk, not a verdict.)
+
+**Acknowledged advisories.** osv.dev matches by VERSION, and a version
+match can be wrong. The first report here flagged **fflate 0.8.2, inside
+foliate-js: CVE-2026-45820**, an infinite loop in `unzipSync()` on a
+crafted ZIP64 archive — on the decompressor of every book. Read before
+judged: foliate builds that bundle from `export { unzlibSync } from
+'fflate'`, and the shipped `vendor/fflate.js` contains neither `unzipSync`
+nor `z64e`. EPUBs are unzipped by zip.js. So it does not apply — which the
+tool cannot see and a person can. `Acknowledged.RECORD` holds such
+verdicts **with their reason** (a test refuses one without); a finding
+whose advisories are all on it becomes a NOTE quoting why. A NEW advisory
+— even a second one for the same package — still surfaces as DECIDE.
+
+**The weekly check**: `upgrade-check.sh`, run by the
+`<LAUNCHD_LABEL>.upgrade-check` agent (Saturdays 05:37, after
+dlna-gateway's 05:00 so the two never query Homebrew at once), runs
+`--check` into `upgrade-check.log` and posts a notification on a DO, or on
+a DECIDE/WAIT NEW since last week (`UPGRADE_BACKUP_DIR/upgrade-attention.json`).
+An unchanged item stays quiet: a ping that repeats every week trains you
+to ignore it. It never applies.
+
+**The first report (2026-10-23)**: 16 pip packages behind (fastapi
+0.141 → 0.161, **pillow 12.3 with ~60 advisories**, certifi with 2),
+`@playwright/test` 1.62.1 → 1.64.1, foliate-js level with upstream,
+Python 3.15 READY, and the fflate finding above.
+
 ## 11. Conventions
 
 - Match dlna-gateway: vanilla JS, no framework, no build step, one `app.css` with `:root` tokens, one `app.js`
