@@ -3,19 +3,19 @@
 # GENERATED ARTIFACT — do not hand-edit. Regenerate after any dependency
 # change:  .venv/bin/python tools/regen_lock.py
 # Generated 2026-10-23 from the working .venv
-# (Python 3.14.9, Darwin/arm64).
+# (Python 3.15.0, Darwin/arm64).
 #
 # requirements-dev.txt is the SPEC (loose ranges); this is the INSTALL.
 #
 #     .venv/bin/pip install -r requirements-dev.lock
 
 -r requirements.lock
-certifi==2026.7.22
+certifi==2026.10.23
 httpcore==1.0.9
 httpx==0.28.1        # direct
-iniconfig==2.3.0
+iniconfig==2.3.1
 packaging==26.3
-pluggy==1.6.0
-pygments==2.20.0
+pluggy==1.7.0
+pygments==2.21.0
 pytest==9.1.1        # direct
-ruff==0.16.3        # direct
+ruff==0.17.2        # direct

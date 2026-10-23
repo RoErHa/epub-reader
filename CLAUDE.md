@@ -2954,6 +2954,18 @@ to ignore it. It never applies.
 `@playwright/test` 1.62.1 → 1.64.1, foliate-js level with upstream,
 Python 3.15 READY, and the fflate finding above.
 
+**The first `--apply` that kept its result (2026-10-23, `--python 3.15`)**,
+after the two fixes above: both suites passed on Python 3.15.0, and the
+Security badge went *2 open · 1 acknowledged* → *0 open · 1 acknowledged*.
+fastapi 0.141 → 0.161, starlette 1.6 → 1.9, pillow 12.3 → 13.0, pypdfium2
+5.13 → 5.14 (PDFium build 7999 → 8076), @playwright/test 1.62.1 → 1.64.1.
+Checked live afterwards, against the real library rather than fixtures: one
+book of every format served (azw3, cbz, epub, mobi, pdf, prc byte-identical
+to disk; cbr repacked as a zip by design, §8.15, its 25 pages matching
+bsdtar's listing of the RAR); PDFium rendering a real PDF page through
+Pillow 13; a cover served; `PRAGMA integrity_check` ok; tailnet TLS on
+:8770 verified; zero errors logged by the 3.15 process.
+
 ### 10.18 What it is built from, at the top of the README
 
 A version a reader cannot trust is worse than none, so the strip under
