@@ -2904,8 +2904,21 @@ and why), **NOTE** (information).
 
 **`--apply`**: back up the database (SQLite's online backup) → Homebrew →
 MOVE `.venv` and `node_modules` to `UPGRADE_BACKUP_DIR/upgrade-prev` →
-fresh venv + locks → `npm ci`, `@playwright/test`, browsers → pytest →
-Playwright → `./run.sh restart` (launchd-aware, §8.19) → `/healthz`. Any
+fresh venv + locks → `npm ci`, `@playwright/test`, browsers → **the README
+version strip (§10.18)** → pytest → Playwright → `./run.sh restart`
+(launchd-aware, §8.19) → `/healthz`. The order inside the snapshot is
+`Upgrader.GUARDED_STEPS`, and a test holds it: the strip must be rewritten
+BEFORE the suites, because `test_versions.py` checks it against the NEW
+locks. The first real `--apply` (onto Python 3.15) was refused for exactly
+that, with one failing test out of 1,451, and rolled back cleanly. The
+snapshot now restores `README.md` too. The same run exposed a second bug, in the ROLLBACK: the
+upgrade's browser install let Playwright garbage-collect the browsers the
+OLD `@playwright/test` needs (its `node_modules` was moved aside, so
+nothing referenced them), and the restored suite failed every UI test at
+0 ms. A rollback now reinstalls the restored version's browsers
+(`TestRollingBack`). The browser cache (`~/Library/Caches/ms-playwright`)
+is SHARED with dlna-gateway's Python Playwright; after the repair both
+apps' browser sets were present. Any
 failure restores the snapshot and restarts on it; the snapshot stays until
 the next `--apply`, which is what makes `--rollback` possible after a run
 that passed but misbehaves live.

@@ -267,3 +267,52 @@ class TestAcknowledged:
 
     def test_the_real_record_gives_every_entry_a_reason(self):
         assert all(r.strip() for r in Acknowledged.RECORD.values())
+
+
+class TestApplyOrder:
+    """The steps --apply runs inside the snapshot, in order. Found on the
+    first real --apply (2026-10-23): the README strip was rewritten only
+    AFTER the gates, so the pinned-version gate compared the old strip with
+    the new locks and refused every upgrade that moved a pin."""
+
+    def test_the_strip_is_rewritten_before_the_suites_judge_it(self):
+        from tools.upgrade import Upgrader
+
+        steps = Upgrader.GUARDED_STEPS
+        assert steps.index("versions") < steps.index("gates")
+        assert steps.index("venv") < steps.index("versions")
+
+    def test_every_step_has_a_method(self):
+        from tools.upgrade import Upgrader
+
+        missing = [s for s in Upgrader.GUARDED_STEPS if not hasattr(Upgrader, f"_{s}")]
+        assert missing == []
+
+    def test_a_rollback_restores_the_readme_it_rewrote(self):
+        from tools.upgrade import TRACKED_FILES
+
+        assert "README.md" in TRACKED_FILES
+
+
+class TestRollingBack:
+    """Found on the first real --apply (2026-10-23): the upgrade installed
+    new Playwright browsers, Playwright garbage-collected the old ones (the
+    old node_modules was moved aside, so nothing referenced them), and the
+    rollback restored a @playwright/test whose browsers no longer existed —
+    every UI test failed at 0 ms. A rollback must leave both suites able
+    to run."""
+
+    def test_a_rollback_reinstalls_the_restored_browsers(self, monkeypatch):
+        from tools import upgrade
+
+        ran = []
+        up = object.__new__(upgrade.Upgrader)
+        up.snapshot = type("S", (), {"restore": lambda self: ran.append("restore")})()
+        up.service = type("V", (), {"restart": lambda self: ran.append("restart")})()
+        monkeypatch.setattr(upgrade.Shell, "run",
+                            staticmethod(lambda cmd, **kw: ran.append(" ".join(cmd))))
+
+        assert up._roll_back("test") == 1
+        install = "npx playwright install chromium webkit"
+        assert install in ran
+        assert ran.index("restore") < ran.index(install) < ran.index("restart")

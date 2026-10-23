@@ -47,6 +47,7 @@ TRACKED_FILES = [
     "requirements-dev.lock",
     "package.json",
     "package-lock.json",
+    "README.md",  # the version strip, rewritten before the gates
 ]
 TRACKED_DIRS = [".venv", "node_modules"]
 BSDTAR = "/usr/bin/bsdtar"  # epub_rar.BSDTAR; macOS's own, moved only by macOS
@@ -245,34 +246,23 @@ class Upgrader:
             print(f"   ! {line}")
         Brew.upgrade(plan)
 
-        print(
-            f"\n3. Fresh .venv on Python {target}; node_modules aside "
-            f"(previous kept in {self.snapshot.where})"
-        )
+        print(f"\n3. Inside the snapshot (previous kept in {self.snapshot.where})")
         self.snapshot.save()
-        log = self.snapshot.where / "gates.log"
         try:
-            PythonEnv.rebuild(target)
-            print("\n4. npm")
-            _, npm_target, _ = Npm.plan()
-            Shell.run(["npm", "ci"])
-            if npm_target:
-                Npm.upgrade(npm_target)
-            else:
-                Shell.run(["npx", "playwright", "install", "chromium", "webkit"])
-            print("\n5. Both suites")
-            ok = Gates.pass_all(log)
+            ok = all(
+                getattr(self, f"_{step}")(target) is not False
+                for step in self.GUARDED_STEPS
+            )
         except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
             print(f"   ✗ {e}")
             ok = False
 
         if not ok:
             return self._roll_back("Upgrade FAILED")
-        print("\n6. Restart")
+        print("\n4. Restart")
         if not self.service.restart():
             return self._roll_back("Service unhealthy after restart")
         print(f"\nAfter: {PythonEnv.runtime()}")
-        Shell.run([PythonEnv.PY, "tools/versions.py", "--write"], check=False)
         print(
             "\n✓ Upgrade passed both suites. Review and commit:\n"
             "    git diff --stat\n"
@@ -280,15 +270,49 @@ class Upgrader:
         )
         return 0
 
+    # Run in this order inside the snapshot; any failure rolls back all of it.
+    # `versions` must come BEFORE `gates`: tests/test_versions.py checks the
+    # README strip against the NEW locks, so the strip is rewritten first —
+    # the first real --apply was refused for exactly this (2026-10-23).
+    GUARDED_STEPS = ("venv", "npm", "versions", "gates")
+
+    def _venv(self, target: str) -> None:
+        print(f"\n   · fresh .venv on Python {target}")
+        PythonEnv.rebuild(target)
+
+    def _npm(self, target: str) -> None:
+        print("\n   · npm")
+        _, npm_target, _ = Npm.plan()
+        Shell.run(["npm", "ci"])
+        if npm_target:
+            Npm.upgrade(npm_target)
+        else:
+            Shell.run(["npx", "playwright", "install", "chromium", "webkit"])
+
+    def _versions(self, target: str) -> None:
+        print("\n   · README version strip")
+        Shell.run([PythonEnv.PY, "tools/versions.py", "--write"])
+
+    def _gates(self, target: str) -> bool:
+        print("\n   · both suites")
+        return Gates.pass_all(self.snapshot.where / "gates.log")
+
     def _roll_back(self, why: str) -> int:
         print(f"\n✗ {why} — rolling back")
-        self.snapshot.restore()
-        print("   restored .venv, node_modules, both locks, package*.json")
+        self._restore()
         self.service.restart()
         return 1
 
-    def rollback(self) -> int:
+    def _restore(self) -> None:
         self.snapshot.restore()
+        print("   restored .venv, node_modules, both locks, package*.json, README")
+        # The upgrade's browser install let Playwright garbage-collect the
+        # ones the restored @playwright/test needs; without this, every UI
+        # test fails at 0 ms after a rollback (2026-10-23).
+        Shell.run(["npx", "playwright", "install", "chromium", "webkit"], check=False)
+
+    def rollback(self) -> int:
+        self._restore()
         return 0 if self.service.restart() else 1
 
 
