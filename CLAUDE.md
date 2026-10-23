@@ -34,7 +34,7 @@ Because the reading engine is a dependency (§3), it is close to commodity. Effo
 ```
 FastAPI + hypercorn                  same as dlna-gateway
 SQLite + FTS5                        same, incl. unicode61 remove_diacritics
-watchdog                             library folder watching
+                                     (no watchdog: the library is scanned at every start, §8.16)
 Pillow                               cover thumbnails
 static/{index.html,app.css,app.js}   vanilla, no build step, no framework
 static/vendor/foliate-js/            pinned submodule
@@ -2238,7 +2238,7 @@ for the CSP containment test in M0.
 ### Running it
 
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.lock   # exact; see §10.16
 cp .env.example .env            # then set LIBRARY_ROOT
 
 ./run.sh start                  # scan the library, then start in the background
@@ -2837,6 +2837,34 @@ questions wearing the same shape:
 
 Saying so in a comment is the point: an exception nobody wrote down is
 indistinguishable from an oversight.
+
+### 10.16 The exact install: two lock files
+
+`requirements.txt` and `requirements-dev.txt` say what the code NEEDS, in
+loose `>=` ranges. That is a spec, not an install: a fresh clone on a later
+day silently resolves to whatever is newest, and there was no known-good
+set to return to when an upstream release broke something. Two generated
+files are that set:
+
+| File | Holds |
+| --- | --- |
+| `requirements.lock` | the runtime closure of `requirements.txt`, every package `==`-pinned |
+| `requirements-dev.lock` | `-r requirements.lock`, then ONLY what the dev tools add, so one package has one pin |
+
+`tools/regen_lock.py` writes both from the working `.venv`; `--check`
+reports without writing. `tests/test_lock_sync.py` fails when either no
+longer matches what is installed, and SKIPS the dev half when the dev tools
+are not installed, so a runtime-only clone does not go red for lacking
+them. For the same reason the generator refuses to write a dev lock from a
+runtime-only venv: it would write a truncated set and call it exact.
+
+Ported from dlna-gateway-2.0, where the dev lock came last, after an
+upgrade moved certifi (a test tool's dependency of a dependency) and no
+tracked file recorded it. Here both arrive together.
+
+> **Found while writing it:** `watchdog` was listed in §2's stack and is
+> neither imported nor installed; the library is scanned at every start
+> instead (§8.16). The stack line now says so.
 
 ## 11. Conventions
 
