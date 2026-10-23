@@ -285,7 +285,7 @@ static/vendor/foliate-js/            <span class="c">pinned submodule</span></co
 <tr><td>Port</td><td class="num"><strong>8770</strong> — clear of dlna-gateway's 8765 and localfs's 8200</td></tr>
 <tr><td>Database</td><td><code>books.db</code> in the project directory</td></tr>
 <tr><td>Entry point</td><td><code>epub_gateway.py</code></td></tr>
-<tr><td>TLS</td><td>same Tailscale cert host as dlna-gateway, read from <code>.env</code></td></tr>
+<tr><td>TLS</td><td>same Tailscale cert host as dlna-gateway, read from <code>.env</code>. Renewed by dlna-gateway's <code>renew-cert.sh</code>, which restarts this service too, as long as its <code>CERT_RELOAD_LABELS</code> names it; otherwise a renewal leaves this serving the old certificate until it expires.</td></tr>
 </tbody>
 </table>
 </div>

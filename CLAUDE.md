@@ -49,7 +49,7 @@ static/vendor/foliate-js/            pinned submodule
 | Port | **8770** — clear of dlna-gateway's 8765 and localfs's 8200 |
 | Database | `books.db` in the project directory |
 | Entry point | `epub_gateway.py` |
-| TLS | same Tailscale cert host as dlna-gateway, read from `.env` |
+| TLS | same Tailscale cert host as dlna-gateway, read from `.env`. **Renewed by dlna-gateway's `renew-cert.sh`, which restarts this service too**: its `CERT_RELOAD_LABELS` must name this LaunchAgent, or after a renewal this keeps serving the old certificate until it expires (found 2026-10-23; dlna-gateway `FIXES.md`, 15f0922) |
 
 Carried over unchanged: one `app.css` with `:root` tokens, one `app.js` of plain functions, launchd plist, `.env` config, rotating `gateway.log`. The PWA manifest and service worker were listed here too and did not exist until §8.23.
 
