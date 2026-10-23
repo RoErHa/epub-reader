@@ -2941,6 +2941,37 @@ to ignore it. It never applies.
 `@playwright/test` 1.62.1 → 1.64.1, foliate-js level with upstream,
 Python 3.15 READY, and the fflate finding above.
 
+### 10.18 What it is built from, at the top of the README
+
+A version a reader cannot trust is worse than none, so the strip under
+the badges is READ from the software, never typed (`tools/versions.py`):
+
+| Row | Versions | Read from |
+| --- | --- | --- |
+| Runtime | python · sqlite · openssl | the `.venv` interpreter (sqlite and openssl are the Homebrew libraries IT loads) |
+| | fastapi · starlette · hypercorn · pillow · pypdfium2 | `requirements.lock` |
+| | **pdfium** | the build pypdfium2 carries: the engine that actually parses a PDF, whose number is not the wheel's |
+| | **libarchive** | macOS's `/usr/bin/bsdtar`, which unpacks RAR comics (§8.15) |
+| Reader | foliate-js | the submodule commit this repo pins |
+| | pdf.js · zip.js · fflate | what foliate-js's own `package.json` says it bundles |
+| Tooling | node · @playwright/test · ruff | Homebrew Node (the UI suite runs on it), `package-lock.json`, the dev lock |
+| Security | open · acknowledged | osv.dev, the same check as §10.17, `Acknowledged` included |
+
+Two kinds of truth, checked in two places. **PINNED** versions — the locks,
+`package-lock.json`, the submodule — are the same on every clone, and
+`tests/test_versions.py` gates them (shown failing on a hand-staled fflate
+badge). **PLATFORM** versions move with `brew` and with macOS; gating them
+in the suite would turn any clone with another Python red, so
+`tools/upgrade.py` watches them instead: a stale strip is a DO item, and a
+passing `--apply` rewrites it.
+
+The Security badge keeps **acknowledged** apart from **open**: a finding a
+person judged not to apply (§10.17) must neither turn the badge red nor
+disappear. On the day it was added it read *2 open · 1 acknowledged* —
+certifi and pillow, which the first `--apply` fixes — and it is red until
+then, because a green one would have been the lie this strip exists to
+prevent.
+
 ## 11. Conventions
 
 - Match dlna-gateway: vanilla JS, no framework, no build step, one `app.css` with `:root` tokens, one `app.js`

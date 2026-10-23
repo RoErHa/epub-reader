@@ -114,6 +114,15 @@ class Report:
         print(f"  {bsdtar or 'bsdtar not found'}")
 
         self._vulns(have, moves, bundled)
+        stale = Shell.run(
+            [PythonEnv.PY, "tools/versions.py"], check=False, quiet=True
+        ).returncode
+        if stale:
+            a.add(
+                "DO",
+                "README version strip is stale — "
+                "`.venv/bin/python tools/versions.py --write`",
+            )
         if self.snapshot.saved_at():
             a.add(
                 "NOTE",
@@ -263,6 +272,7 @@ class Upgrader:
         if not self.service.restart():
             return self._roll_back("Service unhealthy after restart")
         print(f"\nAfter: {PythonEnv.runtime()}")
+        Shell.run([PythonEnv.PY, "tools/versions.py", "--write"], check=False)
         print(
             "\n✓ Upgrade passed both suites. Review and commit:\n"
             "    git diff --stat\n"
