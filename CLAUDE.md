@@ -2374,6 +2374,7 @@ run.sh              start / stop / restart / status / scan / repair / refresh
 com.example.epub-reader.plist           the service itself, KeepAlive so
                     a named bind address can wait for its interface
 com.example.epub-reader.refresh.plist   the weekly author refresh
+com.example.epub-reader.backup.plist    the weekly books.db snapshot (§10.19)
 static/reader.js    ReaderEngine — THE ONLY importer of foliate-js;
                     PdfAdapter — where JPEG 2000 is decoded, and a
                     PDF's contents kept to entries that lead to a page
@@ -2996,6 +2997,56 @@ disappear. On the day it was added it read *2 open · 1 acknowledged* —
 certifi and pillow, which the first `--apply` fixes — and it is red until
 then, because a green one would have been the lie this strip exists to
 prevent.
+
+### 10.19 The weekly database snapshot
+
+`books.db` holds what no rescan can rebuild: reading positions, annotations,
+shelves and every metadata decision. It is gitignored, so git is no safety
+net, and until 2026-11-06 the only copies were the ones an `--apply` happened
+to take; a check that day found the newest was two weeks old.
+
+`backup-db.sh`, run by the `<LAUNCHD_LABEL>.backup` agent (Sundays 03:47),
+runs `tools/backup_db.py` into `backup-db.log`. Sunday 03:47 is before the
+04:12 author refresh (§6.7), so the snapshot is the state from before it
+rewrites metadata; a test holds that order.
+
+- **SQLite's online backup, not a file copy**: the service writes while it
+  runs, and a copy of a WAL database can miss what is still in the WAL.
+- **Checked before it counts**: `integrity_check` plus at least one book,
+  because an empty library passes `integrity_check` and would then push a
+  good snapshot out of retention. It is named `.part` until it has passed.
+- **Retention runs only after a snapshot has passed**, so a failing run never
+  leaves fewer backups than it found. `BACKUP_KEEP` (8, about two months) in
+  `UPGRADE_BACKUP_DIR`.
+- **Retention matches `books-weekly-*` only.** A pre-upgrade `books-<stamp>.db`
+  in the same folder is a rollback point and is never this job's to delete.
+- **One self-contained file**: journal mode DELETE, because a WAL-mode
+  snapshot cannot be opened read-only without sidecars. The service puts WAL
+  back when it opens the file.
+- **A failure notifies** (fixed text, nothing a run produced goes into
+  AppleScript) and exits non-zero. A success stays quiet.
+
+```sh
+python3 tools/backup_db.py          # take a snapshot now
+python3 tools/backup_db.py --list   # what exists, newest first
+```
+
+Restore is deliberately manual; clobbering a live database should be a
+choice. Stop first, and remove the old sidecars so a stale WAL cannot be
+replayed onto the restored file:
+
+```sh
+./run.sh stop
+rm -f books.db-wal books.db-shm
+cp ~/epub-reader-backups/books-weekly-YYYYMMDD-HHMMSS.db books.db
+./run.sh start
+```
+
+Standard library only, so it still works when the venv does not. Every
+protection above was verified by breaking it and watching
+`tests/test_backup_db.py` fail, including the real script under `/bin/bash`
+in a sandbox with a stub `osascript`. These copies sit on the same disk as
+the database, so they protect against a bad write and not a lost drive.
 
 ## 11. Conventions
 

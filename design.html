@@ -1554,6 +1554,11 @@ Forgotten Realms - Erevis Cale 01 - Paul S. Kemp - Twilight Falling.pdf</code></
 </div>
 
 <div class="rule">
+  <span class="eyebrow">Backup</span>
+  <p><code>tools/backup_db.py</code> snapshots <code>books.db</code> every Sunday at 03:47, before the author refresh: SQLite's online backup, <strong>checked before it counts</strong>, keeping the newest <code>BACKUP_KEEP</code> and never touching what an upgrade saved. A failure raises a notification. CLAUDE.md §10.19.</p>
+</div>
+
+<div class="rule">
   <span class="eyebrow">Toolchain</span>
   <p><code>tools/upgrade.py</code> reports what is outdated and what is <strong>known to be vulnerable</strong> (osv.dev), and ends every report with an Attention list: <em>do</em>, <em>decide</em>, <em>wait</em>, or <em>note</em>. <code>--apply</code> upgrades into a fresh environment that <strong>both suites must pass</strong>, and restores the previous one if they do not. foliate-js and what it bundles are reported, never moved. A weekly check notifies only on something to do, or something new. The README's version strip is read from the software itself, and its Security badge keeps <em>open</em> apart from <em>acknowledged</em>.</p>
 </div>

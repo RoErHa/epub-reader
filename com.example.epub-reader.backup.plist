@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly snapshot of books.db (CLAUDE.md §10.19).
+
+  Runs backup-db.sh → `tools/backup_db.py`: SQLite's online backup, checked
+  before it counts, keeping the newest BACKUP_KEEP in UPGRADE_BACKUP_DIR. A
+  failure raises a macOS notification; every run goes to backup-db.log.
+
+  Sunday at 03:47: before the 04:12 author refresh rewrites metadata, so the
+  snapshot is the state from before it. launchd runs a missed job on wake.
+
+  Install:
+    cp com.example.epub-reader.backup.plist ~/Library/LaunchAgents/
+    # replace /path/to/epub-reader below with the real path first, and the
+    # label with LAUNCHD_LABEL from .env plus ".backup"
+    launchctl load ~/Library/LaunchAgents/com.example.epub-reader.backup.plist
+
+  Run it now rather than waiting for Sunday:
+    launchctl kickstart -k gui/$(id -u)/com.example.epub-reader.backup
+
+  PATH is the only environment set here: python3 lives under
+  /opt/homebrew/bin. Everything else comes from .env.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.epub-reader.backup</string>
+
+    <key>WorkingDirectory</key>
+    <string>/path/to/epub-reader</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/epub-reader/backup-db.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>47</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/epub-reader-backup.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/epub-reader-backup.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
